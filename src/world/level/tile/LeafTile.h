@@ -59,11 +59,9 @@ public:
             return FoliageColor::getDefaultColor();
         }
 
-        level->getBiomeSource()->getBiomeBlock(x, z, 1, 1);
-        float temperature = level->getBiomeSource()->temperatures[0];
-        float rainfall = level->getBiomeSource()->downfalls[0];
-        return FoliageColor::get(temperature, rainfall);
+        return FoliageColor::getSmoothed(level, x, z);
     }
+
 
     void onRemove(Level* level, int x, int y, int z) {
         int r = 1;
@@ -188,10 +186,11 @@ public:
     }
 
     int getTexture(int face, int data) {
-        if ((data & LEAF_TYPE_MASK) == EVERGREEN_LEAF) {
-			return (this == Tile::leaves)?	tex + 5 * 16
-										:	tex -     16;
-        }
+        // This atlas only has two verified leaf tiles in the leaf row:
+        // fancy leaf at oTex and fast/opaque leaf at oTex + 1. Do not offset by
+        // +16/+32 for spruce/birch here: those slots are snow/dirt/trapdoor/etc.
+        // Species separation is handled by getColor() tint until we add verified
+        // dedicated leaf art into safe atlas slots.
         return tex;
     }
 

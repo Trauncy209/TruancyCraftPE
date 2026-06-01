@@ -10,7 +10,7 @@
 
 extern const int VertexSizeBytes;
 
-typedef VertexDeclPTC VERTEX;
+typedef VertexDeclPTCN VERTEX;
 typedef std::map<GLuint, GLsizei> IntGLMap;
 
 
@@ -36,7 +36,6 @@ public:
     void begin(int mode);
 	void draw();
 	RenderChunk end(bool useMine, int bufferId);
-	RenderChunk endClientCopy();
 
 	void color(int c);
 	void color(int c, int alpha);
@@ -49,12 +48,12 @@ public:
 
 	void normal(float x, float y, float z);
 	void voidBeginAndEndCalls(bool doVoid);
-	
+
 	void tex(float u, float v);
-    
+
 	void vertex(float x, float y, float z);
 	void vertexUV(float x, float y, float z, float u, float v);
-	
+
 	void scale2d(float x, float y);
 	void resetScale();
 
@@ -99,7 +98,9 @@ private:
 	float xo, yo, zo;
 	float u, v;
 	unsigned int _color;
-	int _normal;
+//	int _normal; // trying a new thing
+	float _nx, _ny, _nz;
+
 	float _sx, _sy;
 
 	bool hasColor;

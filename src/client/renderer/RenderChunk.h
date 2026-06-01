@@ -17,12 +17,6 @@ public:
 	int id;
 	Vec3 pos;
 
-	// Fallback copy of chunk vertex data for Adreno devices that crash on
-	// retained chunk VBO draws after world reload/rejoin. NULL unless owned.
-	void* clientData;
-	int clientDataBytes;
-	bool ownsClientData;
-
 private:
 	static int runningId;
 };

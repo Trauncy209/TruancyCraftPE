@@ -26,6 +26,7 @@ public:
         bool biomeGrassTint = true,
         bool tallGrassEnabled = true,
         bool betaWorldGeneration = false,
+        bool modernTerrainGeneration = false,
         bool experimentalGameplayFeatures = false)
     :   seed(seed),
         gameType(validateGameType(gameType)),
@@ -38,7 +39,8 @@ public:
         lavaSprings(lavaSprings),
         biomeGrassTint(biomeGrassTint),
         tallGrassEnabled(tallGrassEnabled),
-        betaWorldGeneration(betaWorldGeneration),
+        betaWorldGeneration(betaWorldGeneration && !modernTerrainGeneration),
+        modernTerrainGeneration(modernTerrainGeneration),
         experimentalGameplayFeatures(experimentalGameplayFeatures)
     {
     }
@@ -58,6 +60,7 @@ public:
     bool getBiomeGrassTint() const { return biomeGrassTint; }
     bool getTallGrassEnabled() const { return tallGrassEnabled; }
     bool getBetaWorldGeneration() const { return betaWorldGeneration; }
+    bool getModernTerrainGeneration() const { return modernTerrainGeneration; }
     bool getExperimentalGameplayFeatures() const { return experimentalGameplayFeatures; }
 
 	//
@@ -114,6 +117,7 @@ private:
     const bool biomeGrassTint;
     const bool tallGrassEnabled;
     const bool betaWorldGeneration;
+    const bool modernTerrainGeneration;
     const bool experimentalGameplayFeatures;
 };
 

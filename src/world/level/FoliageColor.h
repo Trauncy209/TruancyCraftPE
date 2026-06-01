@@ -14,13 +14,17 @@ public:
 
     static void init(int* p);
     static int get(float temp, float rain);
+    static int getSmoothed(class LevelSource* level, int x, int z);
+    static int getFast(class LevelSource* level, int x, int z);
 
     static int getEvergreenColor() {
         return 0x2f6f3f;
     }
 
     static int getBirchColor() {
-        return 0x8aaa45;
+        // Muted natural birch green. The previous 0x8aaa45 read too yellow
+        // in-game, especially beside the smoother biome-tinted oak leaves.
+        return 0x6f9148;
     }
 
     static int getDefaultColor() {

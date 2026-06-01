@@ -48,6 +48,10 @@ bool RandomLevelSource::useBetaWorldGeneration() const {
     return level && level->getLevelData() && level->getLevelData()->getBetaWorldGeneration();
 }
 
+bool RandomLevelSource::useModernTerrainGeneration() const {
+    return level && level->getLevelData() && level->getLevelData()->getModernTerrainGeneration();
+}
+
 RandomLevelSource::~RandomLevelSource() {
 
 	// chunks are deleted in the chunk cache instead
@@ -70,8 +74,9 @@ RandomLevelSource::~RandomLevelSource() {
 
 /*public*/
 void RandomLevelSource::prepareHeights(int xOffs, int zOffs, unsigned char* blocks, /*Biome*/void* biomes, float* temperatures) {
-	if (useBetaWorldGeneration() && xOffs == 0 && zOffs == 0) {
-		LOGI("TruancyBetaWorld: flag-only safe generator path at spawn chunk\n");
+	const bool modernTerrainGeneration = useModernTerrainGeneration();
+	if ((useBetaWorldGeneration() || modernTerrainGeneration) && xOffs == 0 && zOffs == 0) {
+		LOGI(modernTerrainGeneration ? "TruancyExtremeTerrain: mountain/cliff generator active at spawn chunk\n" : "TruancyBetaWorld: generator path active at spawn chunk\n");
 	}
 
 	int xChunks = 16 / CHUNK_WIDTH;
@@ -79,7 +84,7 @@ void RandomLevelSource::prepareHeights(int xOffs, int zOffs, unsigned char* bloc
     // Java Beta 1.7.3 uses sea level 64.  The legacy path here used DEPTH-64,
     // which is lower in this fork, so the Beta button now makes oceans/lakes
     // visibly broader without changing Alpha worlds.
-    int waterHeight = betaWorldGeneration ? 64 : (Level::DEPTH - 64);
+    int waterHeight = (betaWorldGeneration || modernTerrainGeneration) ? 64 : (Level::DEPTH - 64);
 
     int xSize = xChunks + 1;
     int ySize = 128 / CHUNK_HEIGHT + 1;
@@ -151,7 +156,8 @@ void RandomLevelSource::prepareHeights(int xOffs, int zOffs, unsigned char* bloc
 
 void RandomLevelSource::buildSurfaces(int xOffs, int zOffs, unsigned char* blocks, Biome** biomes) {
     const bool betaWorldGeneration = useBetaWorldGeneration();
-    int waterHeight = betaWorldGeneration ? 64 : (Level::DEPTH - 64);
+    const bool modernTerrainGeneration = useModernTerrainGeneration();
+    int waterHeight = (betaWorldGeneration || modernTerrainGeneration) ? 64 : (Level::DEPTH - 64);
 
     float s = 1 / 32.0f;
     perlinNoise2.getRegion(sandBuffer, (float)(xOffs * 16), (float)(zOffs * 16), 0, 16, 16, 1, s, s, 1);
@@ -249,10 +255,11 @@ void RandomLevelSource::postProcess(ChunkSource* parent, int xt, int zt) {
 
 	const LevelData* levelData = level->getLevelData();
 	const bool betaWorldGeneration = useBetaWorldGeneration();
-	if (betaWorldGeneration && xt == 0 && zt == 0) {
-		LOGI("TruancyBetaWorld: beta population rules active at spawn chunk\n");
+	const bool modernTerrainGeneration = useModernTerrainGeneration();
+	if ((betaWorldGeneration || modernTerrainGeneration) && xt == 0 && zt == 0) {
+		LOGI(modernTerrainGeneration ? "TruancyExtremeTerrain: population rules active at spawn chunk\n" : "TruancyBetaWorld: beta population rules active at spawn chunk\n");
 	}
-	const bool allowWaterLakes = !levelData || levelData->getWaterLakes();
+	const bool allowWaterLakes = !levelData || levelData->getWaterLakes() || modernTerrainGeneration;
 	const bool allowLavaLakes = levelData && levelData->getLavaLakes();
 	const bool allowWaterSprings = !levelData || levelData->getWaterSprings();
 	const bool allowLavaSprings = !levelData || levelData->getLavaSprings();
@@ -365,11 +372,11 @@ void RandomLevelSource::postProcess(ChunkSource* parent, int xt, int zt) {
     int forests = 0;//1; (java: 0)
     if (random.nextInt(10) == 0) forests += 1;
 
-    if (biome == Biome::forest) forests += oFor + (betaWorldGeneration ? 5 : 2);
-    if (biome == Biome::rainForest) forests += oFor + (betaWorldGeneration ? 5 : 2);
-    if (biome == Biome::seasonalForest) forests += oFor + (betaWorldGeneration ? 2 : 1);
+    if (biome == Biome::forest) forests += oFor + (betaWorldGeneration || modernTerrainGeneration ? 5 : 2);
+    if (biome == Biome::rainForest) forests += oFor + (betaWorldGeneration || modernTerrainGeneration ? 5 : 2);
+    if (biome == Biome::seasonalForest) forests += oFor + (betaWorldGeneration || modernTerrainGeneration ? 2 : 1);
     if (biome == Biome::taiga) {
-		forests += oFor + (betaWorldGeneration ? 5 : 1);
+		forests += oFor + (betaWorldGeneration || modernTerrainGeneration ? 5 : 1);
 		//LOGI("Biome is taiga!\n");
 	}
 
@@ -391,7 +398,7 @@ void RandomLevelSource::postProcess(ChunkSource* parent, int xt, int zt) {
     }
 
 	int yellowFlowerCount = 2;
-	if (betaWorldGeneration) {
+	if (betaWorldGeneration || modernTerrainGeneration) {
 		yellowFlowerCount = 0;
 		if (biome == Biome::forest) yellowFlowerCount = 2;
 		else if (biome == Biome::seasonalForest) yellowFlowerCount = 4;
@@ -431,12 +438,12 @@ void RandomLevelSource::postProcess(ChunkSource* parent, int xt, int zt) {
     }
 
 	int grassCount = 0;
-	if (betaWorldGeneration) {
-		if (biome == Biome::forest) grassCount = 2;
-		else if (biome == Biome::rainForest) grassCount = 10;
-		else if (biome == Biome::seasonalForest) grassCount = 2;
-		else if (biome == Biome::taiga) grassCount = 1;
-		else if (biome == Biome::plains) grassCount = 10;
+	if (betaWorldGeneration || modernTerrainGeneration) {
+		if (biome == Biome::forest) grassCount = modernTerrainGeneration ? 4 : 2;
+		else if (biome == Biome::rainForest) grassCount = modernTerrainGeneration ? 14 : 10;
+		else if (biome == Biome::seasonalForest) grassCount = modernTerrainGeneration ? 4 : 2;
+		else if (biome == Biome::taiga) grassCount = modernTerrainGeneration ? 3 : 1;
+		else if (biome == Biome::plains) grassCount = modernTerrainGeneration ? 14 : 10;
 	} else {
 		if (biome == Biome::forest) grassCount = 3;
 		else if (biome == Biome::rainForest) grassCount = 12;
@@ -473,7 +480,7 @@ void RandomLevelSource::postProcess(ChunkSource* parent, int xt, int zt) {
 
 
 
-	if (betaWorldGeneration && random.nextInt(32) == 0) {
+	if ((betaWorldGeneration || modernTerrainGeneration) && random.nextInt(32) == 0) {
 		int x = xo + random.nextInt(16) + 8;
 		int y = random.nextInt(128);
 		int z = zo + random.nextInt(16) + 8;
@@ -481,7 +488,7 @@ void RandomLevelSource::postProcess(ChunkSource* parent, int xt, int zt) {
 		feature.place(level, &random, x, y, z);
 	}
     int cacti = 0;
-    if (biome == Biome::desert) cacti += betaWorldGeneration ? 10 : 5;
+    if (biome == Biome::desert) cacti += (betaWorldGeneration || modernTerrainGeneration) ? 10 : 5;
 
     for (int i = 0; i < cacti; i++) {
         int x = xo + random.nextInt(16) + 8;
@@ -566,9 +573,10 @@ LevelChunk* RandomLevelSource::getChunk(int xOffs, int zOffs) {
 
 	const LevelData* levelData = level->getLevelData();
 	const bool betaWorldGeneration = useBetaWorldGeneration();
-	if (!levelData || levelData->getCaves() || betaWorldGeneration)
+	const bool modernTerrainGeneration = useModernTerrainGeneration();
+	if (!levelData || levelData->getCaves() || betaWorldGeneration || modernTerrainGeneration)
 		caveFeature.apply(this, level, xOffs, zOffs, blocks, LevelChunk::ChunkBlockCount);
-	if ((levelData && levelData->getRavines()) || betaWorldGeneration)
+	if ((levelData && levelData->getRavines()) || betaWorldGeneration || modernTerrainGeneration)
 		canyonFeature.apply(this, level, xOffs, zOffs, blocks, LevelChunk::ChunkBlockCount);
     levelChunk->recalcHeightmap();
 
@@ -632,9 +640,34 @@ float* RandomLevelSource::getHeights(float* buffer, int x, int y, int z, int xSi
 
             if (scale < 0) scale = 0;
             scale = (scale) + 0.5f;
+			const bool modernTerrainGeneration = useModernTerrainGeneration();
+			if (modernTerrainGeneration) {
+				// Extreme Terrain: keep the stable Beta-like generator, but round off
+				// the earlier squared mountain shelves. Use several existing low-cost
+				// noise fields so peaks are less grid-aligned and cliff height ramps in
+				// instead of jumping to blocky plateaus.
+				float ridge = sr[pp] / 512.0f;
+				if (ridge < 0) ridge = -ridge;
+				float ridgeSoft = ridge * ridge * (3.0f - 2.0f * ridge);
+				float detailA = ar[p] / 1024.0f;
+				float detailB = br[p] / 1024.0f;
+				float roughness = detailA - detailB;
+				if (roughness < 0.0f) roughness = -roughness;
+				float mountain = ridgeSoft * (0.85f + roughness * 0.35f);
+				if (depth > 0.0f) {
+					depth = depth * 1.85f + mountain * 0.92f + (detailA - detailB) * 0.10f;
+					scale = scale * 0.82f + 0.24f + roughness * 0.06f;
+				} else {
+					depth = depth * 0.88f - (1.0f - dd) * 0.08f;
+					scale = scale * 0.95f + 0.04f;
+				}
+				if (depth > 1.85f) depth = 1.85f;
+				if (scale < 0.46f) scale = 0.46f;
+				if (scale > 1.40f) scale = 1.40f;
+			}
             depth = depth * ySize / 16;
 
-            float yCenter = ySize / 2.0f + depth * 4;
+            float yCenter = ySize / 2.0f + depth * (modernTerrainGeneration ? 4.85f : 4.0f);
 
             pp++;
 

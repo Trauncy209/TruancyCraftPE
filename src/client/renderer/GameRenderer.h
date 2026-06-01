@@ -89,13 +89,17 @@ private:
 	float fovOffsetO;
 	float _setupCameraFov;
 
-	// roll modification
-	float cameraRoll;
-	float cameraRollO;
-
+public:
+	// Sky renderer reads the live fog color so the lower sky/horizon band
+	// blends correctly. GameRenderer still owns updates in setupClearColor().
 	float fr;
 	float fg;
 	float fb;
+
+private:
+	// roll modification
+	float cameraRoll;
+	float cameraRollO;
 
 	float fogBrO, fogBr;
 

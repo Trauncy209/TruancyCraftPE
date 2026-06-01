@@ -4,8 +4,10 @@
 #include "../../platform/log.h"
 #include "../Options.h"
 
-// Android should always run OPENGL_ES
-#if defined(ANDROID) || defined(__APPLE__) || defined(RPI)
+// Android should always run OPENGL_ES. The Android NDK build for this fork
+// defines PLATFORM_ANDROID, not necessarily ANDROID, so include both or the
+// the intended Android VBO terrain path silently compiles out.
+#if defined(ANDROID) || defined(PLATFORM_ANDROID) || defined(__APPLE__) || defined(RPI)
     #define OPENGL_ES
 #endif
 
@@ -49,13 +51,13 @@ void anGenBuffers(GLsizei n, GLuint* buffer);
 #ifdef USE_VBO
 #define drawArrayVT_NoState drawArrayVT
 #define drawArrayVTC_NoState drawArrayVTC
-void drawArrayVT(int bufferId, int vertices, int vertexSize = 24, unsigned int mode = GL_TRIANGLES);
+void drawArrayVT(int bufferId, int vertices, int vertexSize = 36, unsigned int mode = GL_TRIANGLES);
 #ifndef drawArrayVT_NoState
-//void drawArrayVT_NoState(int bufferId, int vertices, int vertexSize = 24);
+//void drawArrayVT_NoState(int bufferId, int vertices, int vertexSize = 36);
 #endif
-void drawArrayVTC(int bufferId, int vertices, int vertexSize = 24);
+void drawArrayVTC(int bufferId, int vertices, int vertexSize = 36);
 #ifndef drawArrayVTC_NoState
-void drawArrayVTC_NoState(int bufferId, int vertices, int vertexSize = 24);
+void drawArrayVTC_NoState(int bufferId, int vertices, int vertexSize = 36);
 #endif
 #endif
 

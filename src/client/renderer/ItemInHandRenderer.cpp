@@ -233,7 +233,10 @@ void ItemInHandRenderer::renderItem(Mob* mob,  ItemInstance* item )
 		}
 		mc->textures->loadAndBindTexture(renderObject.texture);
 
-		drawArrayVT_NoState(renderObject.chunk.vboId, renderObject.chunk.vertexCount);
+		if (renderObject.chunk.vboId != 0 && renderObject.chunk.vboId != (GLuint)-1 &&
+			renderObject.chunk.vertexCount > 0 && renderObject.chunk.vertexCount <= 24576) {
+			drawArrayVT_NoState(renderObject.chunk.vboId, renderObject.chunk.vertexCount);
+		}
 		if (renderObject.isFlat)
 			glPopMatrix2();
 	}
@@ -350,6 +353,7 @@ void ItemInHandRenderer::render( float a )
 		glEnableClientState2(GL_VERTEX_ARRAY);
 		glEnableClientState2(GL_TEXTURE_COORD_ARRAY);
 		renderItem(player, item);
+		glBindBuffer2(GL_ARRAY_BUFFER, 0);
 		glDisableClientState2(GL_VERTEX_ARRAY);
 		glDisableClientState2(GL_TEXTURE_COORD_ARRAY);
 		glPopMatrix2();

@@ -29,6 +29,7 @@ std::string Options::getCaption(const Option* item) {
 	if (item == &Option::DESTROY_VIBRATION) return "Vibration";
 	if (item == &Option::PIXELS_PER_MILLIMETER) return "Touch Scale";
 	if (item == &Option::VSYNC) return "VSync";
+	if (item == &Option::DEBUG_TICK_SPEED) return "Debug Tick Speed";
 
 	std::string id = item->getCaptionId();
 	const std::string prefix = "options.";
@@ -79,6 +80,7 @@ void Options::initDefaultValues() {
 	else
 		useTouchScreen = true;
 	pixelsPerMillimeter = 50.0f;
+	debugTickSpeed = 1.0f;
 	//useMouseForDigging = true;
 
 	//skin     = "Default";
@@ -185,7 +187,8 @@ const Options::Option
 	Options::Option::CLASSIC_CONTROLS    (19, "options.classiccontrols", false, true),
 	Options::Option::DESTROY_VIBRATION   (20, "options.destroyvibration", false, true),
 	Options::Option::PIXELS_PER_MILLIMETER(21, "options.pixelspermilimeter", true, false),
-	Options::Option::VSYNC               (22, "options.vsync",             false, true);
+	Options::Option::VSYNC               (22, "options.vsync",             false, true),
+	Options::Option::DEBUG_TICK_SPEED    (23, "options.debugtickspeed",    true, false);
 
 /* private */
 const float Options::SOUND_MIN_VALUE = 0.0f;
@@ -198,6 +201,8 @@ const float Options::FOV_MIN_VALUE = 70.0f;
 const float Options::FOV_MAX_VALUE = 110.0f;
 const float Options::PIXELS_PER_MILLIMETER_MIN_VALUE = 0.0f;
 const float Options::PIXELS_PER_MILLIMETER_MAX_VALUE = 100.0f;
+const float Options::DEBUG_TICK_SPEED_MIN_VALUE = 1.0f;
+const float Options::DEBUG_TICK_SPEED_MAX_VALUE = 20.0f;
 const int DIFFICULY_LEVELS[] = {
 	Difficulty::PEACEFUL,
 	Difficulty::NORMAL
@@ -326,6 +331,12 @@ void Options::update()
 			readBool(value, thirdPersonView);
 		if (key == OptionStrings::Game_HideGui)
 			readBool(value, hideGui);
+		if (key == OptionStrings::Game_DebugTickSpeed) {
+			if (readFloat(value, debugTickSpeed)) {
+				if (debugTickSpeed < DEBUG_TICK_SPEED_MIN_VALUE) debugTickSpeed = DEBUG_TICK_SPEED_MIN_VALUE;
+				if (debugTickSpeed > DEBUG_TICK_SPEED_MAX_VALUE) debugTickSpeed = DEBUG_TICK_SPEED_MAX_VALUE;
+			}
+		}
 		if (key == OptionStrings::Game_DifficultyLevel) {
 			readInt(value, difficulty);
 			// Only support peaceful and normal right now
@@ -391,6 +402,7 @@ void Options::save()
 	addOptionToSaveOutput(stringVec, OptionStrings::Game_DifficultyLevel, difficulty);
 	addOptionToSaveOutput(stringVec, OptionStrings::Game_ThirdPerson, thirdPersonView);
 	addOptionToSaveOutput(stringVec, OptionStrings::Game_HideGui, hideGui);
+	addOptionToSaveOutput(stringVec, OptionStrings::Game_DebugTickSpeed, debugTickSpeed);
 
 	// Input
 	addOptionToSaveOutput(stringVec, OptionStrings::Controls_InvertMouse, invertYMouse);
@@ -502,6 +514,10 @@ std::string Options::getMessage( const Option* item )
 		if (item == &Option::PIXELS_PER_MILLIMETER) {
 			int percent = (int)(clampTouchScale(progressValue) + 0.5f);
 			return caption + std::to_string(percent) + "%";
+		}
+
+		if (item == &Option::DEBUG_TICK_SPEED) {
+			return caption + std::to_string((int)(progressValue + 0.5f)) + "x";
 		}
 
 		if (progressValue <= 0.0f)

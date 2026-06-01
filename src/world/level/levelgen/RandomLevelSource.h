@@ -62,6 +62,7 @@ private:
 	float* getHeights(float* buffer, int x, int y, int z, int xSize, int ySize, int zSize);
 	void calcWaterDepths(ChunkSource* parent, int xt, int zt);
     bool useBetaWorldGeneration() const;
+    bool useModernTerrainGeneration() const;
 
 public:
 	//Biome** biomes;

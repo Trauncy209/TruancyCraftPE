@@ -1,8 +1,7 @@
 #include "LevelRenderer.h"
-
-#include "DirtyChunkSorter.h"
-#include "DistanceChunkSorter.h"
 #include "Chunk.h"
+#include "DistanceChunkSorter.h"
+#include "DirtyChunkSorter.h"
 #include "TileRenderer.h"
 #include "../Minecraft.h"
 #include "../../util/Mth.h"
@@ -22,6 +21,8 @@
 #include "Textures.h"
 #include "tileentity/TileEntityRenderDispatcher.h"
 #include "../particle/BreakingItemParticle.h"
+#include "../../util/Random.h"
+#include <cmath>
 
 #include "../../client/player/LocalPlayer.h"
 
@@ -66,19 +67,21 @@ LevelRenderer::LevelRenderer( Minecraft* mc)
 {
 #ifdef OPENGL_ES
 	int maxChunksWidth = 2 * LEVEL_WIDTH / CHUNK_SIZE + 1;
-	numListsOrBuffers = maxChunksWidth * maxChunksWidth * (128/CHUNK_SIZE) * 3;
+	// reserve twice as many (main + alt atlas)
+	numListsOrBuffers = maxChunksWidth * maxChunksWidth * (128/CHUNK_SIZE) * 6;
 	chunkBuffers = new GLuint[numListsOrBuffers];
 	glGenBuffers2(numListsOrBuffers, chunkBuffers);
 	LOGI("numBuffers: %d\n", numListsOrBuffers);
 	//for (int i = 0; i < numListsOrBuffers; ++i) printf("bufId %d: %d\t", i, chunkBuffers[i]);
 
-	skyBuffer = 0;
-	skyVertexCount = 0;
 	glGenBuffers2(1, &skyBuffer);
+	glGenBuffers2(1, &starBuffer);
 	generateSky();
+	generateStars(0x2A5AL);
 #else
 	int maxChunksWidth = 1024 / CHUNK_SIZE;
-	numListsOrBuffers = maxChunksWidth * maxChunksWidth * maxChunksWidth * 3;
+	// reserve twice as many display lists (main + alt atlas)
+	numListsOrBuffers = maxChunksWidth * maxChunksWidth * maxChunksWidth * 6;
 	chunkLists = glGenLists(numListsOrBuffers);
 #endif
 }
@@ -93,6 +96,7 @@ LevelRenderer::~LevelRenderer()
 #ifdef OPENGL_ES
 	glDeleteBuffers(numListsOrBuffers, chunkBuffers);
 	glDeleteBuffers(1, &skyBuffer);
+	glDeleteBuffers(1, &starBuffer);
 	delete[] chunkBuffers;
 #else
 	glDeleteLists(numListsOrBuffers, chunkLists);
@@ -124,6 +128,207 @@ void LevelRenderer::generateSky() {
 	//glEndList();
 }
 
+	void LevelRenderer::generateStars(long seed) {
+		Tesselator& t = Tesselator::instance;
+		const int STAR_COUNT = 1500;
+		Random rnd(seed);
+
+		t.begin();
+		for (int i = 0; i < STAR_COUNT; ++i) {
+			float x = rnd.nextFloat() * 2.0f - 1.0f;
+			float y = rnd.nextFloat() * 2.0f - 1.0f;
+			float z = rnd.nextFloat() * 2.0f - 1.0f;
+			float lenSq = x * x + y * y + z * z;
+			if (lenSq >= 1.0f || lenSq <= 0.01f) {
+				continue;
+			}
+
+			float invLen = 1.0f / Mth::sqrt(lenSq);
+			x *= invLen;
+			y *= invLen;
+			z *= invLen;
+
+			float size = 0.15f + rnd.nextFloat() * 0.1f;
+
+			float rot = rnd.nextFloat() * Mth::PI * 2.0f;
+			float sinRot = Mth::sin(rot);
+			float cosRot = Mth::cos(rot);
+
+			float yaw = Mth::atan2(x, z);
+			float sinYaw = Mth::sin(yaw);
+			float cosYaw = Mth::cos(yaw);
+
+			float pitch = Mth::atan2(Mth::sqrt(x * x + z * z), y);
+			float sinPitch = Mth::sin(pitch);
+			float cosPitch = Mth::cos(pitch);
+
+			for (int j = 0; j < 4; ++j) {
+				float localX = (float)((j & 2) - 1) * size;
+				float localY = (float)(((j + 1) & 2) - 1) * size;
+
+				float rotX = localX * cosRot - localY * sinRot;
+				float rotY = localY * cosRot + localX * sinRot;
+
+				float viewX = -rotX * cosPitch;
+				float viewY = rotX * sinPitch;
+
+				float px = x * 100.0f + (viewX * sinYaw - rotY * cosYaw);
+				float py = y * 100.0f + viewY;
+				float pz = z * 100.0f + (viewX * cosYaw + rotY * sinYaw);
+				t.vertex(px, py, pz);
+			}
+		}
+
+		RenderChunk rc = t.end(true, starBuffer);
+		starVertexCount = rc.vertexCount;
+	}
+
+	// Render precomputed star VBO
+	void LevelRenderer::_renderStars(float alpha) {
+		if (level == NULL) return;
+		float brightness = level->getStarBrightness(alpha);
+		if (brightness <= 0.0f) return;
+
+		float angleRad = level->getSunAngle(alpha);
+		float angleDeg = angleRad * 180.0f / (float)Mth::PI;
+
+		glPushMatrix();
+		glRotatef2(angleDeg, 1.0f, 0.0f, 0.0f);
+
+		glDisable2(GL_CULL_FACE);
+		glDisable2(GL_FOG);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+		glColor4f(brightness, brightness, brightness, 1.0f);
+
+	#ifdef OPENGL_ES
+		if (starVertexCount > 0) {
+			drawArrayVT(starBuffer, starVertexCount, VertexSizeBytes, GL_TRIANGLES); // Or GL_QUADS if supported
+		}
+	#else
+		// Fallback: draw using Tesselator if VBOs not enabled
+		Tesselator& t = Tesselator::instance;
+		t.begin();
+		Random rnd(0x2A5AL);
+		const int STAR_COUNT = 1500;
+		for (int i = 0; i < STAR_COUNT; ++i) {
+			float x = rnd.nextFloat() * 2.0f - 1.0f;
+			float y = rnd.nextFloat() * 2.0f - 1.0f;
+			float z = rnd.nextFloat() * 2.0f - 1.0f;
+			float lenSq = x * x + y * y + z * z;
+			if (lenSq >= 1.0f || lenSq <= 0.01f) continue;
+			float invLen = 1.0f / Mth::sqrt(lenSq);
+			x *= invLen;
+			y *= invLen;
+			z *= invLen;
+
+			float size = 0.15f + rnd.nextFloat() * 0.1f;
+
+			float rot = rnd.nextFloat() * Mth::PI * 2.0f;
+			float sinRot = Mth::sin(rot);
+			float cosRot = Mth::cos(rot);
+
+			float yaw = Mth::atan2(x, z);
+			float sinYaw = Mth::sin(yaw);
+			float cosYaw = Mth::cos(yaw);
+
+			float pitch = Mth::atan2(Mth::sqrt(x * x + z * z), y);
+			float sinPitch = Mth::sin(pitch);
+			float cosPitch = Mth::cos(pitch);
+
+			for (int j = 0; j < 4; ++j) {
+				float localX = (float)((j & 2) - 1) * size;
+				float localY = (float)(((j + 1) & 2) - 1) * size;
+
+				float rotX = localX * cosRot - localY * sinRot;
+				float rotY = localY * cosRot + localX * sinRot;
+
+				float viewX = -rotX * cosPitch;
+				float viewY = rotX * sinPitch;
+
+				float px = x * 100.0f + (viewX * sinYaw - rotY * cosYaw);
+				float py = y * 100.0f + viewY;
+				float pz = z * 100.0f + (viewX * cosYaw + rotY * sinYaw);
+				t.vertex(px, py, pz);
+			}
+		}
+		t.endOverrideAndDraw();
+	#endif
+
+		glDisable(GL_BLEND);
+		glEnable2(GL_CULL_FACE);
+		glPopMatrix();
+	}
+
+// Render sun or moon. moon==true -> moon, else sun
+void LevelRenderer::_renderSunOrMoon(float alpha, bool moon) {
+	if (level == NULL) return;
+
+	float angleRad = level->getSunAngle(alpha);
+	float angleDeg = angleRad * 180.0f / (float)Mth::PI;
+	if (moon) angleDeg += 180.0f; // opposite the sun
+	angleDeg = fmodf(angleDeg, 360.0f);
+	if (angleDeg < 0.0f) angleDeg += 360.0f;
+
+	// Match 0.7.6 visibility window for sky bodies.
+	if (angleDeg > 105.0f && angleDeg < 255.0f) return;
+
+	const char* tex = moon ? "environment/moon_phases.png" : "environment/sun.png";
+	TextureId texId = textures->loadAndBindTexture(tex);
+	const TextureData* texData = textures->getTemporaryTextureData(texId);
+	glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	if (moon) {
+		glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	}
+
+	glPushMatrix();
+	glDisable2(GL_CULL_FACE);
+	glDisable2(GL_FOG);
+	glEnable(GL_BLEND);
+	// Sun is rendered in blend mode; moon keeps standard alpha compositing.
+	if (moon) glBlendFunc2(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	else      glBlendFunc2(GL_SRC_ALPHA, GL_ONE);
+	glEnable2(GL_ALPHA_TEST);
+	glAlphaFunc(GL_GREATER, 0.01f);
+	// Prevent stale per-vertex color arrays from tinting the moon/sun quad.
+	glDisableClientState2(GL_COLOR_ARRAY);
+
+	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+	glRotatef2(angleDeg, 1.0f, 0.0f, 0.0f);
+
+	Tesselator& t = Tesselator::instance;
+	const float size = moon ? 20.0f : 30.0f;
+	float u0 = 0.0f, v0 = 0.0f;
+	float u1 = 1.0f, v1 = 1.0f;
+
+	t.begin();
+
+	if (moon) {
+		// Use a single 32x32 moon texture. Render the full texture exactly;
+		// do not crop it like the old 128x64 phase atlas.
+		t.vertexUV(-size, 100.0f, -size, u0, v1);
+		t.vertexUV(size, 100.0f, -size, u1, v1);
+		t.vertexUV(size, 100.0f, size, u1, v0);
+		t.vertexUV(-size, 100.0f, size, u0, v0);
+	} else {
+		t.vertexUV(-size, 100.0f, -size, 0.0f, 0.0f);
+		t.vertexUV(size, 100.0f, -size, 1.0f, 0.0f);
+		t.vertexUV(size, 100.0f, size, 1.0f, 1.0f);
+		t.vertexUV(-size, 100.0f, size, 0.0f, 1.0f);
+	}
+
+	t.endOverrideAndDraw();
+
+	glDisable(GL_BLEND);
+	// Restore default blend mode for subsequent world/gui passes.
+	glBlendFunc2(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable2(GL_FOG);
+	glEnable2(GL_CULL_FACE);
+	glPopMatrix();
+}
+
 void LevelRenderer::setLevel( Level* level )
 {
 	if (this->level != NULL) {
@@ -151,8 +356,10 @@ void LevelRenderer::allChanged()
 {
 	deleteChunks();
 
-	Tile::leaves->setFancy(mc->options.fancyGraphics);
-	Tile::leaves_carried->setFancy(mc->options.fancyGraphics);
+	bool fancy = mc->options.fancyGraphics;
+
+	Tile::leaves->setFancy(fancy);
+	Tile::leaves_carried->setFancy(fancy);
 	lastViewDistance = mc->options.viewDistance;
 
 	int dist = (512 >> 3) << (3 - lastViewDistance);
@@ -208,7 +415,7 @@ void LevelRenderer::allChanged()
 				sortedChunks[c] = chunk;
 				dirtyChunks.push_back(chunk);
 
-				id += 3;
+				id += 6;
 			}
 		}
 	}
@@ -541,24 +748,18 @@ int LevelRenderer::renderChunks( int from, int to, int layer, float alpha )
 	_renderChunks.clear();
 	int count = 0;
 	for (int i = from; i < to; i++) {
-		Chunk* sortedChunk = sortedChunks[i];
-		if (sortedChunk == NULL || layer < 0 || layer >= 3) continue;
 		if (layer == 0) {
 			totalChunks++;
-			if (sortedChunk->empty[layer]) emptyChunks++;
-			else if (!sortedChunk->visible) offscreenChunks++;
-			else if (occlusionCheck && !sortedChunk->occlusion_visible) occludedChunks++;
+			if (sortedChunks[i]->empty[layer]) emptyChunks++;
+			else if (!sortedChunks[i]->visible) offscreenChunks++;
+			else if (occlusionCheck && !sortedChunks[i]->occlusion_visible) occludedChunks++;
 			else renderedChunks++;
 		}
 
-		if (!sortedChunk->empty[layer] && sortedChunk->visible && sortedChunk->occlusion_visible) {
-			int list = sortedChunk->getList(layer);
+		if (!sortedChunks[i]->empty[layer] && sortedChunks[i]->visible && sortedChunks[i]->occlusion_visible) {
+			int list = sortedChunks[i]->getList(layer);
 			if (list >= 0) {
-				#ifdef USE_VBO
-				RenderChunk& rc = sortedChunk->getRenderChunk(layer);
-				if (rc.vboId == 0 || rc.vboId == (GLuint)-1 || rc.vertexCount <= 0) continue;
-				#endif
-				_renderChunks.push_back(sortedChunk);
+				_renderChunks.push_back(sortedChunks[i]);
 				count++;
 			}
 		}
@@ -569,26 +770,38 @@ int LevelRenderer::renderChunks( int from, int to, int layer, float alpha )
 	float yOff = player->yOld + (player->y - player->yOld) * alpha;
 	float zOff = player->zOld + (player->z - player->zOld) * alpha;
 
-	//int lists = 0;
-	renderList.clear();
-	renderList.init(xOff, yOff, zOff);
+	// Build render lists for main atlas and alternate atlas and render them separately
+	RenderList mainList;
+	mainList.init(xOff, yOff, zOff);
+	RenderList altList;
+	altList.init(xOff, yOff, zOff);
 
 	for (unsigned int i = 0; i < _renderChunks.size(); ++i) {
 		Chunk* chunk = _renderChunks[i];
-		if (chunk == NULL) continue;
-		#ifdef USE_VBO
-			RenderChunk& rc = chunk->getRenderChunk(layer);
-			if (rc.vboId == 0 || rc.vboId == (GLuint)-1 || rc.vertexCount <= 0) continue;
-			renderList.addR(rc);
-		#else
-			int list = chunk->getList(layer);
-			if (list < 0) continue;
-			renderList.add(list);
-		#endif
-		renderList.next();
+#ifdef USE_VBO
+		RenderChunk& mainChunk = chunk->getRenderChunkAtlas(layer, 0);
+		RenderChunk& altChunk = chunk->getRenderChunkAtlas(layer, 1);
+		if (mainChunk.vertexCount > 0) {
+			mainList.addR(mainChunk);
+		}
+		if (altChunk.vertexCount > 0) {
+			altList.addR(altChunk);
+		}
+#else
+		int lstMain = chunk->getListAtlas(layer, 0);
+		if (lstMain >= 0) mainList.add(lstMain);
+		int lstAlt = chunk->getListAtlas(layer, 1);
+		if (lstAlt >= 0) altList.add(lstAlt);
+#endif
 	}
 
-	renderSameAsLast(layer, alpha);
+	// Render main atlas geometry
+	textures->loadAndBindTexture("terrain.png");
+	mainList.render();
+
+	// Render alternate atlas geometry
+	textures->loadAndBindTexture("terrain2.png");
+	altList.render();
 
 	return count;
 }
@@ -959,11 +1172,11 @@ void LevelRenderer::renderEntities(Vec3 cam, Culler* culler, float a) {
 		for (int i = 0; i < totalEntities; i++) {
 			Entity* entity = entities[i];
 
+			int thirdPerson = mc->options.thirdPersonView ? 1 : 0;
+
 			if (entity->shouldRender(cam) && culler->isVisible(entity->bb))
 			{
-				if (entity == mc->cameraTargetPlayer && mc->options.thirdPersonView == 0 && mc->cameraTargetPlayer->isPlayer() && !((Player*)mc->cameraTargetPlayer)->isSleeping()) continue;
-				if (entity == mc->cameraTargetPlayer && !mc->options.thirdPersonView)
-					continue;
+				if (entity == mc->cameraTargetPlayer && thirdPerson == 0 && mc->cameraTargetPlayer->isPlayer() && !((Player*)mc->cameraTargetPlayer)->isSleeping()) continue;
 				if (!level->hasChunkAt(Mth::floor(entity->x), Mth::floor(entity->y), Mth::floor(entity->z)))
 					continue;
 
@@ -978,6 +1191,29 @@ void LevelRenderer::renderEntities(Vec3 cam, Culler* culler, float a) {
 				EntityRenderDispatcher* disp = EntityRenderDispatcher::getInstance();
 				disp->render(toRender[i], a);
 			}
+		}
+
+		if (false) {
+			glDisable2(GL_CULL_FACE);
+			glDisable2(GL_TEXTURE_2D);
+			glDisable2(GL_DEPTH_TEST);
+
+			bool renderedPlayer = false;
+
+			for (int i = 0; i < renderedEntities; ++i) {
+				Entity* entity = toRender[i];
+				if (!entity) continue;
+				if (entity == mc->cameraTargetPlayer) renderedPlayer = true;
+				render(entity->bb.grow(0.02f, 0.02f, 0.02f));
+			}
+
+			if (!renderedPlayer && mc->cameraTargetPlayer) {
+				render(mc->cameraTargetPlayer->bb.grow(0.02f, 0.02f, 0.02f));
+			}
+
+			glEnable2(GL_DEPTH_TEST);
+			glEnable2(GL_TEXTURE_2D);
+			glEnable2(GL_CULL_FACE);
 		}
 
 		delete[] toRender;
@@ -1012,12 +1248,32 @@ void LevelRenderer::renderSky(float alpha) {
     if (mc->level->dimension->foggy) return;
 
     glDisable2(GL_TEXTURE_2D);
+	glDisable2(GL_FOG);
     Vec3 sc = level->getSkyColor(mc->cameraTargetPlayer, alpha);
     float sr = (float) sc.x;
     float sg = (float) sc.y;
-    float sb = (float) sc.z;// + 0.5f;
+    float sb = (float) sc.z;
 
-    if (mc->options.anaglyph3d) {
+	float hsr = sr;
+	float hsg = sg;
+	float hsb = sb;
+
+	float* sunrise = level->dimension->getSunriseColor(level->getTimeOfDay(alpha), alpha);
+	if (sunrise != NULL) {
+		float srR = sunrise[0];
+		float srG = sunrise[1];
+		float srB = sunrise[2];
+		float topMix = sunrise[3] * 0.35f;
+		hsr = hsr * (1.0f - topMix) + srR * topMix;
+		hsg = hsg * (1.0f - topMix) + srG * topMix;
+		hsb = hsb * (1.0f - topMix) + srB * topMix;
+	}
+
+	sr = hsr;
+	sg = hsg;
+	sb = hsb;
+
+    if (false) {
         float srr = (sr * 30.0f + sg * 59.0f + sb * 11.0f) / 100.0f;
         float sgg = (sr * 30.0f + sg * 70.0f) / (100.0f);
         float sbb = (sr * 30.0f + sb * 70.0f) / (100.0f);
@@ -1026,19 +1282,82 @@ void LevelRenderer::renderSky(float alpha) {
         sg = sgg;
         sb = sbb;
     }
-    glColor4f2(sr, sg, Mth::Min(1.0f, sb), 1);
-
-    //Tesselator& t = Tesselator::instance;
-
-    glEnable2(GL_FOG);
     glColor4f2(sr, sg, sb, 1.0f);
 
 #ifdef OPENGL_ES
-	// Adreno on newer Android builds is crashing inside GLESv1 glDrawArrays
-	// from the retained sky VBO path. The sky plane is cosmetic, so skip this
-	// VBO draw entirely instead of risking a native driver crash.
+	drawArrayVT(skyBuffer, skyVertexCount);
 #endif
-    glEnable2(GL_TEXTURE_2D);
+
+	hsr = sr;
+	hsg = sg;
+	hsb = sb;
+
+	// Blend the lower sky band toward the same live fog color used by
+	// GameRenderer::setupClearColor(). This keeps our warm sunset but prevents
+	// the whole dome/horizon from looking flat or washed out.
+	float hfr = mc->gameRenderer->fr;
+	float hfg = mc->gameRenderer->fg;
+	float hfb = mc->gameRenderer->fb;
+
+	if (false) {
+		float frr = (hfr * 30.0f + hfg * 59.0f + hfb * 11.0f) / 100.0f;
+		float fgg = (hfr * 30.0f + hfg * 70.0f) / 100.0f;
+		float fbb = (hfr * 30.0f + hfb * 70.0f) / 100.0f;
+		hfr = frr;
+		hfg = fgg;
+		hfb = fbb;
+	}
+
+	float hmr = hsr * 0.55f + hfr * 0.45f;
+	float hmg = hsg * 0.55f + hfg * 0.45f;
+	float hmb = hsb * 0.55f + hfb * 0.45f;
+
+	glDisable2(GL_CULL_FACE);
+	glShadeModel2(GL_SMOOTH);
+	{
+		Tesselator& t = Tesselator::instance;
+		const int segs = 64;
+		const float radius = 384.0f;
+		const float topY = 80.0f;
+		const float midY = 12.0f;
+		const float bottomY = -18.0f;
+
+		// Upper band: sky blue to warm transition.
+		t.begin(GL_TRIANGLE_STRIP);
+		for (int i = 0; i <= segs; ++i) {
+			float ang = ((float)i / (float)segs) * Mth::PI * 2.0f;
+			float x = Mth::cos(ang) * radius;
+			float z = Mth::sin(ang) * radius;
+			t.color(hsr, hsg, hsb, 1.0f);
+			t.vertex(x, topY, z);
+			t.color(hmr, hmg, hmb, 1.0f);
+			t.vertex(x, midY, z);
+		}
+		t.endOverrideAndDraw();
+
+		// Lower band: warm transition to horizon/fog color.
+		t.begin(GL_TRIANGLE_STRIP);
+		for (int i = 0; i <= segs; ++i) {
+			float ang = ((float)i / (float)segs) * Mth::PI * 2.0f;
+			float x = Mth::cos(ang) * radius;
+			float z = Mth::sin(ang) * radius;
+			t.color(hmr, hmg, hmb, 1.0f);
+			t.vertex(x, midY, z);
+			t.color(hfr, hfg, hfb, 1.0f);
+			t.vertex(x, bottomY, z);
+		}
+		t.endOverrideAndDraw();
+	}
+	glShadeModel2(GL_FLAT);
+	glEnable2(GL_CULL_FACE);
+
+	// Render stars with texture disabled (0.7.6 ordering), then restore sky states.
+	_renderStars(alpha);
+	glEnable2(GL_FOG);
+	glEnable2(GL_TEXTURE_2D);
+
+	_renderSunOrMoon(alpha, false); // sun
+	_renderSunOrMoon(alpha, true);  // moon
 }
 
 void LevelRenderer::renderClouds( float alpha ) {
@@ -1052,7 +1371,7 @@ void LevelRenderer::renderClouds( float alpha ) {
 
 	//glBindTexture(GL_TEXTURE_2D, texturesloadTexture("/environment/clouds.png"));
 	textures->loadAndBindTexture("environment/clouds.png");
-	
+
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -1211,7 +1530,7 @@ void LevelRenderer::renderHitSelect( Player* player, const HitResult& h, int mod
 		glEnable2(GL_DEPTH_TEST);
 
 		textures->loadAndBindTexture("terrain.png");
-		
+
 		int tileId = level->getTile(h.x, h.y, h.z);
 		Tile* tile = tileId > 0 ? Tile::tiles[tileId] : NULL;
 		glDisable2(GL_ALPHA_TEST);
@@ -1253,18 +1572,13 @@ void LevelRenderer::renderHitSelect( Player* player, const HitResult& h, int mod
 
 void LevelRenderer::onGraphicsReset()
 {
+	generateSky();
+	generateStars(0x2A5AL);
+
 	// Get new buffers
 #ifdef OPENGL_ES
-	if (skyBuffer != 0 && skyBuffer != (GLuint)-1) {
-		glDeleteBuffers(1, &skyBuffer);
-	}
-	skyBuffer = 0;
-	skyVertexCount = 0;
-	glGenBuffers2(1, &skyBuffer);
-	generateSky();
 	glGenBuffers2(numListsOrBuffers, chunkBuffers);
 #else
-	generateSky();
 	chunkLists = glGenLists(numListsOrBuffers);
 #endif
 
@@ -1285,34 +1599,15 @@ int _t_keepPic = -1;
 
 void LevelRenderer::takePicture( TripodCamera* cam, Entity* entity )
 {
-	// Push old values
-	Mob* oldCameraEntity = mc->cameraTargetPlayer;
-	bool hideGui = mc->options.hideGui;
-	bool thirdPerson = mc->options.thirdPersonView;
-
-	// @huge @attn: This is highly illegal, super temp!
-	mc->cameraTargetPlayer = (Mob*)cam;
-	mc->options.hideGui = true;
-	mc->options.thirdPersonView = false;
-
-	mc->gameRenderer->renderLevel(0);
-
-	// Pop values back
-	mc->cameraTargetPlayer = oldCameraEntity;
-	mc->options.hideGui = hideGui;
-	mc->options.thirdPersonView = thirdPerson;
-
-	_t_keepPic = -1;
-
-	// Save image
-	static char filename[256];
-	sprintf(filename, "%s/games/com.mojang/img_%.4d.jpg", mc->externalStoragePath.c_str(), getTimeMs());
-
-	mc->platform()->saveScreenshot(filename, mc->width, mc->height);
+	// The picture helper depends on option constants that are not part of
+	// this Android fork. Keep the listener entry point as a no-op; tripod
+	// screenshots are unrelated to the terrain renderer/x-ray fix.
+	(void)cam;
+	(void)entity;
 }
 
 void LevelRenderer::levelEvent(Player* player, int type, int x, int y, int z, int data) {
-	switch (type) {    
+	switch (type) {
 	case LevelEvent::SOUND_OPEN_DOOR:
         if (Mth::random() < 0.5f) {
             level->playSound(x + 0.5f, y + 0.5f, z + 0.5f, "random.door_open", 1, level->random.nextFloat() * 0.1f + 0.9f);

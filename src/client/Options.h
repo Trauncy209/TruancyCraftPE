@@ -51,6 +51,7 @@ public:
 
 		static const Option PIXELS_PER_MILLIMETER;
 		static const Option VSYNC;
+		static const Option DEBUG_TICK_SPEED;
 
 		/*
         static Option* getItem(int id) {
@@ -104,6 +105,8 @@ private:
 	static const float FOV_MAX_VALUE;
 	static const float PIXELS_PER_MILLIMETER_MIN_VALUE;
 	static const float PIXELS_PER_MILLIMETER_MAX_VALUE;
+	static const float DEBUG_TICK_SPEED_MIN_VALUE;
+	static const float DEBUG_TICK_SPEED_MAX_VALUE;
     static const char* RENDER_DISTANCE_NAMES[];
     static const char* DIFFICULTY_NAMES[];
     static const char* GUI_SCALE[];
@@ -171,6 +174,7 @@ public:
 	bool useTouchScreen;
 	bool useClassicControls;
 	float pixelsPerMillimeter;
+	float debugTickSpeed;
     Options(Minecraft* minecraft, const std::string& workingDirectory)
 	:	minecraft(minecraft)
 	{
@@ -217,6 +221,8 @@ public:
 			fov = value;
 		} else if (item == &Option::PIXELS_PER_MILLIMETER) {
 			 pixelsPerMillimeter = value;
+		} else if (item == &Option::DEBUG_TICK_SPEED) {
+			debugTickSpeed = value;
 		}
 		notifyOptionUpdate(item, value);		save();    }
 	void set(const Option* item, int value) {
@@ -276,6 +282,7 @@ public:
         if (item == &Option::SENSITIVITY) return sensitivity;
 		if (item == &Option::FOV) return fov;
 		if (item == &Option::PIXELS_PER_MILLIMETER) return pixelsPerMillimeter;
+		if (item == &Option::DEBUG_TICK_SPEED) return debugTickSpeed;
 		if (item == &Option::RENDER_DISTANCE) return viewDistance;
         return 0;
     }
@@ -322,6 +329,7 @@ public:
 		if (item == &Option::SENSITIVITY) return SENSITIVITY_MIN_VALUE;
 		if (item == &Option::FOV) return FOV_MIN_VALUE;
 		if (item == &Option::PIXELS_PER_MILLIMETER) return PIXELS_PER_MILLIMETER_MIN_VALUE;
+		if (item == &Option::DEBUG_TICK_SPEED) return DEBUG_TICK_SPEED_MIN_VALUE;
 		return 0;
 	}
 
@@ -331,6 +339,7 @@ public:
 		if (item == &Option::SENSITIVITY) return SENSITIVITY_MAX_VALUE;
 		if (item == &Option::FOV) return FOV_MAX_VALUE;
 		if (item == &Option::PIXELS_PER_MILLIMETER) return PIXELS_PER_MILLIMETER_MAX_VALUE;
+		if (item == &Option::DEBUG_TICK_SPEED) return DEBUG_TICK_SPEED_MAX_VALUE;
 		return 1.0f;
 	} 
 

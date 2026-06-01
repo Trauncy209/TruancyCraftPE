@@ -167,6 +167,8 @@ void OptionsScreen::generateOptionScreens() {
 		.addOptionItem(&Options::Option::DIFFICULTY, minecraft);
 	if (returnToPause)
 		gameOptions.addGameModeToggle(minecraft);
+	if (returnToPause)
+		gameOptions.addOptionItem(&Options::Option::DEBUG_TICK_SPEED, minecraft);
 	gameOptions
 		.addOptionItem(&Options::Option::SERVER_VISIBLE, minecraft)
 		.addOptionItem(&Options::Option::THIRD_PERSON, minecraft)

@@ -14,7 +14,8 @@ typedef struct VertexDeclPTCN
 	GLfloat x, y, z;
 	GLfloat u, v;
 	GLuint color;
-	GLuint normal;
+//	GLuint normal; // trying a new thing
+	GLfloat nx, ny, nz;
 
 } VertexDeclPTCN;
 

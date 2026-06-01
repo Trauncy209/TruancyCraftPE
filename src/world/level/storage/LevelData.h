@@ -89,6 +89,8 @@ public:
 	void		setTallGrassEnabled(bool enabled);
 	bool		getBetaWorldGeneration() const;
 	void		setBetaWorldGeneration(bool enabled);
+	bool		getModernTerrainGeneration() const;
+	void		setModernTerrainGeneration(bool enabled);
 	bool		getExperimentalGameplayFeatures() const;
 	void		setExperimentalGameplayFeatures(bool enabled);
 
@@ -121,6 +123,7 @@ private:
 	bool	biomeGrassTint;
 	bool	tallGrassEnabled;
 	bool	betaWorldGeneration;
+	bool	modernTerrainGeneration;
 	bool	experimentalGameplayFeatures;
 };
 

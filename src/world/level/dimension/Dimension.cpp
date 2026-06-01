@@ -56,7 +56,13 @@ bool Dimension::isValidSpawn(int x, int z) {
 }
 
 float Dimension::getTimeOfDay(long time, float a) {
-	return 1;
+	int dayStep = (int)(time % Level::TICKS_PER_DAY);
+	float td = (dayStep + a) / Level::TICKS_PER_DAY - 0.25f;
+	if (td < 0) td += 1;
+	if (td > 1) td -= 1;
+	float tdo = td;
+	td = 1 - (Mth::cos(td * Mth::PI) + 1) * 0.5f;
+	return tdo + (td - tdo) / 3.0f;
 }
 
 ChunkSource* Dimension::createRandomLevelSource() {

@@ -38,7 +38,9 @@ public:
         setFlammable(Tile::tnt->id, FLAME_MEDIUM, BURN_INSTANT);
         setFlammable(Tile::cloth->id, FLAME_EASY, BURN_EASY);
 
-        //setTicking(true); //@fire
+        // Disabled until fire rendering/mechanics are ported correctly for this fork.
+        // Old fire ticking makes bad atlas/geometry experiments very obvious and can grief worlds.
+        // setTicking(true);
     }
 
     AABB* getAABB(Level* level, int x, int y, int z) {
@@ -180,7 +182,7 @@ public:
     }
 
     void animateTick(Level* level, int x, int y, int z, Random* random) {
-		return; //@fire
+		return; //@fire disabled until proper renderer pass
 
         //if (random.nextInt(24) == 0) {
         //    level->playSound(x + 0.5f, y + 0.5f, z + 0.5f, "fire.fire", 1 + random.nextFloat(), random.nextFloat() * 0.7f + 0.3f);

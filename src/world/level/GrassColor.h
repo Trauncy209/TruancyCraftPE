@@ -14,6 +14,8 @@ public:
 
     static void init(int* p);
     static int get(float temp, float rain);
+    static int getSmoothed(class LevelSource* level, int x, int z);
+    static int getFast(class LevelSource* level, int x, int z);
 
 private:
 	static int* pixels;

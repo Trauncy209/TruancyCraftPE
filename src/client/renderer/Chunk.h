@@ -32,8 +32,10 @@ public:
 	//@todo @fix
     int getAllLists(int displayLists[], int p, int layer);
 	int getList(int layer);
+    int getListAtlas(int layer, int atlas);
 
 	RenderChunk& getRenderChunk(int layer);
+    RenderChunk& getRenderChunkAtlas(int layer, int atlas);
 
 	bool isEmpty();
     void cull(Culler* culler);
@@ -62,6 +64,7 @@ public:
 	bool skyLit;
 
 	RenderChunk renderChunk[NumLayers];
+    RenderChunk renderChunkAlt[NumLayers];
 private:
 	Tesselator& t;
 	int lists;

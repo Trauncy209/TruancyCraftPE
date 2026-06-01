@@ -24,6 +24,7 @@ SimpleChooseLevelScreen::SimpleChooseLevelScreen(const std::string& levelName)
     bOptionBiomeGrassTint(0),
     bOptionTallGrass(0),
     bOptionBetaWorldGeneration(0),
+    bOptionModernTerrainGeneration(0),
     bOptionExperimentalFeatures(0),
     bBack(0),
     bCreate(0),
@@ -41,6 +42,7 @@ SimpleChooseLevelScreen::SimpleChooseLevelScreen(const std::string& levelName)
     optBiomeGrassTint(true),
     optTallGrass(true),
     optBetaWorldGeneration(false),
+    optModernTerrainGeneration(false),
     optExperimentalFeatures(false),
     worldOptionsScroll(0),
     tLevelName(0, "World name"),
@@ -64,6 +66,7 @@ SimpleChooseLevelScreen::~SimpleChooseLevelScreen()
     delete bOptionBiomeGrassTint;
     delete bOptionTallGrass;
     delete bOptionBetaWorldGeneration;
+    delete bOptionModernTerrainGeneration;
     delete bOptionExperimentalFeatures;
     delete bBack;
     delete bCreate;
@@ -80,6 +83,7 @@ void SimpleChooseLevelScreen::applyGeneratorDefaults()
     optBiomeGrassTint = true;
     optTallGrass = true;
     optBetaWorldGeneration = false;
+    optModernTerrainGeneration = false;
     optExperimentalFeatures = false;
 }
 
@@ -95,6 +99,7 @@ void SimpleChooseLevelScreen::refreshWorldOptionLabels()
     bOptionBiomeGrassTint->msg = std::string("Grass Top Biome Color: ") + (optBiomeGrassTint ? "ON" : "OFF");
     bOptionTallGrass->msg = std::string("Tall Grass In Worlds: ") + (optTallGrass ? "ON" : "OFF");
     bOptionBetaWorldGeneration->msg = std::string("Beta World Generation: ") + (optBetaWorldGeneration ? "ON" : "OFF");
+    bOptionModernTerrainGeneration->msg = std::string("Extreme Terrain: ") + (optModernTerrainGeneration ? "ON" : "OFF");
     bOptionExperimentalFeatures->msg = std::string("Experimental Features: ") + (optExperimentalFeatures ? "ON" : "OFF");
 }
 
@@ -105,8 +110,8 @@ void SimpleChooseLevelScreen::setWorldOptionsVisible(bool visible)
     if (bWorldOptions) { bWorldOptions->visible = !visible; bWorldOptions->active = !visible; }
     if (bCreate) { bCreate->visible = !visible; bCreate->active = !visible; }
 
-    Button* optionButtons[] = { bOptionsBack, bOptionCaves, bOptionRavines, bOptionWaterLakes, bOptionLavaLakes, bOptionWaterSprings, bOptionLavaSprings, bOptionBiomeGrassTint, bOptionTallGrass, bOptionBetaWorldGeneration, bOptionExperimentalFeatures };
-    for (int i = 0; i < 11; ++i) {
+    Button* optionButtons[] = { bOptionsBack, bOptionCaves, bOptionRavines, bOptionWaterLakes, bOptionLavaLakes, bOptionWaterSprings, bOptionLavaSprings, bOptionBiomeGrassTint, bOptionTallGrass, bOptionBetaWorldGeneration, bOptionModernTerrainGeneration, bOptionExperimentalFeatures };
+    for (int i = 0; i < 12; ++i) {
         if (optionButtons[i]) {
             optionButtons[i]->visible = visible;
             optionButtons[i]->active = visible;
@@ -142,6 +147,7 @@ void SimpleChooseLevelScreen::init()
         bOptionBiomeGrassTint = new Touch::TButton(13, "");
         bOptionTallGrass = new Touch::TButton(14, "");
         bOptionBetaWorldGeneration = new Touch::TButton(15, "");
+        bOptionModernTerrainGeneration = new Touch::TButton(17, "");
         bOptionExperimentalFeatures = new Touch::TButton(16, "");
         bCreate  = new Touch::TButton(3, "Create");
     } else {
@@ -158,6 +164,7 @@ void SimpleChooseLevelScreen::init()
         bOptionBiomeGrassTint = new Button(13, "");
         bOptionTallGrass = new Button(14, "");
         bOptionBetaWorldGeneration = new Button(15, "");
+        bOptionModernTerrainGeneration = new Button(17, "");
         bOptionExperimentalFeatures = new Button(16, "");
         bCreate  = new Button(3, "Create");
     }
@@ -178,6 +185,7 @@ void SimpleChooseLevelScreen::init()
     buttons.push_back(bOptionBiomeGrassTint);
     buttons.push_back(bOptionTallGrass);
     buttons.push_back(bOptionBetaWorldGeneration);
+    buttons.push_back(bOptionModernTerrainGeneration);
     buttons.push_back(bOptionExperimentalFeatures);
     buttons.push_back(bCreate);
 
@@ -194,6 +202,7 @@ void SimpleChooseLevelScreen::init()
     tabButtons.push_back(bOptionBiomeGrassTint);
     tabButtons.push_back(bOptionTallGrass);
     tabButtons.push_back(bOptionBetaWorldGeneration);
+    tabButtons.push_back(bOptionModernTerrainGeneration);
     tabButtons.push_back(bOptionExperimentalFeatures);
     tabButtons.push_back(bBack);
     tabButtons.push_back(bCreate);
@@ -243,14 +252,25 @@ void SimpleChooseLevelScreen::setupPositions()
         bWorldOptions->y = bWorldType->y + bWorldType->height + gap;
     }
 
-    Button* optionButtons[] = { bOptionCaves, bOptionRavines, bOptionWaterLakes, bOptionLavaLakes, bOptionWaterSprings, bOptionLavaSprings, bOptionBiomeGrassTint, bOptionTallGrass, bOptionBetaWorldGeneration, bOptionExperimentalFeatures, bOptionsBack };
-    int optionsStartY = buttonHeight + 40 - worldOptionsScroll;
-    int optionsGap = 8;
+    Button* optionButtons[] = { bOptionCaves, bOptionRavines, bOptionWaterLakes, bOptionLavaLakes, bOptionWaterSprings, bOptionLavaSprings, bOptionBiomeGrassTint, bOptionTallGrass, bOptionBetaWorldGeneration, bOptionModernTerrainGeneration, bOptionExperimentalFeatures };
+    int optionsStartY = buttonHeight + 34;
+    int optionsGap = 4;
+    int colGap = 6;
+    int optionWidth = (width - 24 - colGap) / 2;
+    if (optionWidth > 156) optionWidth = 156;
+    if (optionWidth < 118) optionWidth = 118;
+    int leftX = centerX - optionWidth - colGap / 2;
+    int rightX = centerX + colGap / 2;
     for (int i = 0; i < 11; ++i) {
-        optionButtons[i]->width = (i == 9) ? 120 : 210;
-        optionButtons[i]->x = centerX - optionButtons[i]->width / 2;
-        optionButtons[i]->y = optionsStartY + i * (optionButtons[i]->height + optionsGap);
+        int row = i / 2;
+        bool right = (i & 1) != 0;
+        optionButtons[i]->width = optionWidth;
+        optionButtons[i]->x = right ? rightX : leftX;
+        optionButtons[i]->y = optionsStartY + row * (optionButtons[i]->height + optionsGap);
     }
+    bOptionsBack->width = 120;
+    bOptionsBack->x = centerX - bOptionsBack->width / 2;
+    bOptionsBack->y = optionsStartY + 6 * (bOptionsBack->height + optionsGap) + 2;
 
     bCreate->width = 100;
     bCreate->x = centerX - bCreate->width / 2;
@@ -261,12 +281,9 @@ void SimpleChooseLevelScreen::setupPositions()
 void SimpleChooseLevelScreen::tick()
 {
     if (inWorldOptions) {
-        int contentHeight = 11 * (bOptionsBack->height + 12);
-        int visibleHeight = height - (bHeader->height + 72) - 20;
-        int maxScroll = contentHeight - visibleHeight;
-        if (maxScroll < 0) maxScroll = 0;
-        if (worldOptionsScroll < 0) worldOptionsScroll = 0;
-        if (worldOptionsScroll > maxScroll) worldOptionsScroll = maxScroll;
+        // Options are laid out in two columns on touch now, so no off-screen
+        // scrolling state is needed for phone-height displays.
+        worldOptionsScroll = 0;
         setupPositions();
     }
     for (auto* tb : textBoxes)
@@ -297,8 +314,8 @@ void SimpleChooseLevelScreen::render( int xm, int ym, float a )
         drawString(minecraft->font, "World name:", tLevelName.x, tLevelName.y - Font::DefaultLineHeight - 2, 0xffcccccc);
         drawString(minecraft->font, "World seed:", tSeed.x, tSeed.y - Font::DefaultLineHeight - 2, 0xffcccccc);
     } else {
-        drawCenteredString(minecraft->font, "World Options", width/2, bHeader->height + 18, 0xffffffff);
-        drawCenteredString(minecraft->font, generatorVersion == LGV_INFINITE ? "Tune infinite world generation and gameplay extras" : "Classic worlds keep most of these off by default", width/2, bHeader->height + 32, 0xffcccccc);
+        drawCenteredString(minecraft->font, "World Options", width/2, bHeader->height + 14, 0xffffffff);
+        drawCenteredString(minecraft->font, generatorVersion == LGV_INFINITE ? "Infinite tuning + extras" : "Classic options default off", width/2, bHeader->height + 25, 0xffcccccc);
     }
 
     for (unsigned int i = 0; i < buttons.size(); i++)
@@ -381,7 +398,8 @@ void SimpleChooseLevelScreen::buttonClicked( Button* button )
     if (button == bOptionLavaSprings) { optLavaSprings = !optLavaSprings; refreshWorldOptionLabels(); return; }
     if (button == bOptionBiomeGrassTint) { optBiomeGrassTint = !optBiomeGrassTint; refreshWorldOptionLabels(); return; }
     if (button == bOptionTallGrass) { optTallGrass = !optTallGrass; refreshWorldOptionLabels(); return; }
-    if (button == bOptionBetaWorldGeneration) { optBetaWorldGeneration = !optBetaWorldGeneration; refreshWorldOptionLabels(); return; }
+    if (button == bOptionBetaWorldGeneration) { optBetaWorldGeneration = !optBetaWorldGeneration; if (optBetaWorldGeneration) optModernTerrainGeneration = false; refreshWorldOptionLabels(); return; }
+    if (button == bOptionModernTerrainGeneration) { optModernTerrainGeneration = !optModernTerrainGeneration; if (optModernTerrainGeneration) optBetaWorldGeneration = false; refreshWorldOptionLabels(); return; }
     if (button == bOptionExperimentalFeatures) { optExperimentalFeatures = !optExperimentalFeatures; refreshWorldOptionLabels(); return; }
 
     if (button == bCreate) {
@@ -397,7 +415,7 @@ void SimpleChooseLevelScreen::buttonClicked( Button* button )
         }
         std::string levelId = getUniqueLevelName(tLevelName.text);
         LevelSettings settings(seed, gamemode, generatorVersion,
-            optCaves, optRavines, optWaterLakes, optLavaLakes, optWaterSprings, optLavaSprings, optBiomeGrassTint, optTallGrass, optBetaWorldGeneration, optExperimentalFeatures);
+            optCaves, optRavines, optWaterLakes, optLavaLakes, optWaterSprings, optLavaSprings, optBiomeGrassTint, optTallGrass, optBetaWorldGeneration, optModernTerrainGeneration, optExperimentalFeatures);
         minecraft->selectLevel(levelId, levelId, settings);
         minecraft->hostMultiplayer();
         minecraft->setScreen(new ProgressScreen());

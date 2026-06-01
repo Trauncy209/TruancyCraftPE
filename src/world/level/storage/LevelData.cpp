@@ -17,6 +17,7 @@ LevelData::LevelData()
 		biomeGrassTint(true),
 		tallGrassEnabled(true),
 		betaWorldGeneration(false),
+		modernTerrainGeneration(false),
 		experimentalGameplayFeatures(false),
 	time(0),
 	dimension(Dimension::NORMAL),
@@ -26,7 +27,7 @@ LevelData::LevelData()
 	loadedPlayerTag(NULL)
 {
 	//LOGI("ctor 1: %p\n", this);
-	spawnMobs = (gameType == GameType::Survival);
+	spawnMobs = true;
 }
 
 LevelData::LevelData( const LevelSettings& settings, const std::string& levelName, int generatorVersion /*= -1*/ )
@@ -50,6 +51,7 @@ LevelData::LevelData( const LevelSettings& settings, const std::string& levelNam
 		biomeGrassTint(settings.getBiomeGrassTint()),
 		tallGrassEnabled(settings.getTallGrassEnabled()),
 		betaWorldGeneration(settings.getBetaWorldGeneration()),
+		modernTerrainGeneration(settings.getModernTerrainGeneration()),
 		experimentalGameplayFeatures(settings.getExperimentalGameplayFeatures())
 {
 	//LOGI("ctor 2: %p\n", this);
@@ -58,7 +60,7 @@ LevelData::LevelData( const LevelSettings& settings, const std::string& levelNam
 		generatorVersion = SharedConstants::GeneratorVersion;
 
 	this->generatorVersion = generatorVersion;
-	spawnMobs = (gameType == GameType::Survival);
+	spawnMobs = true;
 }
 
 LevelData::LevelData( CompoundTag* tag )
@@ -73,6 +75,7 @@ LevelData::LevelData( CompoundTag* tag )
 		biomeGrassTint(true),
 		tallGrassEnabled(true),
 		betaWorldGeneration(false),
+		modernTerrainGeneration(false),
 		experimentalGameplayFeatures(false)
 {
 	//LOGI("ctor 3: %p (%p)\n", this, tag);
@@ -104,6 +107,7 @@ LevelData::LevelData( const LevelData& rhs )
 		biomeGrassTint(rhs.biomeGrassTint),
 		tallGrassEnabled(rhs.tallGrassEnabled),
 		betaWorldGeneration(rhs.betaWorldGeneration),
+		modernTerrainGeneration(rhs.modernTerrainGeneration),
 		experimentalGameplayFeatures(rhs.experimentalGameplayFeatures)
 {
 	//LOGI("c-ctor: %p (%p)\n", this, &rhs);
@@ -138,6 +142,7 @@ LevelData& LevelData::operator=( const LevelData& rhs )
 			biomeGrassTint = rhs.biomeGrassTint;
 			tallGrassEnabled = rhs.tallGrassEnabled;
 			betaWorldGeneration = rhs.betaWorldGeneration;
+			modernTerrainGeneration = rhs.modernTerrainGeneration;
 			experimentalGameplayFeatures = rhs.experimentalGameplayFeatures;
 		setPlayerTag(rhs.loadedPlayerTag);
 	}
@@ -230,6 +235,8 @@ void LevelData::setTagData( CompoundTag* tag, CompoundTag* playerTag )
 		tag->putByte("BiomeGrassTint", biomeGrassTint ? 1 : 0);
 		tag->putByte("TallGrassEnabled", tallGrassEnabled ? 1 : 0);
 		tag->putByte("BetaWorldGeneration", betaWorldGeneration ? 1 : 0);
+		tag->putByte("ModernTerrainGeneration", modernTerrainGeneration ? 1 : 0);
+		tag->putByte("ExtremeTerrainGeneration", modernTerrainGeneration ? 1 : 0);
 		tag->putByte("ExperimentalGameplayFeatures", experimentalGameplayFeatures ? 1 : 0);
 	tag->putInt("Platform", 2);
 
@@ -267,9 +274,12 @@ void LevelData::getTagData( const CompoundTag* tag )
 		if (tag->contains("BiomeGrassTint", Tag::TAG_Byte)) biomeGrassTint = tag->getByte("BiomeGrassTint") != 0;
 		if (tag->contains("TallGrassEnabled", Tag::TAG_Byte)) tallGrassEnabled = tag->getByte("TallGrassEnabled") != 0;
 		if (tag->contains("BetaWorldGeneration", Tag::TAG_Byte)) betaWorldGeneration = tag->getByte("BetaWorldGeneration") != 0;
+		if (tag->contains("ModernTerrainGeneration", Tag::TAG_Byte)) modernTerrainGeneration = tag->getByte("ModernTerrainGeneration") != 0;
+		if (tag->contains("ExtremeTerrainGeneration", Tag::TAG_Byte)) modernTerrainGeneration = tag->getByte("ExtremeTerrainGeneration") != 0;
+		if (modernTerrainGeneration) betaWorldGeneration = false;
 		if (tag->contains("ExperimentalGameplayFeatures", Tag::TAG_Byte)) experimentalGameplayFeatures = tag->getByte("ExperimentalGameplayFeatures") != 0;
 
-	spawnMobs = (gameType == GameType::Survival);
+	spawnMobs = true;
 
 	if (tag->contains("Player", Tag::TAG_Compound)) {
 		setPlayerTag(tag->getCompound("Player"));
@@ -461,5 +471,7 @@ bool LevelData::getTallGrassEnabled() const { return tallGrassEnabled; }
 void LevelData::setTallGrassEnabled(bool enabled) { tallGrassEnabled = enabled; }
 bool LevelData::getBetaWorldGeneration() const { return betaWorldGeneration; }
 void LevelData::setBetaWorldGeneration(bool enabled) { betaWorldGeneration = enabled; }
+bool LevelData::getModernTerrainGeneration() const { return modernTerrainGeneration; }
+void LevelData::setModernTerrainGeneration(bool enabled) { modernTerrainGeneration = enabled; }
 bool LevelData::getExperimentalGameplayFeatures() const { return experimentalGameplayFeatures; }
 void LevelData::setExperimentalGameplayFeatures(bool enabled) { experimentalGameplayFeatures = enabled; }

@@ -46,14 +46,14 @@ const Tile::SoundType Tile::SOUND_CLOTH("cloth", 1, 1);
 
 const Tile::SoundType Tile::SOUND_SILENT("", 0, 0);
 
-Tile* Tile::tiles[] = {NULL};
-int Tile::lightBlock[] = {0};
-int Tile::lightEmission[] = {0};
-bool Tile::solid[] = {false};
-bool Tile::isEntityTile[] = {false};
-bool Tile::translucent[] = {true, false}; // @trans: translucent, @trans "asbMax", some more like "*conditon"
-bool Tile::shouldTick[] = {false};
-bool Tile::sendTileData[] = {false};
+Tile* Tile::tiles[256] = {NULL};
+int Tile::lightBlock[256] = {0};
+int Tile::lightEmission[256] = {0};
+bool Tile::solid[256] = {false};
+bool Tile::isEntityTile[256] = {false};
+bool Tile::translucent[256] = {true};
+bool Tile::shouldTick[256] = {false};
+bool Tile::sendTileData[256] = {false};
 
 Tile* Tile::sand        = NULL;
 Tile* Tile::sandStone   = NULL;

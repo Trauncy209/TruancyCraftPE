@@ -7,7 +7,7 @@ class RenderChunk;
 
 class RenderList
 {
-	static const int MAX_NUM_OBJECTS = 1024 * 3;
+	static const int MAX_NUM_OBJECTS = 1024 * 8;
 
 public:
 	RenderList();
@@ -18,7 +18,8 @@ public:
 	void add(int list);
 	void addR(const RenderChunk& chunk);
 
-	__inline void next() { if (listIndex < MAX_NUM_OBJECTS) ++listIndex; }
+	// Legacy no-op: indexing is now handled inside add/addR.
+	__inline void next() {}
 
     void render();
 	void renderChunks();

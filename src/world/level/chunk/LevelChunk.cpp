@@ -35,6 +35,14 @@ LevelChunk::LevelChunk( Level* level, unsigned char* blocks, int x, int z )
 	blockLight(ChunkBlockCount),
 	blocksLength(ChunkBlockCount)
 {
+	if (this->blocks != NULL) {
+		for (int i = 0; i < ChunkBlockCount; ++i) {
+			int lx = (i >> 11) & 15;
+			int lz = (i >> 7) & 15;
+			int ly = i & 127;
+			this->blocks[i] = (unsigned char)Tile::transformToValidBlockId(this->blocks[i], xt + lx, ly, zt + lz);
+		}
+	}
 	init();
 }
 
@@ -58,7 +66,7 @@ void LevelChunk::init()
 /*public*/
 bool LevelChunk::setTileAndData(int x, int y, int z, int tile_, int data_) {
 
-    int tile = tile_ & 0xff;
+    int tile = Tile::transformToValidBlockId(tile_, xt + x, y, zt + z);
 
     int oldHeight = heightmap[z << 4 | x];
 
@@ -67,14 +75,14 @@ bool LevelChunk::setTileAndData(int x, int y, int z, int tile_, int data_) {
     int xOffs = xt + x;
     int zOffs = zt + z;
     blocks[x << 11 | z << 7 | y] = (unsigned char) tile;
-    if (old != 0) {
+    if (old != 0 && Tile::tiles[old] != NULL) {
 		if (!level->isClientSide) {
 			Tile::tiles[old]->onRemove(level, xOffs, y, zOffs);
 		} else if (old != tile && Tile::isEntityTile[old]) {
 			level->removeTileEntity(xOffs, y, zOffs);
 		}
     }
-    data.set(x, y, z, data_);
+    data.set(x, y, z, tile == 0 ? 0 : data_);
 
     if (!level->dimension->hasCeiling) {
         if (Tile::lightBlock[tile] != 0) {
@@ -105,15 +113,15 @@ bool LevelChunk::setTileAndData(int x, int y, int z, int tile_, int data_) {
 /*public*/
 bool LevelChunk::setTile(int x, int y, int z, int tile_) {
 
-    int tile = tile_ & 0xff;
+    int tile = Tile::transformToValidBlockId(tile_, xt + x, y, zt + z);
     int oldHeight = heightmap[z << 4 | x] & 0xff;
 
     int old = blocks[x << 11 | z << 7 | y] & 0xff;
-    if (old == tile_) return false;
+    if (old == tile) return false;
     int xOffs = xt + x;
     int zOffs = zt + z;
     blocks[x << 11 | z << 7 | y] = (unsigned char) (tile & 0xff);
-    if (old != 0) {
+    if (old != 0 && Tile::tiles[old] != NULL) {
         Tile::tiles[old]->onRemove(level, xOffs, y, zOffs);
     }
     data.set(x, y, z, 0);
@@ -132,8 +140,8 @@ bool LevelChunk::setTile(int x, int y, int z, int tile_) {
     level->updateLight(LightLayer::Block, xOffs, y, zOffs, xOffs, y, zOffs);
     lightGaps(x, z);
 
-    if (tile_ != 0) {
-        if (!level->isClientSide) Tile::tiles[tile_]->onPlace(level, xOffs, y, zOffs);
+    if (tile != 0) {
+        if (!level->isClientSide) Tile::tiles[tile]->onPlace(level, xOffs, y, zOffs);
     }
 
     this->unsaved = true;
@@ -142,7 +150,7 @@ bool LevelChunk::setTile(int x, int y, int z, int tile_) {
 }
 
 void LevelChunk::setTileRaw(int x, int y, int z, int tile) {
-	blocks[x << 11 | z << 7 | y] = tile;
+	blocks[x << 11 | z << 7 | y] = (unsigned char)Tile::transformToValidBlockId(tile, xt + x, y, zt + z);
 }
 
 /*public*/
@@ -290,7 +298,11 @@ bool LevelChunk::shouldSave(bool force) {
 void LevelChunk::setBlocks(unsigned char* newBlocks, int sub) { //@byte[]
 	LOGI("LevelChunk::setBlocks\n");
 	for (int i = 0; i < 128 * 16 * 4; i++) {
-        blocks[sub * 128 * 16 * 4 + i] = newBlocks[i];
+		int local = sub * 128 * 16 * 4 + i;
+		int x = (local >> 11) & 15;
+		int z = (local >> 7) & 15;
+		int y = local & 127;
+        blocks[local] = (unsigned char)Tile::transformToValidBlockId(newBlocks[i], xt + x, y, zt + z);
     }
 
     for (int x = sub * 4; x < sub * 4 + 4; x++) {
@@ -669,8 +681,9 @@ int LevelChunk::setBlocksAndData( unsigned char* data, int x0, int y0, int z0, i
 	int len = y1 - y0;
 	for (int x = x0; x < x1; x++)
 	for (int z = z0; z < z1; z++) {
-		int slot = x << 11 | z << 7 | y0;
-		memcpy(blocks + slot, data + p, len); //System.arraycopy(data, p, blocks, slot, len);
+		for (int y = y0; y < y1; ++y) {
+			blocks[x << 11 | z << 7 | y] = (unsigned char)Tile::transformToValidBlockId(data[p + y - y0], xt + x, y, zt + z);
+		}
 		p += len;
 	}
 

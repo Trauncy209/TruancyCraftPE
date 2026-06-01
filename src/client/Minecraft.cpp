@@ -1541,7 +1541,7 @@ void Minecraft::toggleGameMode(bool persistToLevel)
 
 	if (level && level->getLevelData()) {
 		level->getLevelData()->setGameType(makeCreative ? GameType::Creative : GameType::Survival);
-		level->getLevelData()->setSpawnMobs(!makeCreative);
+		level->getLevelData()->setSpawnMobs(true);
 	}
 
 	if (player && player->inventory) {
@@ -1611,6 +1611,11 @@ void Minecraft::optionUpdated( const Options::Option* option, bool value ) {
 }
 
 void Minecraft::optionUpdated( const Options::Option* option, float value ) {
+	if(option == &Options::Option::DEBUG_TICK_SPEED) {
+		if (value < 1.0f) value = 1.0f;
+		if (value > 20.0f) value = 20.0f;
+		timer.timeScale = value;
+	}
 #ifndef STANDALONE_SERVER
 	if(option == &Options::Option::PIXELS_PER_MILLIMETER) {
 		float basePixelsPerMillimeter = platform()->getPixelsPerMillimeter();

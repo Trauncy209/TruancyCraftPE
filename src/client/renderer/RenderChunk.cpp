@@ -4,20 +4,14 @@ int RenderChunk::runningId = 0;
 
 RenderChunk::RenderChunk() :
 	vboId(-1),
-	vertexCount(0),
-	clientData(NULL),
-	clientDataBytes(0),
-	ownsClientData(false)
+	vertexCount(0)
 {
 	id = ++runningId;
 }
 
 RenderChunk::RenderChunk( GLuint vboId_, int vertexCount_ )
 :	vboId(vboId_),
-	vertexCount(vertexCount_),
-	clientData(NULL),
-	clientDataBytes(0),
-	ownsClientData(false)
+	vertexCount(vertexCount_)
 {
 	id = ++runningId;
 }

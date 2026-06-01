@@ -26,22 +26,21 @@ public:
     }
 
     void tick(Level* level, int x, int y, int z, Random* random) {
-		//@fire
-		return;
+		return; //@fire disabled until proper lava/fire renderer and mechanics pass
 
 		if (material == Material::lava) {
             int h = random->nextInt(3);
             for (int i = 0; i < h; i++) {
-                x += random->nextInt(3) - 1;
-                y++;
-                z += random->nextInt(3) - 1;
-                int t = level->getTile(x, y, z);
+                int nx = x + random->nextInt(3) - 1;
+                int ny = y + random->nextInt(2);
+                int nz = z + random->nextInt(3) - 1;
+                int t = level->getTile(nx, ny, nz);
                 if (t == 0) {
-                    if (isFlammable(level, x - 1, y, z) || isFlammable(level, x + 1, y, z) || isFlammable(level, x, y, z - 1) || isFlammable(level, x, y, z + 1) || isFlammable(level, x, y - 1, z) || isFlammable(level, x, y + 1, z)) {
-                        level->setTile(x, y, z, Tile::fire->id);
+                    if (isFlammable(level, nx - 1, ny, nz) || isFlammable(level, nx + 1, ny, nz) || isFlammable(level, nx, ny, nz - 1) || isFlammable(level, nx, ny, nz + 1) || isFlammable(level, nx, ny - 1, nz) || isFlammable(level, nx, ny + 1, nz)) {
+                        level->setTile(nx, ny, nz, Tile::fire->id);
                         return;
                     }
-                } else if (Tile::tiles[t]->material->blocksMotion()) {
+                } else if (t > 0 && t < Tile::NUM_BLOCK_TYPES && Tile::tiles[t] && Tile::tiles[t]->material->blocksMotion()) {
                     return;
                 }
 

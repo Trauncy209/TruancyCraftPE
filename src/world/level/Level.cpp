@@ -1236,19 +1236,29 @@ Vec3 Level::getSkyColor(Entity* source, float a) {
 
 	float br = Mth::cos(td * Mth::PI * 2) * 2 + 0.5f;
     if (br < 0.0f) br = 0.0f;
-    if (br > 0.75f) br = 0.75f; //@note; was 1.0f
+    if (br > 1.0f) br = 1.0f;
 
 //    int xx = Mth::floor(source->x);
 //    int zz = Mth::floor(source->z);
 //    float temp = 0.5;//(float) getBiomeSource().getTemperature(xx, zz);
-    int skyColor = 0x3070ff;//getBiomeSource().getBiome(xx, zz).getSkyColor(temp);
+    // Softer modern-Minecraft-ish overworld blue.  The old saturated 0x3070ff
+    // made imported vanilla sun/moon art look pasted onto a neon sky.
+    int skyColor = 0x78a7ff;//getBiomeSource().getBiome(xx, zz).getSkyColor(temp);
 
-    float r = ((skyColor >> 16) & 0xff) / 255.0f;
-    float g = ((skyColor >> 8) & 0xff) / 255.0f;
-    float b = ((skyColor) & 0xff) / 255.0f;
-    r *= br;
-    g *= br;
-    b *= br;
+    float dayR = ((skyColor >> 16) & 0xff) / 255.0f;
+    float dayG = ((skyColor >> 8) & 0xff) / 255.0f;
+    float dayB = ((skyColor) & 0xff) / 255.0f;
+
+    // Keep the softer daytime sky, but do not let the night floor go green.
+    // The previous floor preserved too much G and too little B, making midnight
+    // look swamp-green. Blend to a muted deep blue night instead.
+    float nightR = 0.015f;
+    float nightG = 0.025f;
+    float nightB = 0.070f;
+    float mix = br;
+    float r = nightR * (1.0f - mix) + dayR * mix;
+    float g = nightG * (1.0f - mix) + dayG * mix;
+    float b = nightB * (1.0f - mix) + dayB * mix;
 
     return Vec3(r, g, b);
 }
@@ -1259,7 +1269,7 @@ Vec3 Level::getCloudColor( float a ) {
 	float br = Mth::cos(td * Mth::PI * 2) * 2.0f + 0.5f;
 	if (br < 0.0f) br = 0.0f;
 	if (br > 1.0f) br = 1.0f;
-	long cloudColor = 0xffffff; 
+	long cloudColor = 0xf5f8ff;
 	float r = ((cloudColor >> 16) & 0xff) / 255.0f;
 	float g = ((cloudColor >> 8) & 0xff) / 255.0f;
 	float b = ((cloudColor) & 0xff) / 255.0f;
@@ -1274,9 +1284,9 @@ Vec3 Level::getCloudColor( float a ) {
 		b = b * ba + mid * (1 - ba);
 	}
 
-	r *= br * 0.90f + 0.10f;
-	g *= br * 0.90f + 0.10f;
-	b *= br * 0.85f + 0.15f;
+	r *= br * 0.78f + 0.22f;
+	g *= br * 0.80f + 0.20f;
+	b *= br * 0.82f + 0.18f;
 
 	float thunderLevel = 0; //getThunderLevel(a);
 	if (thunderLevel > 0) {

@@ -53,7 +53,7 @@ void anGenBuffers(GLsizei n, GLuint* buffers) {
 }
 
 #ifdef USE_VBO
-void drawArrayVT(int bufferId, int vertices, int vertexSize /* = 24 */, unsigned int mode /* = GL_TRIANGLES */) {
+void drawArrayVT(int bufferId, int vertices, int vertexSize /* = 36 */, unsigned int mode /* = GL_TRIANGLES */) {
 	//if (Options::debugGl) LOGI("drawArray\n");
 	glBindBuffer2(GL_ARRAY_BUFFER, bufferId);
 	glTexCoordPointer2(2, GL_FLOAT, vertexSize, (GLvoid*) (3 * 4));
@@ -66,7 +66,7 @@ void drawArrayVT(int bufferId, int vertices, int vertexSize /* = 24 */, unsigned
 }
 
 #ifndef drawArrayVT_NoState
-void drawArrayVT_NoState(int bufferId, int vertices, int vertexSize /* = 24 */) {
+void drawArrayVT_NoState(int bufferId, int vertices, int vertexSize /* = 36 */) {
 	//if (Options::debugGl) LOGI("drawArray\n");
 	glBindBuffer2(GL_ARRAY_BUFFER, bufferId);
 	glTexCoordPointer2(2, GL_FLOAT, vertexSize, (GLvoid*) (3 * 4));
@@ -79,7 +79,7 @@ void drawArrayVT_NoState(int bufferId, int vertices, int vertexSize /* = 24 */) 
 }
 #endif
 
-void drawArrayVTC(int bufferId, int vertices, int vertexSize /* = 24 */) {
+void drawArrayVTC(int bufferId, int vertices, int vertexSize /* = 36 */) {
 	//if (Options::debugGl) LOGI("drawArray\n");
 	//LOGI("draw-vtc: %d, %d, %d\n", bufferId, vertices, vertexSize);
 	glEnableClientState2(GL_VERTEX_ARRAY);
@@ -92,7 +92,9 @@ void drawArrayVTC(int bufferId, int vertices, int vertexSize /* = 24 */) {
 	glTexCoordPointer2(2, GL_FLOAT, vertexSize, (GLvoid*) (3 * 4));
 	glColorPointer2(4, GL_UNSIGNED_BYTE, vertexSize, (GLvoid*) (5*4));
 
+	glShadeModel(GL_SMOOTH);
 	glDrawArrays2(GL_TRIANGLES, 0, vertices);
+	glShadeModel(GL_FLAT);
 
 	glDisableClientState2(GL_VERTEX_ARRAY);
 	glDisableClientState2(GL_TEXTURE_COORD_ARRAY);
@@ -100,14 +102,16 @@ void drawArrayVTC(int bufferId, int vertices, int vertexSize /* = 24 */) {
 }
 
 #ifndef drawArrayVTC_NoState
-void drawArrayVTC_NoState(int bufferId, int vertices, int vertexSize /* = 24 */) {
+void drawArrayVTC_NoState(int bufferId, int vertices, int vertexSize /* = 36 */) {
 	glBindBuffer2(GL_ARRAY_BUFFER, bufferId);
 
 	glVertexPointer2(  3, GL_FLOAT, vertexSize, 0);
 	glTexCoordPointer2(2, GL_FLOAT, vertexSize, (GLvoid*) (3 * 4));
 	glColorPointer2(4, GL_UNSIGNED_BYTE, vertexSize, (GLvoid*) (5*4));
 
+	glShadeModel(GL_SMOOTH);
 	glDrawArrays2(GL_TRIANGLES, 0, vertices);
+	glShadeModel(GL_FLAT);
 }
 #endif
 

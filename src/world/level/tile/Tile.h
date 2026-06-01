@@ -101,6 +101,7 @@ public:
 
 
 	static const int NUM_BLOCK_TYPES = 256;
+    static const int TEXTURE_ALT_FLAG = 0x1000;
 
     static Tile* tiles[NUM_BLOCK_TYPES];
 

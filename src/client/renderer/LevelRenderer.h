@@ -27,7 +27,7 @@ public:
     static const int CHUNK_SIZE;
     static const int MAX_VISIBLE_REBUILDS_PER_FRAME = 3;
     static const int MAX_INVISIBLE_REBUILDS_PER_FRAME = 1;
-    
+
     float xOld;
     float yOld;
     float zOld;
@@ -73,6 +73,9 @@ public:
 	void onGraphicsReset();
 private:
 	void generateSky();
+	void generateStars(long seed);
+	void _renderStars(float alpha);
+	void _renderSunOrMoon(float alpha, bool moon);
 
 	int  renderChunks(int from, int to, int layer, float alpha);
 	void resortChunks(int xc, int yc, int zc);
@@ -121,6 +124,8 @@ private:
 	GLuint* chunkBuffers;
 	GLuint skyBuffer;
 	int skyVertexCount;
+	GLuint starBuffer;
+	int starVertexCount;
 
 //    /*public*/ std::vector<TileEntity*> renderableTileEntities;
     Textures* textures;

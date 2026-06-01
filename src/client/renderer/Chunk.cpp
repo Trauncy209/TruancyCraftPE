@@ -88,10 +88,11 @@ void Chunk::rebuild()
 	int x1 = x + xs;
 	int y1 = y + ys;
 	int z1 = z + zs;
-	for (int l = 0; l < NumLayers; l++) {
-		empty[l] = true;
+
+	for (int i = 0; i < NumLayers; ++i) {
+		empty[i] = true;
 	}
-    _empty = true;
+	_empty = true;
 
 	LevelChunk::touchedSky = false;
 
@@ -99,84 +100,97 @@ void Chunk::rebuild()
 	Region region(level, x0 - r, y0 - r, z0 - r, x1 + r, y1 + r, z1 + r);
 	TileRenderer tileRenderer(&region);
 
-    bool doRenderLayer[NumLayers] = {true, false, false};
+	bool doRenderLayer[NumLayers] = {true, false, false};
 	for (int l = 0; l < NumLayers; l++) {
-        if (!doRenderLayer[l]) continue;
+		if (!doRenderLayer[l]) continue;
+
+		// Reset per-layer render chunks to avoid stale VBO data from previous rebuilds.
+		renderChunk[l].vertexCount = 0;
+		renderChunkAlt[l].vertexCount = 0;
+		renderChunk[l].pos.x = renderChunkAlt[l].pos.x = (float)this->x;
+		renderChunk[l].pos.y = renderChunkAlt[l].pos.y = (float)this->y;
+		renderChunk[l].pos.z = renderChunkAlt[l].pos.z = (float)this->z;
+#ifdef USE_VBO
+		if (vboBuffers) {
+			renderChunk[l].vboId = vboBuffers[l];
+			renderChunkAlt[l].vboId = vboBuffers[l + NumLayers];
+		}
+#endif
+
 		bool renderNextLayer = false;
-		bool rendered = false;
+		bool renderedMain = false;
+		bool renderedAlt = false;
 
-		bool started = false;
-        int cindex = -1;
+		// Two passes: atlas 0 = main, atlas 1 = alt
+		for (int atlas = 0; atlas < 2; ++atlas) {
+			bool started = false;
+			int cindex = -1;
+			tileRenderer.setAtlasFilter(atlas);
 
-		for (int y = y0; y < y1; y++) {
-			for (int z = z0; z < z1; z++) {
-				for (int x = x0; x < x1; x++) {
-                    ++cindex;
-                    //if (l > 0 && cindex != _layerChunks[_layerChunkCount[l]])
-					int tileId = region.getTile(x, y, z);
-					if (tileId > 0) {
-						if (!started) {
-							started = true;
+			for (int yy = y0; yy < y1; yy++) {
+				for (int zz = z0; zz < z1; zz++) {
+					for (int xx = x0; xx < x1; xx++) {
+						++cindex;
+						int tileId = region.getTile(xx, yy, zz);
+						if (tileId > 0) {
+							if (!started) {
+								started = true;
 
 #ifndef USE_VBO
-							glNewList(lists + l, GL_COMPILE);
-							glPushMatrix2();
-							translateToPos();
-							float ss = 1.000001f;
-							glTranslatef2(-zs / 2.0f, -ys / 2.0f, -zs / 2.0f);
-							glScalef2(ss, ss, ss);
-							glTranslatef2(zs / 2.0f, ys / 2.0f, zs / 2.0f);
+								glNewList(lists + (atlas * NumLayers) + l, GL_COMPILE);
+								glPushMatrix2();
+								translateToPos();
+								float ss = 1.000001f;
+								glTranslatef2(-zs / 2.0f, -ys / 2.0f, -zs / 2.0f);
+								glScalef2(ss, ss, ss);
+								glTranslatef2(zs / 2.0f, ys / 2.0f, zs / 2.0f);
 #endif
-							t.begin();
-							//printf(".");
-							//printf("Tesselator::offset : %d, %d, %d\n", this->x, this->y, this->z);
-							t.offset((float)(-this->x), (float)(-this->y), (float)(-this->z));
-							//printf("Tesselator::offset : %f, %f, %f\n", this->x, this->y, this->z);
-						}
+								t.begin();
+								t.offset((float)(-this->x), (float)(-this->y), (float)(-this->z));
+							}
 
-						Tile* tile = Tile::tiles[tileId];
-						int renderLayer = tile->getRenderLayer();
+							Tile* tile = Tile::tiles[tileId];
+							int renderLayer = tile->getRenderLayer();
 
-//                        if (renderLayer == l)
-//                            rendered |= tileRenderer.tesselateInWorld(tile, x, y, z);
-//                        else {
-//                            _layerChunks[_layerChunkCount[renderLayer]++] = cindex;
-//                        }
-                        
-						if (renderLayer > l) {
-							renderNextLayer = true;
-                            doRenderLayer[renderLayer] = true;
-						} else if (renderLayer == l) {
-							rendered |= tileRenderer.tesselateInWorld(tile, x, y, z);
+							if (renderLayer > l) {
+								renderNextLayer = true;
+								doRenderLayer[renderLayer] = true;
+							} else if (renderLayer == l) {
+								bool r = tileRenderer.tesselateInWorld(tile, xx, yy, zz);
+								if (atlas == 0) renderedMain |= r;
+								else renderedAlt |= r;
+							}
 						}
 					}
 				}
 			}
-		}
 
-		if (started) {
-
+			if (started) {
 #ifdef USE_VBO
-			if (renderChunk[l].ownsClientData && renderChunk[l].clientData != NULL) {
-				free(renderChunk[l].clientData);
-			}
-			renderChunk[l] = t.endClientCopy();
-			renderChunk[l].pos.x = (float)this->x;
-			renderChunk[l].pos.y = (float)this->y;
-			renderChunk[l].pos.z = (float)this->z;
+				if (atlas == 0) {
+					renderChunk[l] = t.end(true, vboBuffers[l]);
+					renderChunk[l].pos.x = (float)this->x;
+					renderChunk[l].pos.y = (float)this->y;
+					renderChunk[l].pos.z = (float)this->z;
+				} else {
+					renderChunkAlt[l] = t.end(true, vboBuffers[l + NumLayers]);
+					renderChunkAlt[l].pos.x = (float)this->x;
+					renderChunkAlt[l].pos.y = (float)this->y;
+					renderChunkAlt[l].pos.z = (float)this->z;
+				}
 #else
-			t.end(false, -1);
-			glPopMatrix2();
-			glEndList();
+				t.end(false, -1);
+				glPopMatrix2();
+				glEndList();
 #endif
-			t.offset(0, 0, 0);
-		} else {
-			rendered = false;
+				t.offset(0, 0, 0);
+			}
 		}
-		if (rendered) {
-            empty[l] = false;
-            _empty = false;
-        }
+
+		if (renderedMain || renderedAlt) {
+			empty[l] = false;
+			_empty = false;
+		}
 		if (!renderNextLayer) break;
 	}
 
@@ -207,17 +221,6 @@ void Chunk::reset()
 {
 	for (int i = 0; i < NumLayers; i++) {
 		empty[i] = true;
-		if (renderChunk[i].ownsClientData && renderChunk[i].clientData != NULL) {
-			free(renderChunk[i].clientData);
-		}
-		renderChunk[i].vboId = 0;
-		renderChunk[i].vertexCount = 0;
-		renderChunk[i].clientData = NULL;
-		renderChunk[i].clientDataBytes = 0;
-		renderChunk[i].ownsClientData = false;
-		renderChunk[i].pos.x = 0.0f;
-		renderChunk[i].pos.y = 0.0f;
-		renderChunk[i].pos.z = 0.0f;
 	}
 	visible = false;
 	compiled = false;
@@ -231,14 +234,27 @@ int Chunk::getList( int layer )
 	return -1;
 }
 
+int Chunk::getListAtlas(int layer, int atlas)
+{
+	if (!visible) return -1;
+	if (atlas == 0) {
+		if (!empty[layer]) return lists + layer;
+	} else {
+		// alt atlas list sits after NumLayers offset
+		if (!empty[layer]) return lists + NumLayers + layer;
+	}
+	return -1;
+}
+
 RenderChunk& Chunk::getRenderChunk( int layer )
 {
-	if (layer < 0 || layer >= NumLayers) layer = 0;
-	if (empty[layer] || renderChunk[layer].vertexCount <= 0 || renderChunk[layer].vboId == 0 || renderChunk[layer].vboId == (GLuint)-1) {
-		renderChunk[layer].vboId = 0;
-		renderChunk[layer].vertexCount = 0;
-	}
 	return renderChunk[layer];
+}
+
+RenderChunk& Chunk::getRenderChunkAtlas(int layer, int atlas)
+{
+	if (atlas == 0) return renderChunk[layer];
+	return renderChunkAlt[layer];
 }
 
 int Chunk::getAllLists( int displayLists[], int p, int layer )
