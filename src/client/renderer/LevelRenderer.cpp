@@ -1285,6 +1285,14 @@ void LevelRenderer::renderSky(float alpha) {
     glColor4f2(sr, sg, sb, 1.0f);
 
 #ifdef OPENGL_ES
+	// Newer Adreno drivers crash inside GLES glDrawArrays when this retained
+	// sky-plane VBO is drawn during early world render. The gradient sky bands,
+	// stars, sun, and moon still render below, so skip this cosmetic plane on ES.
+	// This avoids the observed GLThread stack:
+	//   glDrawArrays -> drawArrayVT -> LevelRenderer::renderSky
+	(void)skyBuffer;
+	(void)skyVertexCount;
+#else
 	drawArrayVT(skyBuffer, skyVertexCount);
 #endif
 
