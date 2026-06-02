@@ -118,7 +118,7 @@ void Gui::render(float a, bool mouseFree, int xMouse, int yMouse) {
 #endif
 #if defined(RPI)
 	renderDebugInfo();
-#elif defined(PLATFORM_DESKTOP)
+#else
 	if (minecraft->options.renderDebug)
 		renderDebugInfo();
 #endif

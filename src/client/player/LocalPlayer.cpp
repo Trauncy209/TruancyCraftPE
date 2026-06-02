@@ -418,14 +418,16 @@ void LocalPlayer::respawn()
 
 void LocalPlayer::die(Entity* source)
 {
+	bool keepInventory = level && level->getLevelData() && level->getLevelData()->getKeepInventory();
 	// If we're an online client, send the inventory to be dropped
 	// If we're the server, drop the inventory immediately
-	if (level->isClientSide) {
+	if (!keepInventory && level->isClientSide) {
 		SendInventoryPacket packet(this, true);
 		minecraft->raknetInstance->send(packet);
 	}
-	inventory->dropAll(level->isClientSide);
-	for (int i = 0; i < NUM_ARMOR; ++i) {
+	if (!keepInventory)
+		inventory->dropAll(level->isClientSide);
+	if (!keepInventory) for (int i = 0; i < NUM_ARMOR; ++i) {
 		ItemInstance* item = getArmor(i);
 		if (!ItemInstance::isArmorItem(item)) return;
 

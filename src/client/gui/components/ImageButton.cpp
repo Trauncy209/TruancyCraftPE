@@ -1,6 +1,7 @@
 #include "ImageButton.h"
 #include "../../renderer/Tesselator.h"
 #include "../../Minecraft.h"
+#include "../../../world/level/Level.h"
 #include "../../../platform/log.h"
 #include "../../../util/Mth.h"
 #include "../../renderer/Textures.h"
@@ -173,6 +174,28 @@ void GameModeOptionButton::mouseClicked( Minecraft* minecraft, int x, int y, int
 	if(buttonNum == MouseAction::ACTION_LEFT) {
 		if(clicked(minecraft, x, y)) {
 			minecraft->toggleGameMode(true);
+			updateImage(&minecraft->options);
+		}
+	}
+}
+
+KeepInventoryOptionButton::KeepInventoryOptionButton()
+:	super(&Options::Option::DEBUG_MENU)
+{
+}
+
+void KeepInventoryOptionButton::updateImage(Options* options)
+{
+	_secondImage = options && options->minecraft && options->minecraft->level
+		&& options->minecraft->level->getLevelData()->getKeepInventory();
+}
+
+void KeepInventoryOptionButton::mouseClicked( Minecraft* minecraft, int x, int y, int buttonNum ) {
+	if(buttonNum == MouseAction::ACTION_LEFT) {
+		if(clicked(minecraft, x, y) && minecraft && minecraft->level) {
+			LevelData* data = minecraft->level->getLevelData();
+			data->setKeepInventory(!data->getKeepInventory());
+			minecraft->level->saveLevelData();
 			updateImage(&minecraft->options);
 		}
 	}

@@ -11,10 +11,10 @@ public:
 
 protected:
 	std::string getUniqueLevelName(const std::string& level);
-
-private:
+	bool hasLevelWithName(const std::string& levelName) const;
 	void loadLevelSource();
 
+private:
 	LevelSummaryList levels;
 };
 

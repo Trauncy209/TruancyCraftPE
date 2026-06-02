@@ -98,7 +98,9 @@ void ModelPart::render( float scale )
 {
 	if (neverRender) return;
 	if (!visible) return;
+#ifndef OPENGL_ES
 	if (!compiled) compile(scale);
+#endif
 
 	if (xRot != 0 || yRot != 0 || zRot != 0) {
 		glPushMatrix2();
@@ -109,8 +111,11 @@ void ModelPart::render( float scale )
 		if (yRot != 0) glRotatef2(yRot * c, 0.0f, 1.0f, 0.0f);
 		if (xRot != 0) glRotatef2(xRot * c, 1.0f, 0.0f, 0.0f);
 
-		//LOGI("A");
+#ifdef OPENGL_ES
+		drawSlow(scale);
+#else
 		draw();
+#endif
 		if (!children.empty()) {
             for (unsigned int i = 0; i < children.size(); i++) {
                 children[i]->render(scale);
@@ -120,8 +125,11 @@ void ModelPart::render( float scale )
 		glPopMatrix2();
 	} else if (x != 0 || y != 0 || z != 0) {
 		glTranslatef2(x * scale, y * scale, z * scale);
-		//LOGI("B");
+#ifdef OPENGL_ES
+		drawSlow(scale);
+#else
 		draw();
+#endif
 		if (!children.empty()) {
 			for (unsigned int i = 0; i < children.size(); i++) {
 				children[i]->render(scale);
@@ -130,8 +138,11 @@ void ModelPart::render( float scale )
 
 		glTranslatef2(-x * scale, -y * scale, -z * scale);
 	} else {
-		//LOGI("C");
+#ifdef OPENGL_ES
+		drawSlow(scale);
+#else
 		draw();
+#endif
 		if (!children.empty()) {
 			for (unsigned int i = 0; i < children.size(); i++) {
 				children[i]->render(scale);
@@ -145,7 +156,9 @@ void ModelPart::renderRollable( float scale )
 {
 	if (neverRender) return;
 	if (!visible) return;
+#ifndef OPENGL_ES
 	if (!compiled) compile(scale);
+#endif
 
 	glPushMatrix2();
 	glTranslatef2(x * scale, y * scale, z * scale);
@@ -155,10 +168,13 @@ void ModelPart::renderRollable( float scale )
 	if (xRot != 0) glRotatef2(xRot * c, 1.0f, 0.0f, 0.0f);
 	if (zRot != 0) glRotatef2(zRot * c, 0.0f, 0.0f, 1.0f);
 
+#ifdef OPENGL_ES
+	drawSlow(scale);
+#else
 	draw();
+#endif
 	glPopMatrix2();
 }
-
 
 void ModelPart::translateTo( float scale )
 {
@@ -189,10 +205,8 @@ void ModelPart::compile( float scale )
 	Tesselator& t = Tesselator::instance;
 	t.begin();
 	t.color(255, 255, 255, 255);
-	for (int i = 0; i < 6; i++) {
-		for (unsigned int i = 0; i < cubes.size(); ++i)
-			cubes[i]->compile(t, scale);
-	}
+	for (unsigned int i = 0; i < cubes.size(); ++i)
+		cubes[i]->compile(t, scale);
 	t.end(true, vboId);
 #ifndef OPENGL_ES
 	glEndList();

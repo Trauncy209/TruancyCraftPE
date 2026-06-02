@@ -39,6 +39,9 @@ bool DeleteDirectory(const std::string& dir, bool noRecycleBin /*true*/)
 #else
 	#include <cstdio>
 	#include <dirent.h>
+	#include <cstring>
+	#include <sys/stat.h>
+	#include <unistd.h>
 
 bool DeleteDirectory(const std::string& d, bool noRecycleBin /*true*/)
 {
@@ -54,7 +57,12 @@ bool DeleteDirectory(const std::string& d, bool noRecycleBin /*true*/)
 	while ((entry = readdir(dir))) {
 		if (strcmp(".", entry->d_name) && strcmp("..", entry->d_name)) {
 			snprintf(fullPath, CMAX, "%s/%s", folder, entry->d_name);
-			remove(fullPath);
+			struct stat st;
+			if (stat(fullPath, &st) == 0 && S_ISDIR(st.st_mode)) {
+				DeleteDirectory(fullPath, noRecycleBin);
+			} else {
+				remove(fullPath);
+			}
 		}
 	}
 

@@ -90,8 +90,10 @@ void Level::_init(const std::string& levelName, const LevelSettings& settings, i
     if (preparedData == NULL) {
         levelData = LevelData(settings, levelName, generatorVersion);
     } else {
+		// Existing worlds own their display name in level.dat. Do not rewrite it
+		// from a caller/UI string while loading, or duplicate-name UI labels can
+		// accidentally become persisted save-data changes.
 		levelData = *preparedData;
-        levelData.setLevelName(levelName);
     }
 
 	if (fixedDimension != NULL) {
@@ -162,6 +164,7 @@ bool Level::checkAndHandleWater(const AABB& box, const Material* material, Entit
 
 /*public*/
 Player* Level::getNearestPlayer(Entity* source, float maxDist) {
+    if (source == NULL) return NULL;
     return getNearestPlayer(source->x, source->y, source->z, maxDist);
 }
 
@@ -172,6 +175,7 @@ Player* Level::getNearestPlayer(float x, float y, float z, float maxDist) {
     Player* result = NULL;
     for (unsigned int i = 0; i < players.size(); i++) {
         Player* p = players[i];
+		if (p == NULL) continue;
 		if (p->removed) continue;
 		float dist = p->distanceToSqr(x, y, z);
         if ((maxDist < 0 || dist < maxDistSqr) && (best == -1 || dist < best)) {
@@ -1467,6 +1471,9 @@ void Level::tickEntities() {
 		PRInfo& pr = _pendingPlayerRemovals[i];
 		if (--pr.ticks <= 0) {
 			LOGI("deleting: %p\n", pr.e);
+			if (pr.e != NULL && pr.e->isPlayer()) {
+				Util::remove(players, (Player*)pr.e);
+			}
 			delete pr.e;
 			_pendingPlayerRemovals.erase(_pendingPlayerRemovals.begin() + i);
 		}

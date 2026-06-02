@@ -8,6 +8,20 @@
 #include "../../../platform/time.h"
 #include "../../../platform/input/Keyboard.h"
 #include "../../../SharedConstants.h"
+#include "../../../util/StringUtils.h"
+
+static const char SIMPLE_ILLEGAL_FILE_CHARACTERS[] = {
+	'/', '\n', '\r', '\t', '\0', '\f', '`', '?', '*', '\\', '<', '>', '|', '\"', ':'
+};
+
+static std::string sanitizeLevelId(const std::string& name)
+{
+	std::string levelId = Util::stringTrim(name);
+	for (int i = 0; i < (int)(sizeof(SIMPLE_ILLEGAL_FILE_CHARACTERS) / sizeof(char)); ++i)
+		levelId = Util::stringReplace(levelId, std::string(1, SIMPLE_ILLEGAL_FILE_CHARACTERS[i]), "");
+	if (levelId.empty()) levelId = "World";
+	return levelId;
+}
 
 SimpleChooseLevelScreen::SimpleChooseLevelScreen(const std::string& levelName)
 :   bHeader(0),
@@ -44,6 +58,7 @@ SimpleChooseLevelScreen::SimpleChooseLevelScreen(const std::string& levelName)
     optBetaWorldGeneration(false),
     optModernTerrainGeneration(false),
     optExperimentalFeatures(false),
+    duplicateWorldName(false),
     worldOptionsScroll(0),
     tLevelName(0, "World name"),
     tSeed(1, "World seed")
@@ -121,6 +136,7 @@ void SimpleChooseLevelScreen::setWorldOptionsVisible(bool visible)
 
 void SimpleChooseLevelScreen::init()
 {
+	loadLevelSource();
     bHeader = new Touch::THeader(0, "Create World");
     bBack = new ImageButton(2, "");
     {
@@ -288,6 +304,14 @@ void SimpleChooseLevelScreen::tick()
     }
     for (auto* tb : textBoxes)
         tb->tick(minecraft);
+
+    if (!inWorldOptions && bCreate) {
+        loadLevelSource();
+        std::string typedName = Util::stringTrim(tLevelName.text);
+        if (typedName.empty()) typedName = "World";
+        duplicateWorldName = hasLevelWithName(typedName);
+        bCreate->msg = duplicateWorldName ? "Name exists" : "Create";
+    }
 }
 
 void SimpleChooseLevelScreen::render( int xm, int ym, float a )
@@ -313,6 +337,8 @@ void SimpleChooseLevelScreen::render( int xm, int ym, float a )
 
         drawString(minecraft->font, "World name:", tLevelName.x, tLevelName.y - Font::DefaultLineHeight - 2, 0xffcccccc);
         drawString(minecraft->font, "World seed:", tSeed.x, tSeed.y - Font::DefaultLineHeight - 2, 0xffcccccc);
+        if (duplicateWorldName)
+            drawCenteredString(minecraft->font, "A world with this name already exists", width/2, bCreate->y - Font::DefaultLineHeight - 4, 0xffff5555);
     } else {
         drawCenteredString(minecraft->font, "World Options", width/2, bHeader->height + 14, 0xffffffff);
         drawCenteredString(minecraft->font, generatorVersion == LGV_INFINITE ? "Infinite tuning + extras" : "Classic options default off", width/2, bHeader->height + 25, 0xffcccccc);
@@ -413,10 +439,22 @@ void SimpleChooseLevelScreen::buttonClicked( Button* button )
                 seed = Util::hashCode(seedString);
             }
         }
-        std::string levelId = getUniqueLevelName(tLevelName.text);
+        // Re-read the storage source at create time so duplicate world names use
+        // a new folder instead of writing new settings/player data into an old save.
+        loadLevelSource();
+        std::string levelName = Util::stringTrim(tLevelName.text);
+        if (levelName.empty()) levelName = "World";
+        if (hasLevelWithName(levelName)) {
+            duplicateWorldName = true;
+            if (bCreate) bCreate->msg = "Name exists";
+            return;
+        }
+        std::string levelId = getUniqueLevelName(sanitizeLevelId(levelName));
+        while (!minecraft->getLevelSource()->isNewLevelIdAcceptable(levelId))
+            levelId += "-";
         LevelSettings settings(seed, gamemode, generatorVersion,
             optCaves, optRavines, optWaterLakes, optLavaLakes, optWaterSprings, optLavaSprings, optBiomeGrassTint, optTallGrass, optBetaWorldGeneration, optModernTerrainGeneration, optExperimentalFeatures);
-        minecraft->selectLevel(levelId, levelId, settings);
+        minecraft->selectLevel(levelId, levelName, settings);
         minecraft->hostMultiplayer();
         minecraft->setScreen(new ProgressScreen());
         hasChosen = true;

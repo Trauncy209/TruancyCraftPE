@@ -19,6 +19,7 @@ LevelData::LevelData()
 		betaWorldGeneration(false),
 		modernTerrainGeneration(false),
 		experimentalGameplayFeatures(false),
+		keepInventory(false),
 	time(0),
 	dimension(Dimension::NORMAL),
 	playerDataVersion(-1),
@@ -52,7 +53,8 @@ LevelData::LevelData( const LevelSettings& settings, const std::string& levelNam
 		tallGrassEnabled(settings.getTallGrassEnabled()),
 		betaWorldGeneration(settings.getBetaWorldGeneration()),
 		modernTerrainGeneration(settings.getModernTerrainGeneration()),
-		experimentalGameplayFeatures(settings.getExperimentalGameplayFeatures())
+		experimentalGameplayFeatures(settings.getExperimentalGameplayFeatures()),
+		keepInventory(false)
 {
 	//LOGI("ctor 2: %p\n", this);
 
@@ -76,7 +78,8 @@ LevelData::LevelData( CompoundTag* tag )
 		tallGrassEnabled(true),
 		betaWorldGeneration(false),
 		modernTerrainGeneration(false),
-		experimentalGameplayFeatures(false)
+		experimentalGameplayFeatures(false),
+		keepInventory(false)
 {
 	//LOGI("ctor 3: %p (%p)\n", this, tag);
 	getTagData(tag);
@@ -108,7 +111,8 @@ LevelData::LevelData( const LevelData& rhs )
 		tallGrassEnabled(rhs.tallGrassEnabled),
 		betaWorldGeneration(rhs.betaWorldGeneration),
 		modernTerrainGeneration(rhs.modernTerrainGeneration),
-		experimentalGameplayFeatures(rhs.experimentalGameplayFeatures)
+		experimentalGameplayFeatures(rhs.experimentalGameplayFeatures),
+		keepInventory(rhs.keepInventory)
 {
 	//LOGI("c-ctor: %p (%p)\n", this, &rhs);
 	setPlayerTag(rhs.loadedPlayerTag);
@@ -144,6 +148,7 @@ LevelData& LevelData::operator=( const LevelData& rhs )
 			betaWorldGeneration = rhs.betaWorldGeneration;
 			modernTerrainGeneration = rhs.modernTerrainGeneration;
 			experimentalGameplayFeatures = rhs.experimentalGameplayFeatures;
+			keepInventory = rhs.keepInventory;
 		setPlayerTag(rhs.loadedPlayerTag);
 	}
 
@@ -238,6 +243,7 @@ void LevelData::setTagData( CompoundTag* tag, CompoundTag* playerTag )
 		tag->putByte("ModernTerrainGeneration", modernTerrainGeneration ? 1 : 0);
 		tag->putByte("ExtremeTerrainGeneration", modernTerrainGeneration ? 1 : 0);
 		tag->putByte("ExperimentalGameplayFeatures", experimentalGameplayFeatures ? 1 : 0);
+	tag->putByte("KeepInventory", keepInventory ? 1 : 0);
 	tag->putInt("Platform", 2);
 
 	if (playerTag != NULL) {
@@ -278,6 +284,7 @@ void LevelData::getTagData( const CompoundTag* tag )
 		if (tag->contains("ExtremeTerrainGeneration", Tag::TAG_Byte)) modernTerrainGeneration = tag->getByte("ExtremeTerrainGeneration") != 0;
 		if (modernTerrainGeneration) betaWorldGeneration = false;
 		if (tag->contains("ExperimentalGameplayFeatures", Tag::TAG_Byte)) experimentalGameplayFeatures = tag->getByte("ExperimentalGameplayFeatures") != 0;
+		if (tag->contains("KeepInventory", Tag::TAG_Byte)) keepInventory = tag->getByte("KeepInventory") != 0;
 
 	spawnMobs = true;
 
@@ -475,3 +482,5 @@ bool LevelData::getModernTerrainGeneration() const { return modernTerrainGenerat
 void LevelData::setModernTerrainGeneration(bool enabled) { modernTerrainGeneration = enabled; }
 bool LevelData::getExperimentalGameplayFeatures() const { return experimentalGameplayFeatures; }
 void LevelData::setExperimentalGameplayFeatures(bool enabled) { experimentalGameplayFeatures = enabled; }
+bool LevelData::getKeepInventory() const { return keepInventory; }
+void LevelData::setKeepInventory(bool enabled) { keepInventory = enabled; }

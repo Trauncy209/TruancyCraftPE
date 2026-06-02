@@ -57,6 +57,7 @@ private:
 	bool optBetaWorldGeneration;
 	bool optModernTerrainGeneration;
 	bool optExperimentalFeatures;
+	bool duplicateWorldName;
 	int worldOptionsScroll;
 	void applyGeneratorDefaults();
 	void refreshWorldOptionLabels();

@@ -111,5 +111,15 @@ protected:
 	virtual void mouseClicked( Minecraft* minecraft, int x, int y, int buttonNum );
 };
 
+class KeepInventoryOptionButton: public OptionButton
+{
+	typedef OptionButton super;
+public:
+	KeepInventoryOptionButton();
+	virtual void updateImage(Options* options);
+protected:
+	virtual void mouseClicked( Minecraft* minecraft, int x, int y, int buttonNum );
+};
+
 
 #endif /*NET_MINECRAFT_CLIENT_GUI_COMPONENTS__ImageButton_H__*/

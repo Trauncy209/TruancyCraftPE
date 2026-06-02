@@ -18,9 +18,11 @@ public:
 	virtual void render(Minecraft* minecraft, int xm, int ym);
 	virtual OptionsGroup& addOptionItem(const Options::Option* option, Minecraft* minecraft);
 	virtual OptionsGroup& addGameModeToggle(Minecraft* minecraft);
+	virtual OptionsGroup& addKeepInventoryToggle(Minecraft* minecraft);
 protected:
 	virtual void createToggle(const Options::Option* option, Minecraft* minecraft);
 	virtual void createGameModeToggle(Minecraft* minecraft);
+	virtual void createKeepInventoryToggle(Minecraft* minecraft);
 	virtual void createProgressSlider(const Options::Option* option, Minecraft* minecraft);
 	virtual void createStepSlider(const Options::Option* option, Minecraft* minecraft);
 	std::string label;

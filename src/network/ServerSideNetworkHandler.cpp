@@ -581,7 +581,8 @@ void ServerSideNetworkHandler::handle( const RakNet::RakNetGUID& source, SendInv
 	if (entity && entity->isPlayer()) {
 		Player* p = (Player*)entity;
 		p->inventory->replace(packet->items, packet->numItems);
-		if ((packet->extra & SendInventoryPacket::ExtraDrop) != 0) {
+		bool keepInventory = level->getLevelData() && level->getLevelData()->getKeepInventory();
+		if (!keepInventory && (packet->extra & SendInventoryPacket::ExtraDrop) != 0) {
 			p->inventory->dropAll(false);
             //@todo @armor : Drop armor
 		}

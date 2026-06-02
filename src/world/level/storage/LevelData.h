@@ -93,6 +93,8 @@ public:
 	void		setModernTerrainGeneration(bool enabled);
 	bool		getExperimentalGameplayFeatures() const;
 	void		setExperimentalGameplayFeatures(bool enabled);
+	bool		getKeepInventory() const;
+	void		setKeepInventory(bool enabled);
 
 public:
 	PlayerData playerData;
@@ -125,6 +127,7 @@ private:
 	bool	betaWorldGeneration;
 	bool	modernTerrainGeneration;
 	bool	experimentalGameplayFeatures;
+	bool	keepInventory;
 };
 
 #endif /*NET_MINECRAFT_WORLD_LEVEL_STORAGE__LevelData_H__*/

@@ -50,15 +50,20 @@ int MobSpawner::tick(Level* level, bool spawnEnemies, bool spawnFriendlies) {
 		if (++_pid >= level->players.size()) _pid = 0;
 		if (level->players.size()) {
 			Player* p = level->players[_pid];
-			int xx = Mth::floor(p->x / 16);
-			int zz = Mth::floor(p->z / 16);
-			int r = 128 / 16;
-			for (int x = -r; x <= r; x++)
-			for (int z = -r; z <= r; z++) {
-				const int cx = xx + x;
-				const int cz = zz + z;
-				if (cx >= 0 && cx < 16 && cz >= 0 && cz < 16)
-					chunksToPoll.insert(std::make_pair(ChunkPos(cx, cz), false ));
+			// The mobile GL/update thread can tick spawning during world/player
+			// teardown. Do not let stale or already-removed player entries drive
+			// mob spawning or later nearest-player checks.
+			if (p != NULL && !p->removed) {
+				int xx = Mth::floor(p->x / 16);
+				int zz = Mth::floor(p->z / 16);
+				int r = 128 / 16;
+				for (int x = -r; x <= r; x++)
+				for (int z = -r; z <= r; z++) {
+					const int cx = xx + x;
+					const int cz = zz + z;
+					if (cx >= 0 && cx < 16 && cz >= 0 && cz < 16)
+						chunksToPoll.insert(std::make_pair(ChunkPos(cx, cz), false ));
+				}
 			}
 		}
 	}

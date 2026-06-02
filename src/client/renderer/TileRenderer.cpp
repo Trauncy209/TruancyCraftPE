@@ -19,6 +19,19 @@
 #include "tileentity/TileEntityRenderer.h"
 #include "EntityTileRenderer.h"
 
+static inline float softenSmoothLight(float corner, float faceCenter, float blockCenter)
+{
+	// The original MCPE AO math averages hard corner samples directly. On modern
+	// high-contrast screens that creates ugly dark blotches instead of the softer
+	// Minecraft-style gradient players expect. Keep directional shape, but pull
+	// corners toward the visible face/block brightness and prevent crushed blacks.
+	float v = corner * 0.45f + faceCenter * 0.35f + blockCenter * 0.20f;
+	float minV = blockCenter * 0.55f;
+	if (v < minV) v = minV;
+	if (v > 1.0f) v = 1.0f;
+	return v;
+}
+
 bool TileRenderer::sideTinting = false;
 
 TileRenderer::TileRenderer(LevelSource* level /* = NULL */ )
@@ -26,7 +39,10 @@ TileRenderer::TileRenderer(LevelSource* level /* = NULL */ )
 	fixedTexture(-1),
 	xFlipTexture(false),
 	noCulling(false),
-	blsmooth(1),
+	// Mode 2 samples proper AO neighbors, then flattens each face to one
+	// averaged value. This is stronger than flat face light, but avoids GLES
+	// triangle-diagonal artifacts from per-corner gradients.
+	blsmooth(2),
 	applyAmbienceOcclusion(false),
 	atlasFilter(-1)
 {
@@ -1139,11 +1155,15 @@ bool TileRenderer::tesselateBlockInWorldWithAmbienceOcclusion( Tile* tt, int pX,
 			}
 
 			pY++;
-			ll1 = (llxyZ + llxy0 + ll0yZ + ll0y0) / 4.0f;
-			ll4 = (ll0yZ + ll0y0 + llXyZ + llXy0) / 4.0f;
-			ll3 = (ll0y0 + ll0yz + llXy0 + llXyz) / 4.0f;
-			ll2 = (llxy0 + llxyz + ll0y0 + ll0yz) / 4.0f;
+			ll1 = softenSmoothLight((llxyZ + llxy0 + ll0yZ + ll0y0) / 4.0f, ll0y0, ll000);
+			ll4 = softenSmoothLight((ll0yZ + ll0y0 + llXyZ + llXy0) / 4.0f, ll0y0, ll000);
+			ll3 = softenSmoothLight((ll0y0 + ll0yz + llXy0 + llXyz) / 4.0f, ll0y0, ll000);
+			ll2 = softenSmoothLight((llxy0 + llxyz + ll0y0 + ll0yz) / 4.0f, ll0y0, ll000);
 		} else ll1 = ll2 = ll3 = ll4 = ll0y0;
+		if (blsmooth > 1) {
+			float llAvg = (ll1 + ll2 + ll3 + ll4) * 0.25f;
+			ll1 = ll2 = ll3 = ll4 = llAvg;
+		}
 		c1r = c2r = c3r = c4r = (tint0 ? pBaseRed : 1.0f) * 0.5f;
 		c1g = c2g = c3g = c4g = (tint0 ? pBaseGreen : 1.0f) * 0.5f;
 		c1b = c2b = c3b = c4b = (tint0 ? pBaseBlue : 1.0f) * 0.5f;
@@ -1200,11 +1220,15 @@ bool TileRenderer::tesselateBlockInWorldWithAmbienceOcclusion( Tile* tt, int pX,
 			}
 			pY--;
 
-			ll4 = (llxYZ + llxY0 + ll0YZ + ll0Y0) / 4.0f;
-			ll1 = (ll0YZ + ll0Y0 + llXYZ + llXY0) / 4.0f;
-			ll2 = (ll0Y0 + ll0Yz + llXY0 + llXYz) / 4.0f;
-			ll3 = (llxY0 + llxYz + ll0Y0 + ll0Yz) / 4.0f;
+			ll4 = softenSmoothLight((llxYZ + llxY0 + ll0YZ + ll0Y0) / 4.0f, ll0Y0, ll000);
+			ll1 = softenSmoothLight((ll0YZ + ll0Y0 + llXYZ + llXY0) / 4.0f, ll0Y0, ll000);
+			ll2 = softenSmoothLight((ll0Y0 + ll0Yz + llXY0 + llXYz) / 4.0f, ll0Y0, ll000);
+			ll3 = softenSmoothLight((llxY0 + llxYz + ll0Y0 + ll0Yz) / 4.0f, ll0Y0, ll000);
 		} else ll1 = ll2 = ll3 = ll4 = ll0Y0;
+		if (blsmooth > 1) {
+			float llAvg = (ll1 + ll2 + ll3 + ll4) * 0.25f;
+			ll1 = ll2 = ll3 = ll4 = llAvg;
+		}
 		c1r = c2r = c3r = c4r = (tint1 ? pBaseRed : 1.0f);
 		c1g = c2g = c3g = c4g = (tint1 ? pBaseGreen : 1.0f);
 		c1b = c2b = c3b = c4b = (tint1 ? pBaseBlue : 1.0f);
@@ -1258,11 +1282,15 @@ bool TileRenderer::tesselateBlockInWorldWithAmbienceOcclusion( Tile* tt, int pX,
 				llXYz = llX0z;
 			}
 			pZ++;
-			ll1 = (llx0z + llxYz + ll00z + ll0Yz) / 4.0f;
-			ll2 = (ll00z + ll0Yz + llX0z + llXYz) / 4.0f;
-			ll3 = (ll0yz + ll00z + llXyz + llX0z) / 4.0f;
-			ll4 = (llxyz + llx0z + ll0yz + ll00z) / 4.0f;
+			ll1 = softenSmoothLight((llx0z + llxYz + ll00z + ll0Yz) / 4.0f, ll00z, ll000);
+			ll2 = softenSmoothLight((ll00z + ll0Yz + llX0z + llXYz) / 4.0f, ll00z, ll000);
+			ll3 = softenSmoothLight((ll0yz + ll00z + llXyz + llX0z) / 4.0f, ll00z, ll000);
+			ll4 = softenSmoothLight((llxyz + llx0z + ll0yz + ll00z) / 4.0f, ll00z, ll000);
 		} else ll1 = ll2 = ll3 = ll4 = ll00z;
+		if (blsmooth > 1) {
+			float llAvg = (ll1 + ll2 + ll3 + ll4) * 0.25f;
+			ll1 = ll2 = ll3 = ll4 = llAvg;
+		}
 		c1r = c2r = c3r = c4r = (tint2 ? pBaseRed : 1.0f) * 0.8f;
 		c1g = c2g = c3g = c4g = (tint2 ? pBaseGreen : 1.0f) * 0.8f;
 		c1b = c2b = c3b = c4b = (tint2 ? pBaseBlue : 1.0f) * 0.8f;
@@ -1326,11 +1354,15 @@ bool TileRenderer::tesselateBlockInWorldWithAmbienceOcclusion( Tile* tt, int pX,
 				llXYZ = llX0Z;
 			}
 			pZ--;
-			ll1 = (llx0Z + llxYZ + ll00Z + ll0YZ) / 4.0f;
-			ll4 = (ll00Z + ll0YZ + llX0Z + llXYZ) / 4.0f;
-			ll3 = (ll0yZ + ll00Z + llXyZ + llX0Z) / 4.0f;
-			ll2 = (llxyZ + llx0Z + ll0yZ + ll00Z) / 4.0f;
+			ll1 = softenSmoothLight((llx0Z + llxYZ + ll00Z + ll0YZ) / 4.0f, ll00Z, ll000);
+			ll4 = softenSmoothLight((ll00Z + ll0YZ + llX0Z + llXYZ) / 4.0f, ll00Z, ll000);
+			ll3 = softenSmoothLight((ll0yZ + ll00Z + llXyZ + llX0Z) / 4.0f, ll00Z, ll000);
+			ll2 = softenSmoothLight((llxyZ + llx0Z + ll0yZ + ll00Z) / 4.0f, ll00Z, ll000);
 		} else ll1 = ll2 = ll3 = ll4 = ll00Z;
+		if (blsmooth > 1) {
+			float llAvg = (ll1 + ll2 + ll3 + ll4) * 0.25f;
+			ll1 = ll2 = ll3 = ll4 = llAvg;
+		}
 		c1r = c2r = c3r = c4r = (tint3 ? pBaseRed : 1.0f) * 0.8f;
 		c1g = c2g = c3g = c4g = (tint3 ? pBaseGreen : 1.0f) * 0.8f;
 		c1b = c2b = c3b = c4b = (tint3 ? pBaseBlue : 1.0f) * 0.8f;
@@ -1393,11 +1425,15 @@ bool TileRenderer::tesselateBlockInWorldWithAmbienceOcclusion( Tile* tt, int pX,
 				llxYZ = llx0Z;
 			}
 			pX++;
-			ll4 = (llxy0 + llxyZ + llx00 + llx0Z) / 4.0f;
-			ll1 = (llx00 + llx0Z + llxY0 + llxYZ) / 4.0f;
-			ll2 = (llx0z + llx00 + llxYz + llxY0) / 4.0f;
-			ll3 = (llxyz + llxy0 + llx0z + llx00) / 4.0f;
+			ll4 = softenSmoothLight((llxy0 + llxyZ + llx00 + llx0Z) / 4.0f, llx00, ll000);
+			ll1 = softenSmoothLight((llx00 + llx0Z + llxY0 + llxYZ) / 4.0f, llx00, ll000);
+			ll2 = softenSmoothLight((llx0z + llx00 + llxYz + llxY0) / 4.0f, llx00, ll000);
+			ll3 = softenSmoothLight((llxyz + llxy0 + llx0z + llx00) / 4.0f, llx00, ll000);
 		} else ll1 = ll2 = ll3 = ll4 = llx00;
+		if (blsmooth > 1) {
+			float llAvg = (ll1 + ll2 + ll3 + ll4) * 0.25f;
+			ll1 = ll2 = ll3 = ll4 = llAvg;
+		}
 		c1r = c2r = c3r = c4r = (tint4 ? pBaseRed : 1.0f) * 0.6f;
 		c1g = c2g = c3g = c4g = (tint4 ? pBaseGreen : 1.0f) * 0.6f;
 		c1b = c2b = c3b = c4b = (tint4 ? pBaseBlue : 1.0f) * 0.6f;
@@ -1460,11 +1496,15 @@ bool TileRenderer::tesselateBlockInWorldWithAmbienceOcclusion( Tile* tt, int pX,
 				llXYZ = llX0Z;
 			}
 			pX--;
-			ll1 = (llXy0 + llXyZ + llX00 + llX0Z) / 4.0f;
-			ll4 = (llX00 + llX0Z + llXY0 + llXYZ) / 4.0f;
-			ll3 = (llX0z + llX00 + llXYz + llXY0) / 4.0f;
-			ll2 = (llXyz + llXy0 + llX0z + llX00) / 4.0f;
+			ll1 = softenSmoothLight((llXy0 + llXyZ + llX00 + llX0Z) / 4.0f, llX00, ll000);
+			ll4 = softenSmoothLight((llX00 + llX0Z + llXY0 + llXYZ) / 4.0f, llX00, ll000);
+			ll3 = softenSmoothLight((llX0z + llX00 + llXYz + llXY0) / 4.0f, llX00, ll000);
+			ll2 = softenSmoothLight((llXyz + llXy0 + llX0z + llX00) / 4.0f, llX00, ll000);
 		} else ll1 = ll2 = ll3 = ll4 = llX00;
+		if (blsmooth > 1) {
+			float llAvg = (ll1 + ll2 + ll3 + ll4) * 0.25f;
+			ll1 = ll2 = ll3 = ll4 = llAvg;
+		}
 		c1r = c2r = c3r = c4r = (tint5 ? pBaseRed : 1.0f) * 0.6f;
 		c1g = c2g = c3g = c4g = (tint5 ? pBaseGreen : 1.0f) * 0.6f;
 		c1b = c2b = c3b = c4b = (tint5 ? pBaseBlue : 1.0f) * 0.6f;

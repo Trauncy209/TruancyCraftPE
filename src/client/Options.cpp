@@ -30,6 +30,7 @@ std::string Options::getCaption(const Option* item) {
 	if (item == &Option::PIXELS_PER_MILLIMETER) return "Touch Scale";
 	if (item == &Option::VSYNC) return "VSync";
 	if (item == &Option::DEBUG_TICK_SPEED) return "Debug Tick Speed";
+	if (item == &Option::DEBUG_MENU) return "Debug Menu";
 
 	std::string id = item->getCaptionId();
 	const std::string prefix = "options.";
@@ -188,7 +189,8 @@ const Options::Option
 	Options::Option::DESTROY_VIBRATION   (20, "options.destroyvibration", false, true),
 	Options::Option::PIXELS_PER_MILLIMETER(21, "options.pixelspermilimeter", true, false),
 	Options::Option::VSYNC               (22, "options.vsync",             false, true),
-	Options::Option::DEBUG_TICK_SPEED    (23, "options.debugtickspeed",    true, false);
+	Options::Option::DEBUG_TICK_SPEED    (23, "options.debugtickspeed",    true, false),
+	Options::Option::DEBUG_MENU          (24, "options.debugmenu",         false, true);
 
 /* private */
 const float Options::SOUND_MIN_VALUE = 0.0f;
@@ -331,6 +333,8 @@ void Options::update()
 			readBool(value, thirdPersonView);
 		if (key == OptionStrings::Game_HideGui)
 			readBool(value, hideGui);
+		if (key == OptionStrings::Game_DebugMenu)
+			readBool(value, renderDebug);
 		if (key == OptionStrings::Game_DebugTickSpeed) {
 			if (readFloat(value, debugTickSpeed)) {
 				if (debugTickSpeed < DEBUG_TICK_SPEED_MIN_VALUE) debugTickSpeed = DEBUG_TICK_SPEED_MIN_VALUE;
@@ -402,6 +406,7 @@ void Options::save()
 	addOptionToSaveOutput(stringVec, OptionStrings::Game_DifficultyLevel, difficulty);
 	addOptionToSaveOutput(stringVec, OptionStrings::Game_ThirdPerson, thirdPersonView);
 	addOptionToSaveOutput(stringVec, OptionStrings::Game_HideGui, hideGui);
+	addOptionToSaveOutput(stringVec, OptionStrings::Game_DebugMenu, renderDebug);
 	addOptionToSaveOutput(stringVec, OptionStrings::Game_DebugTickSpeed, debugTickSpeed);
 
 	// Input

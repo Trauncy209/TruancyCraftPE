@@ -29,6 +29,7 @@ public:
 	static const char* Game_ThirdPerson;
 	static const char* Game_HideGui;
 	static const char* Game_DebugTickSpeed;
+	static const char* Game_DebugMenu;
 	static const char* Audio_Music;
 	static const char* Audio_Sound;
 };

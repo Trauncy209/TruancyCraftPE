@@ -27,5 +27,6 @@ const char* OptionStrings::Game_DifficultyLevel = "game_difficulty";
 const char* OptionStrings::Game_ThirdPerson = "game_thirdperson";
 const char* OptionStrings::Game_HideGui = "game_hidegui";
 const char* OptionStrings::Game_DebugTickSpeed = "game_debug_tickspeed";
+const char* OptionStrings::Game_DebugMenu = "game_debug_menu";
 const char* OptionStrings::Audio_Music = "audio_music";
 const char* OptionStrings::Audio_Sound = "audio_sound";

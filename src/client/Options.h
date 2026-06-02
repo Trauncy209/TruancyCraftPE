@@ -52,6 +52,7 @@ public:
 		static const Option PIXELS_PER_MILLIMETER;
 		static const Option VSYNC;
 		static const Option DEBUG_TICK_SPEED;
+		static const Option DEBUG_MENU;
 
 		/*
         static Option* getItem(int id) {
@@ -250,6 +251,7 @@ public:
 		if (option == &Option::USE_TOUCH_JOYPAD) isJoyTouchArea = !isJoyTouchArea;
 		if (option == &Option::CLASSIC_CONTROLS) useClassicControls = !useClassicControls;
 		if (option == &Option::DESTROY_VIBRATION) destroyVibration = !destroyVibration;
+		if (option == &Option::DEBUG_MENU) renderDebug = !renderDebug;
 		if (option == &Option::ANAGLYPH) {
             anaglyph3d = !anaglyph3d;
             //minecraft->textures.reloadAll();
@@ -320,6 +322,8 @@ public:
 			return useClassicControls;
 		if (item == &Option::DESTROY_VIBRATION)
 			return destroyVibration;
+		if (item == &Option::DEBUG_MENU)
+			return renderDebug;
 		return false;
 	}
 

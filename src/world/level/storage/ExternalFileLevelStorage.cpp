@@ -150,65 +150,60 @@ LevelData* ExternalFileLevelStorage::prepareLevel(Level* _level)
 
 bool ExternalFileLevelStorage::readLevelData(const std::string& directory, LevelData& levelData)
 {
-    // Try to load level.dat
-    std::string datFilename = directory + "/" + fnLevelDat;
-	FILE* file = fopen(datFilename.c_str(), "rb");
+    const char* candidates[] = { fnLevelDat, fnLevelDatOld };
 
-    // If that fails, try to load level.dat_old
-    if (!file) {
-        datFilename = directory + "/" + fnLevelDatOld;
-        file = fopen(datFilename.c_str(), "rb");
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        std::string datFilename = directory + "/" + candidates[attempt];
+        FILE* file = fopen(datFilename.c_str(), "rb");
+        if (!file)
+            continue;
+
+        int version = 0;
+        int size = 0;
+        unsigned char* data = NULL;
+        bool loaded = false;
+
+        do {
+            if (fread(&version, sizeof(version), 1, file) != 1)
+                break;
+            if (fread(&size, sizeof(size), 1, file) != 1)
+                break;
+
+            int left = getRemainingFileSize(file);
+            if (size > left || size <= 0)
+                break;
+
+            data = new unsigned char[size];
+            if (fread(data, 1, size, file) != size)
+                break;
+
+            if (version == 1) {
+                RakNet::BitStream bitStream(data, size, false);
+                levelData.v1_read(bitStream, version);
+                loaded = true;
+            } else if (version >= 2) {
+                RakNet::BitStream bitStream(data, size, false);
+                RakDataInput stream(bitStream);
+                CompoundTag* tag = NbtIo::read(&stream);
+                if (tag) {
+                    levelData.getTagData(tag);
+                    tag->deleteChildren();
+                    delete tag;
+                    loaded = true;
+                }
+            }
+        } while (false);
+
+        fclose(file);
+        delete [] data;
+
+        if (loaded)
+            return true;
+
+        LOGE("Error@readLevelData: Failed to parse %s\n", datFilename.c_str());
     }
 
-    if (!file)
-        return false;
-
-	int version = 0;
-	int size = 0;
-	unsigned char* data = NULL;
-
-	do {
-		if (fread(&version, sizeof(version), 1, file) != 1)
-		{
-			break;
-		}
-		if (fread(&size, sizeof(size), 1, file) != 1)
-		{
-			break;
-		}
-
-		int left = getRemainingFileSize(file);
-		if (size > left || size <= 0)
-			break;
-
-		data = new unsigned char[size];
-		if (fread(data, 1, size, file) != size)
-		{
-			break;
-		}
-
-		if (version == 1) {
-			RakNet::BitStream bitStream(data, size, false);
-			levelData.v1_read(bitStream, version);
-		} else if (version >= 2) {
-			//LOGI("---> Trying to load level with version %d\n", version);
-			RakNet::BitStream bitStream(data, size, false);
-			RakDataInput stream(bitStream);
-			//LOGI("dat: %s\n", datFileName.c_str());
-			CompoundTag* tag = NbtIo::read(&stream);
-			if (tag) {
-				levelData.getTagData(tag);
-				tag->deleteChildren();
-				delete tag;
-			}
-			//LOGI("<--- Finished reading level tag: %p\n", tag);
-		}
-	} while (false);
-
-	fclose(file);
-	delete [] data;
-
-    return true;
+    return false;
 }
 
 bool ExternalFileLevelStorage::writeLevelData(const std::string& datFileName, LevelData& levelData, const std::vector<Player*>* players)

@@ -1296,69 +1296,10 @@ void LevelRenderer::renderSky(float alpha) {
 	drawArrayVT(skyBuffer, skyVertexCount);
 #endif
 
-	hsr = sr;
-	hsg = sg;
-	hsb = sb;
-
-	// Blend the lower sky band toward the same live fog color used by
-	// GameRenderer::setupClearColor(). This keeps our warm sunset but prevents
-	// the whole dome/horizon from looking flat or washed out.
-	float hfr = mc->gameRenderer->fr;
-	float hfg = mc->gameRenderer->fg;
-	float hfb = mc->gameRenderer->fb;
-
-	if (false) {
-		float frr = (hfr * 30.0f + hfg * 59.0f + hfb * 11.0f) / 100.0f;
-		float fgg = (hfr * 30.0f + hfg * 70.0f) / 100.0f;
-		float fbb = (hfr * 30.0f + hfb * 70.0f) / 100.0f;
-		hfr = frr;
-		hfg = fgg;
-		hfb = fbb;
-	}
-
-	float hmr = hsr * 0.55f + hfr * 0.45f;
-	float hmg = hsg * 0.55f + hfg * 0.45f;
-	float hmb = hsb * 0.55f + hfb * 0.45f;
-
-	glDisable2(GL_CULL_FACE);
-	glShadeModel2(GL_SMOOTH);
-	{
-		Tesselator& t = Tesselator::instance;
-		const int segs = 64;
-		const float radius = 384.0f;
-		const float topY = 80.0f;
-		const float midY = 12.0f;
-		const float bottomY = -18.0f;
-
-		// Upper band: sky blue to warm transition.
-		t.begin(GL_TRIANGLE_STRIP);
-		for (int i = 0; i <= segs; ++i) {
-			float ang = ((float)i / (float)segs) * Mth::PI * 2.0f;
-			float x = Mth::cos(ang) * radius;
-			float z = Mth::sin(ang) * radius;
-			t.color(hsr, hsg, hsb, 1.0f);
-			t.vertex(x, topY, z);
-			t.color(hmr, hmg, hmb, 1.0f);
-			t.vertex(x, midY, z);
-		}
-		t.endOverrideAndDraw();
-
-		// Lower band: warm transition to horizon/fog color.
-		t.begin(GL_TRIANGLE_STRIP);
-		for (int i = 0; i <= segs; ++i) {
-			float ang = ((float)i / (float)segs) * Mth::PI * 2.0f;
-			float x = Mth::cos(ang) * radius;
-			float z = Mth::sin(ang) * radius;
-			t.color(hmr, hmg, hmb, 1.0f);
-			t.vertex(x, midY, z);
-			t.color(hfr, hfg, hfb, 1.0f);
-			t.vertex(x, bottomY, z);
-		}
-		t.endOverrideAndDraw();
-	}
-	glShadeModel2(GL_FLAT);
-	glEnable2(GL_CULL_FACE);
-
+	// Do not draw the custom cylindrical horizon gradient here. On GLES the
+	// retained sky VBO is skipped for Adreno stability, so this extra band can
+	// become an obvious mismatched ring against the real clear/sky color.
+	// Stars, sun, and moon still render over the clear-color sky.
 	// Render stars with texture disabled (0.7.6 ordering), then restore sky states.
 	_renderStars(alpha);
 	glEnable2(GL_FOG);

@@ -284,7 +284,17 @@ void GameRenderer::renderLevel(float a) {
         glEnable2(GL_FOG);
         setupFog(1);
 
-        if (mc->options.ambientOcclusion) {
+        // Keep the actual chunk tessellator AO flag in sync with the UI option.
+        // Previously the option only changed GL shade model; chunks still rebuilt
+        // through Minecraft::useAmbientOcclusion=false, making smooth lighting look
+        // broken until unrelated code happened to touch the static flag.
+        if (Minecraft::useAmbientOcclusion != mc->options.ambientOcclusion) {
+            Minecraft::useAmbientOcclusion = mc->options.ambientOcclusion;
+            if (mc->levelRenderer != NULL) {
+                mc->levelRenderer->allChanged();
+            }
+        }
+        if (Minecraft::useAmbientOcclusion) {
             glShadeModel2(GL_SMOOTH);
 		}
         

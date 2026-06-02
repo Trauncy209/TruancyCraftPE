@@ -182,7 +182,9 @@ LevelData* ExternalFileLevelStorageSource::getDataTagFor( const std::string& lev
 
 bool ExternalFileLevelStorageSource::isNewLevelIdAcceptable( const std::string& levelId )
 {
-	return true;
+	if (levelId.empty()) return false;
+	std::string path = getFullPath(levelId);
+	return _access(path.c_str(), 0) != 0;
 }
 
 std::string ExternalFileLevelStorageSource::getFullPath(const std::string& levelId) {

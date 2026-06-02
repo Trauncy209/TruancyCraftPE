@@ -44,6 +44,11 @@ OptionsGroup& OptionsGroup::addGameModeToggle(Minecraft* minecraft) {
 	return *this;
 }
 
+OptionsGroup& OptionsGroup::addKeepInventoryToggle(Minecraft* minecraft) {
+	createKeepInventoryToggle(minecraft);
+	return *this;
+}
+
 void OptionsGroup::createToggle( const Options::Option* option, Minecraft* minecraft ) {
 	ImageDef def;
 	def.setSrc(IntRectangle(160, 206, 39, 20));
@@ -69,6 +74,20 @@ void OptionsGroup::createGameModeToggle( Minecraft* minecraft ) {
 	element->setImageDef(def, true);
 	element->updateImage(&minecraft->options);
 	OptionsItem* item = new OptionsItem("Game Mode", element, NULL);
+	addChild(item);
+	setupPositions();
+}
+
+void OptionsGroup::createKeepInventoryToggle( Minecraft* minecraft ) {
+	ImageDef def;
+	def.setSrc(IntRectangle(160, 206, 39, 20));
+	def.name = "gui/touchgui.png";
+	def.width = 39 * 0.7f;
+	def.height = 20 * 0.7f;
+	KeepInventoryOptionButton* element = new KeepInventoryOptionButton();
+	element->setImageDef(def, true);
+	element->updateImage(&minecraft->options);
+	OptionsItem* item = new OptionsItem("Keep Inventory", element, NULL);
 	addChild(item);
 	setupPositions();
 }

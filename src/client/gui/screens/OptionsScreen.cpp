@@ -168,6 +168,9 @@ void OptionsScreen::generateOptionScreens() {
 	if (returnToPause)
 		gameOptions.addGameModeToggle(minecraft);
 	if (returnToPause)
+		gameOptions.addKeepInventoryToggle(minecraft);
+	gameOptions.addOptionItem(&Options::Option::DEBUG_MENU, minecraft);
+	if (returnToPause)
 		gameOptions.addOptionItem(&Options::Option::DEBUG_TICK_SPEED, minecraft);
 	gameOptions
 		.addOptionItem(&Options::Option::SERVER_VISIBLE, minecraft)
