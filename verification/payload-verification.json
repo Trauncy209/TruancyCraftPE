@@ -1,0 +1,12 @@
+{
+  "32bit": {
+    "game_files_identical": true,
+    "files": 406,
+    "sha256": "551fa7d30012a9c427f83e38ff760a8687001fe2898dd5b38e3df6f2e6dc78c8"
+  },
+  "64bit": {
+    "game_files_identical": true,
+    "files": 406,
+    "sha256": "d5857b6f09cc17e151f854667daf7b267e1a438cb70938871ce4b92d9f739adf"
+  }
+}
