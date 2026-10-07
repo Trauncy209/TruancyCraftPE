@@ -16,12 +16,18 @@ We want to preserve what made early Pocket Edition special, fix what was broken,
 [![Issues](https://img.shields.io/github/issues/Trauncy209/TruancyCraftPE?style=for-the-badge)](https://github.com/Trauncy209/TruancyCraftPE/issues)
 [![Last Commit](https://img.shields.io/github/last-commit/Trauncy209/TruancyCraftPE?style=for-the-badge)](https://github.com/Trauncy209/TruancyCraftPE/commits/main)
 
-**Download here:** https://github.com/Trauncy209/TruancyCraftPE/releases/latest
+**Current release: [v0.5.22.1](https://github.com/Trauncy209/TruancyCraftPE/releases/tag/v0.5.22.1)** · [32-bit and 64-bit APKs](https://github.com/Trauncy209/TruancyCraftPE/releases/tag/v0.5.22.1) · [Checksums & scans](verification/README.md)
 
 **Join the community:** https://discord.gg/pnN65AvKu
 
 If you want updates as they drop, **star the repo, join the Discord, and turn on notifications/watch it** — releases are frequent and you do not want to miss out.
 
+
+## Signed releases
+
+Official APKs now use our own **Truancy209 release certificate**. v0.5.22.1 keeps the v0.5.22 game files unchanged and replaces debug signing. [Hashes, the public certificate, and VirusTotal links](verification/README.md) are published with the downloads.
+
+Coming from an older build? [Read the signing update notes](docs/RELEASE-SIGNING.md) before replacing an installation so your worlds stay safe.
 
 ## Screenshots
 

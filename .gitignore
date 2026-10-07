@@ -200,3 +200,8 @@ games/
 vcpkg_installed/
 .cache/
 conan/
+
+# Private signing material
+*.keystore
+*.p12
+*.jks

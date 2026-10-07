@@ -439,13 +439,24 @@ popd >/dev/null
 rm -rf "$TMP_ASSETS_DIR"
 
 "$ZIPALIGN" -p 4 "$APK_UNSIGNED" "$APK_ALIGNED"
-"$APKSIGNER" sign --ks "$KEYSTORE_FILE" --ks-pass pass:android --key-pass pass:android --out "$APK_SIGNED" "$APK_ALIGNED"
+if [[ -n "${TCPE_RELEASE_KEYSTORE:-}" ]]; then
+  : "${TCPE_RELEASE_STOREPASS_FILE:?Set the private release password-file path}"
+  "$APKSIGNER" sign --ks "$TCPE_RELEASE_KEYSTORE" --ks-key-alias "${TCPE_RELEASE_KEY_ALIAS:-truancy-release}" --ks-pass "file:$TCPE_RELEASE_STOREPASS_FILE" --out "$APK_SIGNED" "$APK_ALIGNED"
+else
+  "$APKSIGNER" sign --ks "$KEYSTORE_FILE" --ks-pass pass:android --key-pass pass:android --out "$APK_SIGNED" "$APK_ALIGNED"
+fi
+"$APKSIGNER" verify --verbose "$APK_SIGNED"
 
 echo "  signed -> $APK_SIGNED"
 
 ########################################
 # install
 ########################################
+if [[ "${TCPE_SKIP_INSTALL:-0}" == "1" ]]; then
+  echo "Packaging complete; device installation skipped."
+  exit 0
+fi
+
 log_step "Install"
 
 "$ADB" shell am force-stop "$PACKAGE_NAME" || true
