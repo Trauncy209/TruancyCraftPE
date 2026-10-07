@@ -23,6 +23,12 @@ We want to preserve what made early Pocket Edition special, fix what was broken,
 If you want updates as they drop, **star the repo, join the Discord, and turn on notifications/watch it** — releases are frequent and you do not want to miss out.
 
 
+## Come say hi
+
+I'm also really busy running our cracked Java network, **[ZeusPvP.net](https://www.zeuspvp.net/)**. Feel free to [join our community](https://discord.gg/zeuspvp), say hi, and mention **TruancyCraftPE**!
+
+**Minecraft server:** `ZeusPvP.net` · **Discord:** [discord.gg/zeuspvp](https://discord.gg/zeuspvp)
+
 ## Signed releases
 
 Official APKs now use our own **Truancy209 release certificate**. v0.5.22.1 keeps the v0.5.22 game files unchanged and replaces debug signing. [Hashes, the public certificate, and VirusTotal links](verification/README.md) are published with the downloads.
