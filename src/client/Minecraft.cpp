@@ -1609,7 +1609,13 @@ void Minecraft::setIsCreativeMode(bool isCreative)
 	gameMode = new CreatorMode(this);
 	_isCreativeMode = true;
 #else
-	if (!gameMode || isCreative != _isCreativeMode)
+    bool javaController=false;
+#ifndef STANDALONE_SERVER
+    javaController=dynamic_cast<JavaGameMode*>(gameMode)!=NULL;
+#endif
+    // A Java Survival controller is not the native Survival controller.
+    // The boolean mode alone cannot identify which transport owns actions.
+	if (!gameMode || isCreative != _isCreativeMode || javaController)
 	{
 		delete gameMode;
 		if (isCreative) gameMode = new CreativeMode(this);

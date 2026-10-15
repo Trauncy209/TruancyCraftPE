@@ -26,6 +26,9 @@ ServerPlayer::ServerPlayer( Minecraft* minecraft, Level* level )
 	_sentHealth(-999),
 	_containerCounter(0)
 {
+    // Remote clients send MovePlayer; the handler relays it to other peers.
+    // Generic Mob movement broadcasts include the owner and fight its input.
+    autoSendPosRot=false;
 	hasFakeInventory = true;
 	footSize = 0;
 }

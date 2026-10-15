@@ -413,7 +413,7 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, MoveEnti
 
 	//printf("MovePlayerPacket\n");
 	Entity* entity = level->getEntity(packet->entityId);
-	if (entity)
+	if (entity && entity != minecraft->player)
 	{
 		float xRot = packet->hasRot? packet->xRot : entity->xRot;
 		float yRot = packet->hasRot? packet->yRot : entity->yRot;

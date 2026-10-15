@@ -1192,6 +1192,17 @@ std::vector<AABB>& Level::getCubes(const Entity* source, const AABB& box_) { //@
     int z0 = Mth::floor(box->z0);
     int z1 = Mth::floor(box->z1 + 1);
 
+    // Missing finite-world chunks are solid perimeter, not empty space.
+    // Keep infinite and Java worlds free of these legacy finite bounds.
+    if (!isJavaServerLevel() && levelData.getGeneratorVersion()!=LGV_INFINITE) {
+        const float low=std::min(-1024.0f,box->y0-1.0f);
+        const float high=std::max(1024.0f,box->y1+1.0f);
+        if (box->x0<0) boxes.push_back(AABB(box->x0-1,low,box->z0-1,0,high,box->z1+1));
+        if (box->x1>LEVEL_WIDTH) boxes.push_back(AABB(LEVEL_WIDTH,low,box->z0-1,box->x1+1,high,box->z1+1));
+        if (box->z0<0) boxes.push_back(AABB(box->x0-1,low,box->z0-1,box->x1+1,high,0));
+        if (box->z1>LEVEL_DEPTH) boxes.push_back(AABB(box->x0-1,low,LEVEL_DEPTH,box->x1+1,high,box->z1+1));
+    }
+
     for (int x = x0; x < x1; x++)
         for (int z = z0; z < z1; z++) {
             if (hasChunkAtNow(x, Level::DEPTH / 2, z)) {
@@ -1581,11 +1592,33 @@ void Level::tick(Entity* e) {
 }
 
 void Level::tick(Entity* e, bool actual) {
+    // Recover saves/remote players already stranded outside a finite map.
+    // Reattach before ticking so the old inChunk=false state cannot freeze them.
+    if (actual && !isJavaServerLevel() && levelData.getGeneratorVersion()!=LGV_INFINITE &&
+        (e->x<0 || e->z<0 || e->x>=LEVEL_WIDTH || e->z>=LEVEL_DEPTH)) {
+        const float margin=std::max(1.0f,e->bbWidth*0.5f+0.01f);
+        const float x=std::max(margin,std::min(LEVEL_WIDTH-margin,e->x));
+        const float z=std::max(margin,std::min(LEVEL_DEPTH-margin,e->z));
+        e->setPos(x,std::max(e->y,float(getHeightmap(int(x),int(z))+3)),z);
+        e->xd=0; e->zd=0;
+        if (e->inChunk && hasChunk(e->xChunk,e->zChunk)) getChunk(e->xChunk,e->zChunk)->removeEntity(e,e->yChunk);
+        getChunk(int(x)/16,int(z)/16)->addEntity(e);
+        e->inChunk=true;
+    }
     int xc = Mth::floor(e->x);
     int zc = Mth::floor(e->z);
     int r = 32;
-    if (actual && !isJavaServerLevel() && !hasChunksAt(xc - r, 0, zc - r, xc + r, 128, zc + r)) {
-        return;
+    if (actual && !isJavaServerLevel()) {
+        int x0=xc-r,z0=zc-r,x1=xc+r,z1=zc+r;
+        if (levelData.getGeneratorVersion()!=LGV_INFINITE) {
+            // Finite worlds have no chunks beyond their perimeter. Requiring
+            // those chunks freezes physics, input and gravity near every edge.
+            x0=std::max(0,std::min(LEVEL_WIDTH-1,x0));
+            x1=std::max(0,std::min(LEVEL_WIDTH-1,x1));
+            z0=std::max(0,std::min(LEVEL_DEPTH-1,z0));
+            z1=std::max(0,std::min(LEVEL_DEPTH-1,z1));
+        }
+        if (!hasChunksAt(x0,0,z0,x1,LEVEL_HEIGHT-1,z1)) return;
     }
 
     e->xOld = e->x;

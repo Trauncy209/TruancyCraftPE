@@ -16,16 +16,16 @@ We want to preserve what made early Pocket Edition special, fix what was broken,
 [![Issues](https://img.shields.io/github/issues/Trauncy209/TruancyCraftPE?style=for-the-badge)](https://github.com/Trauncy209/TruancyCraftPE/issues)
 [![Last Commit](https://img.shields.io/github/last-commit/Trauncy209/TruancyCraftPE?style=for-the-badge)](https://github.com/Trauncy209/TruancyCraftPE/commits/main)
 
-**v0.5.24 · Native servers alpha** · [Previous release: v0.5.23.2](https://github.com/Trauncy209/TruancyCraftPE/releases/tag/v0.5.23.2) · [Checksums & signing details](verification/README.md)
+**v0.5.24.1 · Movement fixes** · [Previous release: v0.5.24](https://github.com/Trauncy209/TruancyCraftPE/releases/tag/v0.5.24) · [Checksums & signing details](verification/README.md)
 
 Pick the build for your device:
 
 | Your device | Download |
 | :--- | :--- |
-| Android 64-bit — recommended for most newer phones | [Android 64-bit APK](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.24/TruancyCraftPE-0.5.24-Android-arm64-v8a.apk) |
-| Android 32-bit — older ARM phones | [Android 32-bit APK](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.24/TruancyCraftPE-0.5.24-Android-armeabi-v7a.apk) |
-| Linux 64-bit — x86_64 desktop/laptop | [Linux archive](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.24/TruancyCraftPE-0.5.24-Linux-x86_64.tar.gz) |
-| Host your own native TCPE server — Linux x86_64 | [Server download](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.24/TruancyCraftPE-Server-0.5.24-Linux-x86_64.tar.gz) |
+| Android 64-bit — recommended for most newer phones | [Android 64-bit APK](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.24.1/TruancyCraftPE-0.5.24.1-Android-arm64-v8a.apk) |
+| Android 32-bit — older ARM phones | [Android 32-bit APK](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.24.1/TruancyCraftPE-0.5.24.1-Android-armeabi-v7a.apk) |
+| Linux 64-bit — x86_64 desktop/laptop | [Linux archive](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.24.1/TruancyCraftPE-0.5.24.1-Linux-x86_64.tar.gz) |
+| Host your own native TCPE server — Linux x86_64 | [Server download](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.24.1/TruancyCraftPE-Server-0.5.24.1-Linux-x86_64.tar.gz) |
 
 On Linux, extract the archive and run `launch.sh`. Keep the included `data` and `lib` folders beside the game.
 
@@ -35,6 +35,8 @@ Both Android APKs and Linux require **GLES3-capable graphics**. The GLES3 shader
 
 If you want updates as they drop, **star the repo, join the Discord, and turn on notifications/watch it** — releases are frequent and you do not want to miss out.
 
+
+v0.5.24.1 fixes finite-world edge freezes, native multiplayer movement jitter and Survival block breaking after leaving a Java server.
 
 ## Native TCPE servers
 
