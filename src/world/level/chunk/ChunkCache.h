@@ -70,7 +70,19 @@ public:
     }
 
     LevelChunk* create(int x, int z) {
-        return getChunk(x, z);
+        if (!isNativeClient() || hasChunkNow(x, z)) return getChunk(x, z);
+        if (!fits(x, z)) return emptyChunk;
+        const int slot = (x & (cacheWidth - 1)) + (z & (cacheWidth - 1)) * cacheWidth;
+        if (chunks[slot]) chunks[slot]->unload();
+        LevelChunk* chunk = new LevelChunk(level,
+            new unsigned char[LevelChunk::ChunkBlockCount](), x, z);
+        chunk->terrainPopulated = true;
+        memset(chunk->skyLight.data, level->dimension->hasCeiling ? 0 : 0xff,
+               chunk->skyLight.length);
+        chunks[slot] = chunk;
+        chunk->load();
+        xLast = x; zLast = z; last = chunk;
+        return chunk;
     }
 
     LevelChunk* getChunk(int x, int z) {
@@ -79,6 +91,9 @@ public:
 
 		if (!fits(x, z))
 			return emptyChunk;
+        // Rendering/collision reads must not allocate missing network chunks.
+        // Only create(), called by an incoming server snapshot, can do that.
+        if (isNativeClient() && !hasChunkNow(x, z)) return emptyChunk;
 
 		if (x == xLast && z == zLast && last != NULL) {
             return last;
@@ -95,18 +110,8 @@ public:
                 }
             }
 
-            // Native network worlds receive complete authoritative snapshots. A
-            // cache miss must never run local generation or load stale terrain.
             const bool remoteNative = isNativeClient();
-            LevelChunk* newChunk = remoteNative ?
-                new LevelChunk(level, new unsigned char[LevelChunk::ChunkBlockCount](), x, z) : load(x, z);
-            if (remoteNative) {
-                newChunk->terrainPopulated = true;
-                // Empty space starts with unobstructed sky; received blocks
-                // then update lighting through the normal tile setters.
-                memset(newChunk->skyLight.data, level->dimension->hasCeiling ? 0 : 0xff,
-                       newChunk->skyLight.length);
-            }
+            LevelChunk* newChunk = load(x, z);
 			bool updateLights = false;
             if (newChunk == NULL) {
                 if (source == NULL) {
