@@ -48,6 +48,8 @@ public:
 	// CompoundTag loadPlayerDataTag(std::string playerName) { return NULL; }
 
     void closeAll() {}
+    bool saveNetworkPlayer(Player* player);
+    int loadNetworkPlayer(Player* player);
 
 	static bool readLevelData(const std::string& directory, LevelData& dest);
 	static bool readPlayerData(const std::string& filename, LevelData& dest);

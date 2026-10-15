@@ -557,6 +557,9 @@ int Level::getTopTileY(int x, int z) {
 //	_chunkSource->saveAll();
 //}
 
+bool Level::saveNetworkPlayer(Player* player) { return levelStorage->saveNetworkPlayer(player); }
+int Level::loadNetworkPlayer(Player* player) { return levelStorage->loadNetworkPlayer(player); }
+
 void Level::saveLevelData() {
 	levelStorage->saveLevelData(levelData, &players);
 }

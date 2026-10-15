@@ -3,6 +3,7 @@
 
 #include "ServerSideNetworkHandler.h"
 #include "../world/level/Level.h"
+#include "../world/level/storage/LevelStorage.h"
 #include "../world/entity/player/Player.h"
 #include "../world/entity/player/Inventory.h"
 #include "../world/Container.h"
@@ -189,6 +190,8 @@ void ServerSideNetworkHandler::onDisconnect(const RakNet::RakNetGUID& guid)
 			message += " disconnected from the game";
 			displayGameMessage(message);
 
+			if (!level->saveNetworkPlayer(player))
+                LOGE("Failed saving native player %s\n", player->name.c_str());
 			//RemoveEntityPacket packet(player->entityId);
 			//raknetInstance->send(packet);
 			player->reallyRemoveIfPlayer = true;
@@ -228,12 +231,32 @@ void ServerSideNetworkHandler::handle(const RakNet::RakNetGUID& source, LoginPac
 	//
 	// Valid client version
 	//
+    std::string loginName = packet->clientName.C_String();
+    std::string loginKey = loginName;
+    for (size_t i = 0; i < loginKey.size(); ++i) if (loginKey[i] >= 'A' && loginKey[i] <= 'Z') loginKey[i] += 'a' - 'A';
+    std::vector<Player*> sessions(level->players.begin(), level->players.end());
+    sessions.insert(sessions.end(), _pendingPlayers.begin(), _pendingPlayers.end());
+    for (size_t i = 0; i < sessions.size(); ++i) {
+        std::string key = sessions[i]->name;
+        for (size_t j = 0; j < key.size(); ++j) if (key[j] >= 'A' && key[j] <= 'Z') key[j] += 'a' - 'A';
+        if (key == loginKey) {
+            if (sessions[i]->owner != source) rakPeer->CloseConnection(source, true);
+            return; // Never let two sessions overwrite the same player record.
+        }
+    }
 	Player* newPlayer = new ServerPlayer(minecraft, level);
 
 	minecraft->gameMode->initAbilities(newPlayer->abilities);
 	newPlayer->owner = source;
 	newPlayer->name = packet->clientName.C_String();
-	_pendingPlayers.push_back(newPlayer);
+	int restored = level->loadNetworkPlayer(newPlayer);
+    if (restored < 0) {
+        LOGE("Refusing to overwrite unreadable player save for %s\n", newPlayer->name.c_str());
+        delete newPlayer;
+        rakPeer->CloseConnection(source, true);
+        return;
+    }
+    _pendingPlayers.push_back(newPlayer);
 
 	// Reset the player so he doesn't spawn inside blocks
 	while (newPlayer->y > 0) {
@@ -341,7 +364,18 @@ void ServerSideNetworkHandler::onReady_ClientGeneration(const RakNet::RakNetGUID
 	rakPeer->Send(&bitStream, HIGH_PRIORITY, RELIABLE_ORDERED, 0, source, false);
 	*/
 
-	// broadcast the new player to all other players
+	// Restore the server-owned inventory after client initialization has cleared it.
+    std::vector<ItemInstance> restoredItems;
+    for (int slot = Inventory::MAX_SELECTION_SIZE; slot < newPlayer->inventory->getContainerSize(); ++slot) {
+        ItemInstance* item = newPlayer->inventory->getItem(slot);
+        restoredItems.push_back(item ? *item : ItemInstance());
+    }
+    ContainerSetContentPacket restoredInventory(0, restoredItems);
+    raknetInstance->send(source, restoredInventory);
+    SetHealthPacket restoredHealth(newPlayer->health);
+    raknetInstance->send(source, restoredHealth);
+
+    // broadcast the new player to all other players
 	bitStream.Reset();
 	AddPlayerPacket(newPlayer).write(&bitStream);
 	rakPeer->Send(&bitStream, HIGH_PRIORITY, RELIABLE_ORDERED, 0, source, true);
@@ -471,23 +505,15 @@ void ServerSideNetworkHandler::handle(const RakNet::RakNetGUID& source, PlayerEq
 	if (!player) return;
 	if (rakPeer->GetMyGUID() == player->owner) return;
 
-	// override the player's inventory
-	//int slot = player->inventory->getSlot(packet->itemId, packet->itemAuxValue);
-	int slot = Inventory::MAX_SELECTION_SIZE;
-	if (slot >= 0) {
-		if (packet->itemId == 0) {
-			player->inventory->clearSlot(slot);
-		} else {
-			// @note: 128 is an ugly hack for depletable items.
-			// @todo: fix
-			ItemInstance newItem(packet->itemId, 128, packet->itemAuxValue);
-			player->inventory->replaceSlot(slot, &newItem);
-		}
-		player->inventory->moveToSelectedSlot(slot, true);
-		redistributePacket(packet, source);
-	} else {
-		LOGW("Warning: Remote player doesn't have his thing, Odd!\n");
-	}
+    // Equipment packets identify the held item, never its stack count.
+    // Do not replace real survival stacks with the legacy fabricated 128 items.
+    int slot = packet->itemId ? player->inventory->getSlot(packet->itemId, packet->itemAuxValue) : -1;
+    if (!packet->itemId) for (int i = Inventory::MAX_SELECTION_SIZE; i < player->inventory->getContainerSize(); ++i) {
+        ItemInstance* item = player->inventory->getItem(i);
+        if (!item || item->isNull()) { slot = i; break; }
+    }
+    if (slot >= Inventory::MAX_SELECTION_SIZE) player->inventory->moveToSelectedSlot(slot, false);
+    redistributePacket(packet, source);
 }
 
 void ServerSideNetworkHandler::handle(const RakNet::RakNetGUID& source, PlayerArmorEquipmentPacket* packet) {
@@ -620,7 +646,7 @@ void ServerSideNetworkHandler::handle( const RakNet::RakNetGUID& source, SendInv
 	if (!level) return;
 
 	Entity* entity = level->getEntity(packet->entityId);
-	if (entity && entity->isPlayer()) {
+	if (entity && entity->isPlayer() && ((Player*)entity)->owner == source) {
 		Player* p = (Player*)entity;
 		p->inventory->replace(packet->items, packet->numItems);
 		bool keepInventory = level->getLevelData() && level->getLevelData()->getKeepInventory();
@@ -636,10 +662,24 @@ void ServerSideNetworkHandler::handle( const RakNet::RakNetGUID& source, DropIte
 	if (!level) return;
 
 	Entity* entity = level->getEntity(packet->entityId);
-	if (entity && entity->isPlayer()) {
-		Player* p = (Player*)entity;
-		p->drop(new ItemInstance(packet->item), packet->dropType != 0);
-	}
+	if (entity && entity->isPlayer() && ((Player*)entity)->owner == source) {
+        Player* p = (Player*)entity;
+        int available = 0;
+        for (int i = Inventory::MAX_SELECTION_SIZE; i < p->inventory->getContainerSize(); ++i) {
+            ItemInstance* item = p->inventory->getItem(i);
+            if (item && item->id == packet->item.id && item->getAuxValue() == packet->item.getAuxValue()) available += item->count;
+        }
+        int remaining = packet->item.count;
+        if (remaining <= 0 || remaining > available) return;
+        for (int i = Inventory::MAX_SELECTION_SIZE; remaining && i < p->inventory->getContainerSize(); ++i) {
+            ItemInstance* item = p->inventory->getItem(i);
+            if (!item || item->id != packet->item.id || item->getAuxValue() != packet->item.getAuxValue()) continue;
+            int taken = item->count < remaining ? item->count : remaining;
+            item->count -= taken; remaining -= taken;
+            if (!item->count) p->inventory->clearSlot(i);
+        }
+        p->drop(new ItemInstance(packet->item), packet->dropType != 0);
+    }
 }
 
 void ServerSideNetworkHandler::handle(const RakNet::RakNetGUID& source, ContainerClosePacket* packet) {

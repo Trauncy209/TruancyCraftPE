@@ -1,6 +1,17 @@
 #if !defined(DEMO_MODE) && !defined(APPLE_DEMO_PROMOTION)
 
 #include "LevelData.h"
+#include "../../entity/player/Player.h"
+#include <cerrno>
+#include <cctype>
+#include <sys/stat.h>
+#include <zlib.h>
+#ifndef _WIN32
+#include <fcntl.h>
+#endif
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 #include "RegionFile.h"
 #include "ExternalFileLevelStorage.h"
 #include "FolderMethods.h"
@@ -106,7 +117,106 @@ ExternalFileLevelStorage::~ExternalFileLevelStorage()
 	delete loadedLevelData;
 }
 
+
+// Username-only native sessions have no authenticated UUID. Use a case-insensitive,
+// hex-encoded name as the stable key; never use a connection GUID or raw path.
+static std::string nativePlayerKey(const std::string& name) {
+    static const char hex[] = "0123456789abcdef";
+    std::string key;
+    if (name.empty() || name.size() > 64) return key;
+    for (size_t i = 0; i < name.size(); ++i) {
+        unsigned char c = (unsigned char)name[i];
+        if (c >= 'A' && c <= 'Z') c += 'a' - 'A';
+        key += hex[c >> 4]; key += hex[c & 15];
+    }
+    return key;
+}
+
+bool ExternalFileLevelStorage::saveNetworkPlayer(Player* player) {
+    if (!player) return false;
+    const std::string key = nativePlayerKey(player->name);
+    if (key.empty()) return false;
+    const std::string dir = levelPath + "/players";
+#ifdef _WIN32
+    _mkdir(dir.c_str());
+#else
+    if (mkdir(dir.c_str(), 0700) && errno != EEXIST) return false;
+#endif
+    const std::string path = dir + "/" + key + ".dat";
+    CompoundTag tag;
+    player->saveWithoutId(&tag);
+    tag.putInt("NativePlayerVersion", 1);
+    tag.putString("NativePlayerName", key);
+    RakNet::BitStream data;
+    RakDataOutput output(data);
+    NbtIo::write(&tag, &output);
+    tag.deleteChildren();
+    FILE* file = fopen((path + ".new").c_str(), "wb");
+    if (!file) return false;
+    const unsigned int header[3] = {0x31504354, data.GetNumberOfBytesUsed(),
+        (unsigned int)crc32(0, data.GetData(), data.GetNumberOfBytesUsed())};
+    bool ok = fwrite(header, sizeof(header), 1, file) == 1;
+    ok = (fwrite(data.GetData(), 1, data.GetNumberOfBytesUsed(), file) == data.GetNumberOfBytesUsed()) && ok;
+    if (fflush(file)) ok = false;
+#ifndef _WIN32
+    if (ok && fsync(fileno(file))) ok = false;
+#endif
+    if (fclose(file)) ok = false;
+    if (!ok) { remove((path + ".new").c_str()); return false; }
+    // Keep a recoverable previous snapshot before atomically replacing the current one.
+    FILE* previous = fopen(path.c_str(), "rb");
+    if (previous) {
+        FILE* backup = fopen((path + ".old.new").c_str(), "wb");
+        bool copied = backup != NULL;
+        char buffer[4096]; size_t size;
+        while ((size = fread(buffer, 1, sizeof(buffer), previous)) != 0)
+            if (backup && fwrite(buffer, 1, size, backup) != size) copied = false;
+        if (ferror(previous)) copied = false;
+        fclose(previous);
+        if (backup && fclose(backup)) copied = false;
+        if (!copied || rename((path + ".old.new").c_str(), (path + ".old").c_str())) return false;
+    }
+    if (rename((path + ".new").c_str(), path.c_str())) return false;
+#ifndef _WIN32
+    int directory = open(dir.c_str(), O_RDONLY | O_DIRECTORY);
+    if (directory < 0) return false;
+    bool durable = fsync(directory) == 0;
+    close(directory);
+    if (!durable) return false;
+#endif
+    return true;
+}
+
+int ExternalFileLevelStorage::loadNetworkPlayer(Player* player) {
+    const std::string key = nativePlayerKey(player->name);
+    if (key.empty()) return -1;
+    const std::string path = levelPath + "/players/" + key + ".dat";
+    FILE* file = fopen(path.c_str(), "rb");
+    if (!file) return errno == ENOENT ? 0 : -1;
+    fseek(file, 0, SEEK_END); long size = ftell(file); rewind(file);
+    if (size <= 0 || size > 1024 * 1024) { fclose(file); return -1; }
+    std::vector<unsigned char> bytes(size);
+    bool ok = fread(&bytes[0], 1, size, file) == (size_t)size;
+    fclose(file);
+    if (!ok) return -1;
+    if (bytes.size() < 12) return -1;
+    unsigned int header[3]; memcpy(header, &bytes[0], sizeof(header));
+    if (header[0] != 0x31504354 || header[1] != bytes.size() - 12
+        || header[2] != (unsigned int)crc32(0, &bytes[12], bytes.size() - 12)) return -1;
+    RakNet::BitStream data(&bytes[12], bytes.size() - 12, false);
+    RakDataInput input(data);
+    CompoundTag* tag = NbtIo::read(&input);
+    if (!tag) return -1;
+    ok = tag->getInt("NativePlayerVersion") == 1 && tag->getString("NativePlayerName") == key
+        && tag->contains("Pos", Tag::TAG_List) && tag->contains("Inventory", Tag::TAG_List);
+    if (ok) ok = player->load(tag);
+    tag->deleteChildren(); delete tag;
+    return ok ? 1 : -1;
+}
+
 void ExternalFileLevelStorage::saveLevelData(LevelData& levelData, std::vector<Player*>* players) {
+	if (players) for (size_t i = 0; i < players->size(); ++i)
+        if (!saveNetworkPlayer((*players)[i])) LOGE("Native player save failed: %s\n", (*players)[i]->name.c_str());
 	ExternalFileLevelStorage::saveLevelData(levelPath, levelData, players);
 }
 

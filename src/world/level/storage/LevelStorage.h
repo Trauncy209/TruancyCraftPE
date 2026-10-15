@@ -28,6 +28,9 @@ public:
 	}
 
     virtual void closeAll() = 0;
+	virtual bool saveNetworkPlayer(Player* player) { return true; }
+	// 0: first join, 1: restored, -1: unreadable save (do not overwrite).
+	virtual int loadNetworkPlayer(Player* player) { return 0; }
 
 	virtual void saveGame(Level* level) {}
 	virtual void loadEntities(Level* level, LevelChunk* levelChunk) {}

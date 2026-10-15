@@ -261,6 +261,8 @@ public:
     LevelData* getLevelData();
 
 	void saveLevelData();
+    bool saveNetworkPlayer(Player* player);
+    int loadNetworkPlayer(Player* player);
 	//void savePlayerData();
 	void saveGame();
 	void loadEntities();

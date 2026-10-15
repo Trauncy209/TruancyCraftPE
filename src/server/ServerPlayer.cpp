@@ -29,7 +29,9 @@ ServerPlayer::ServerPlayer( Minecraft* minecraft, Level* level )
     // Remote clients send MovePlayer; the handler relays it to other peers.
     // Generic Mob movement broadcasts include the owner and fight its input.
     autoSendPosRot=false;
-	hasFakeInventory = true;
+	// Dedicated/LAN authority must retain picked-up items for player saves.
+	hasFakeInventory = false;
+    dimension = 0;
 	footSize = 0;
 }
 
