@@ -16,19 +16,19 @@ We want to preserve what made early Pocket Edition special, fix what was broken,
 [![Issues](https://img.shields.io/github/issues/Trauncy209/TruancyCraftPE?style=for-the-badge)](https://github.com/Trauncy209/TruancyCraftPE/issues)
 [![Last Commit](https://img.shields.io/github/last-commit/Trauncy209/TruancyCraftPE?style=for-the-badge)](https://github.com/Trauncy209/TruancyCraftPE/commits/main)
 
-**v0.5.25.2 · Terrain streaming fix** · [Previous release: v0.5.25.1](https://github.com/Trauncy209/TruancyCraftPE/releases/tag/v0.5.25.1) · [Checksums & signing details](verification/README.md)
+**v0.5.25.4 · Native Player Saves** · [Previous release: v0.5.25.3](https://github.com/Trauncy209/TruancyCraftPE/releases/tag/v0.5.25.3) · [Checksums & signing details](verification/README.md)
 
 
-**Testing:** [v0.5.25.4 prerelease](https://github.com/Trauncy209/TruancyCraftPE/releases/tag/v0.5.25.4) adds native player inventory, position and hotbar saves, while retaining the faster terrain streaming. Use the matching client and server.
+**Current release:** [v0.5.25.4](https://github.com/Trauncy209/TruancyCraftPE/releases/tag/v0.5.25.4) adds native player inventory, position and hotbar saves, while retaining the faster terrain streaming. Use the matching client and server.
 
 Pick the build for your device:
 
 | Your device | Download |
 | :--- | :--- |
-| Android 64-bit — recommended for most newer phones | [Android 64-bit APK](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.25.2/TruancyCraftPE-0.5.25.2-Android-arm64-v8a.apk) |
-| Android 32-bit — older ARM phones | [Android 32-bit APK](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.25.2/TruancyCraftPE-0.5.25.2-Android-armeabi-v7a.apk) |
-| Linux 64-bit — x86_64 desktop/laptop | [Linux archive](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.25.2/TruancyCraftPE-0.5.25.2-Linux-x86_64.tar.gz) |
-| Host your own native TCPE server — Linux x86_64 | [Server download](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.25.2/TruancyCraftPE-Server-0.5.25.2-Linux-x86_64.tar.gz) |
+| Android 64-bit — recommended for most newer phones | [Android 64-bit APK](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.25.4/TruancyCraftPE-0.5.25.4-Android-arm64-v8a.apk) |
+| Android 32-bit — older ARM phones | [Android 32-bit APK](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.25.4/TruancyCraftPE-0.5.25.4-Android-armeabi-v7a.apk) |
+| Linux 64-bit — x86_64 desktop/laptop | [Linux archive](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.25.4/TruancyCraftPE-0.5.25.4-Linux-x86_64.tar.gz) |
+| Host your own native TCPE server — Linux x86_64 | [Server download](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.25.4/TruancyCraftPE-Server-0.5.25.4-Linux-x86_64.tar.gz) |
 
 On Linux, extract the archive and run `launch.sh`. Keep the included `data` and `lib` folders beside the game.
 
