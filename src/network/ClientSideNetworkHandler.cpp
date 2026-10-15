@@ -625,10 +625,12 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, ChunkDat
 
 void ClientSideNetworkHandler::finishChunkRequests()
 {
-	if (requestedChunksReadySent) return;
-	requestedChunksReadySent = true;
-	ReadyPacket packet(ReadyPacket::READY_REQUESTEDCHUNKS);
-	raknetInstance->send(packet);
+	if (!requestedChunksReadySent) {
+		requestedChunksReadySent = true;
+		ReadyPacket packet(ReadyPacket::READY_REQUESTEDCHUNKS);
+		raknetInstance->send(packet);
+	}
+	// Recentered windows can finish later; their buffered updates still apply.
 
 	for (unsigned int i = 0; i < bufferedBlockUpdates.size(); i++)
 	{

@@ -55,6 +55,11 @@ void run(int wireGenerator,int expected,bool complete){
  Dirty dirty;game->level->addListener(&dirty);ChunkDataPacket snapshot;snapshot.x=center.first;snapshot.z=center.second;
  for(int col=0;col<256;++col){snapshot.chunkData.Write((unsigned char)255);for(int section=0;section<8;++section){unsigned char blocks[16]={0},data[8]={0};if(section==0)blocks[0]=Tile::rock->id;snapshot.chunkData.Write((char*)blocks,16);snapshot.chunkData.Write((char*)data,8);}}
  handler.handle(source,&snapshot);assert(dirty.low==0&&dirty.high==127);assert(game->level->getChunk(center.first,center.second)->getHeightmap(0,0)==1);assert(wire.chunksReady==1);
+ auto next=wire.requests.size();game->player->x+=16;handler.recenterChunkRequests();assert(wire.requests.size()>next);const auto entering=wire.requests[next];const int bx=entering.first*16,bz=entering.second*16;
+ game->level->getChunkSource()->create(entering.first,entering.second);game->level->setTileNoUpdate(bx,100,bz,0);UpdateBlockPacket update(bx,100,bz,Tile::rock->id,0);handler.handle(source,&update);assert(game->level->getTile(bx,100,bz)==0);
+ for(size_t i=next;i<wire.requests.size();++i){assert(i<512);auto pos=wire.requests[i];ChunkDataPacket packet;packet.x=pos.first;packet.z=pos.second;for(int col=0;col<256;++col)packet.chunkData.Write((unsigned char)0);handler.handle(source,&packet);}
+ assert(game->level->getTile(bx,100,bz)==Tile::rock->id&&wire.chunksReady==1);
+
 }
  else assert(wire.chunksReady==0);
  std::cout<<"Actual StartGame generator="<<wireGenerator<<" preserved="<<expected<<" first chunk="<<center.first<<","<<center.second<<" consumed="<<consumed.size()<<" requested-ready="<<wire.chunksReady<<" PASS\n";
