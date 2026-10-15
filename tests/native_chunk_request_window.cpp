@@ -17,4 +17,5 @@ int main(){Mth::initMth();Material::initMaterials();MobCategory::initMobCategori
  game->player->x-=1024;handler.recenterChunkRequests();size_t begin=wire.requests.size()-4;game->player->x-=1024;handler.recenterChunkRequests();assert(wire.requests.size()==begin+4);
  for(size_t i=begin;i<begin+4;++i){auto pos=wire.requests[i];ChunkDataPacket packet;packet.x=pos.first;packet.z=pos.second;for(int col=0;col<256;++col)packet.chunkData.Write((unsigned char)0);handler.handle(source,&packet);}
  assert(wire.requests.size()==begin+8);auto next=wire.requests[begin+4];assert(next.first==-130&&next.second==1);std::cout<<"Old-window replies refill newly centered window without duplicate requests PASS\n";
+ ChunkDataPacket compressed;compressed.x=next.first;compressed.z=next.second;compressed.fullSnapshot=true;for(int col=0;col<256;++col)compressed.chunkData.Write((unsigned char)0);handler.handle(source,&compressed);assert(wire.requests.size()==begin+21);std::cout<<"Verified full compressed snapshot expands window to16; legacy stays4 PASS\n";
 }

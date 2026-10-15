@@ -428,7 +428,10 @@ void ServerSideNetworkHandler::handle(const RakNet::RakNetGUID& source, RequestC
 	ChunkDataPacket cpacket(chunk->x, chunk->z, chunk,true);
 
 	RakNet::BitStream bitStream;
-	cpacket.write(&bitStream);
+    if (packet->compressedSnapshots) {
+        CompressedChunkDataPacket compressed(chunk->x, chunk->z, chunk);
+        compressed.write(&bitStream);
+    } else cpacket.write(&bitStream);
 	rakPeer->Send(&bitStream, HIGH_PRIORITY, RELIABLE_ORDERED, 0, source, false);
     //LOGI("RequestChunkPacket @ (%d, %d). %d bytes\n", packet->x, packet->z, cpacket.chunkData.GetNumberOfBytesUsed());
 	//LOGI("size: %d\n", bitStream.GetNumberOfBytesUsed());

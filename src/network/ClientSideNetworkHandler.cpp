@@ -65,7 +65,7 @@ void ClientSideNetworkHandler::requestNextChunk()
 	// Keep a small nearest-first window in flight instead of one round trip per
 	// chunk. Retain outstanding coordinates across recentering to avoid duplicates.
 	while (requestNextChunkIndex < NumRequestChunks &&
-	       pendingChunkRequests.size() < MaxPendingChunkRequests)
+	       pendingChunkRequests.size() < (size_t)chunkRequestWindow)
 	{
 		const int index = requestNextChunkIndex++;
 		++requestNextChunkPosition;
@@ -610,6 +610,9 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, ChunkDat
 	chunk->unsaved = false;
 
 	receivedChunks[std::make_pair(packet->x, packet->z)] = chunk;
+    // Expand only after this server has delivered a verified compressed full
+    // snapshot. Legacy servers retain the smaller raw-payload window.
+    if (packet->fullSnapshot) chunkRequestWindow = MaxPendingChunkRequests;
 	pendingChunkRequests.erase(std::make_pair(packet->x, packet->z));
 	for (int i = 0; i < NumRequestChunks; ++i) {
 		if (requestNextChunkIndexList[i].x == packet->x && requestNextChunkIndexList[i].y == packet->z) {
@@ -997,6 +1000,7 @@ void ClientSideNetworkHandler::clearChunksLoaded()
 	requestNextChunkPosition = 0;
 	receivedChunks.clear();
 	pendingChunkRequests.clear();
+    chunkRequestWindow = 4;
 	requestedChunksReadySent = false;
 
 	// Init the chunk positions

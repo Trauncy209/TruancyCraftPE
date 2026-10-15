@@ -7,7 +7,8 @@ class RequestChunkPacket : public Packet
 {
 public:
 
-	int x, z;
+	int x = 0, z = 0;
+    bool compressedSnapshots = false;
 
 	RequestChunkPacket()
 	{
@@ -17,6 +18,7 @@ public:
 	{
 		x = _x;
 		z = _z;
+        compressedSnapshots = true;
 	}
 
 	void write(RakNet::BitStream* bitStream)
@@ -25,12 +27,16 @@ public:
 
 		bitStream->Write(x);
 		bitStream->Write(z);
+        if (compressedSnapshots) bitStream->Write((unsigned int)0x54435031);
 	}
 
 	void read(RakNet::BitStream* bitStream)
 	{
 		bitStream->Read(x);
 		bitStream->Read(z);
+        unsigned int capability = 0;
+        compressedSnapshots = bitStream->GetNumberOfUnreadBits() == 32 &&
+            bitStream->Read(capability) && capability == 0x54435031;
 	}
 
 	void handle(const RakNet::RakNetGUID& source, NetEventCallback* callback)

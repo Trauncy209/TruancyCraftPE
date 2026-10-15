@@ -100,6 +100,9 @@ Packet* MinecraftPackets::createPacket(int id)
 	case PACKET_REQUESTCHUNK:
 		packet = new RequestChunkPacket();
 		break;
+	case PACKET_COMPRESSED_CHUNKDATA:
+        packet = new CompressedChunkDataPacket();
+        break;
 	case PACKET_CHUNKDATA:
 		packet = new ChunkDataPacket();
 		break;

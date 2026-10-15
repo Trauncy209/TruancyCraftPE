@@ -111,7 +111,8 @@ private:
 	bool chunksLoaded[NumRequestChunks];
 	std::map<std::pair<int, int>, LevelChunk*> receivedChunks;
 	// Bound memory/processing bursts while hiding per-chunk network latency.
-	static const int MaxPendingChunkRequests = 4;
+	static const int MaxPendingChunkRequests = 16;
+    int chunkRequestWindow = 4;
 	std::set<std::pair<int, int>> pendingChunkRequests;
 	bool requestedChunksReadySent = false;
 	void finishChunkRequests();

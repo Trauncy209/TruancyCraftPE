@@ -293,9 +293,9 @@ LOCAL_C_INCLUDES += $(LOCAL_PATH)/../../../src
 ifeq ($(TCPE_GLES3),1)
 LOCAL_CFLAGS += -DTCPE_GLES3
 LOCAL_SRC_FILES += ../../../src/client/renderer/GLES3Compat.cpp
-LOCAL_LDLIBS := -llog -landroid -lEGL -lGLESv3 -lOpenSLES
+LOCAL_LDLIBS := -llog -landroid -lEGL -lGLESv3 -lOpenSLES -lz
 else
-LOCAL_LDLIBS := -llog -landroid -lEGL -lGLESv1_CM -lOpenSLES
+LOCAL_LDLIBS := -llog -landroid -lEGL -lGLESv1_CM -lOpenSLES -lz
 endif
 LOCAL_STATIC_LIBRARIES := RakNet
 

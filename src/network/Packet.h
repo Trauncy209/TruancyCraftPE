@@ -87,6 +87,7 @@ enum MinecraftPacketIds
 	PACKET_ADVENTURESETTINGS,
     PACKET_WEATHER, // append-only native TCPE extension; existing IDs remain unchanged
     PACKET_WEATHER_LIGHTNING,
+    PACKET_COMPRESSED_CHUNKDATA, // negotiated per request; legacy IDs unchanged
 /*
 	PACKET_PRELOGIN,
 	PACKET_CHAT,

@@ -133,11 +133,21 @@ public:
 					for (int cz = 0; cz < 16; cz++)
 					{
 						int height = level->getHeightmap(cx + x * 16, cz + z * 16);
+#ifdef STANDALONE_SERVER
+                        // Queue the same cells as two vertical ranges. Per-voxel
+                        // block-light boxes cannot merge vertically under the
+                        // legacy volume limit and overwhelm the lighting queue.
+                        if (height >= 0) {
+                            level->updateLight(LightLayer::Sky, cx + x * 16, 0, cz + z * 16, cx + x * 16, height, cz + z * 16);
+                            level->updateLight(LightLayer::Block, cx + x * 16 - 1, 0, cz + z * 16 - 1, cx + x * 16 + 1, height, cz + z * 16 + 1);
+                        }
+#else
 						for (int cy = height; cy >= 0; cy--)
 						{
 							level->updateLight(LightLayer::Sky, cx + x * 16, cy, cz + z * 16, cx + x * 16, cy, cz + z * 16);
 							level->updateLight(LightLayer::Block, cx + x * 16 - 1, cy, cz + z * 16 - 1, cx + x * 16 + 1, cy, cz + z * 16 + 1);
 						}
+#endif
 					}
 				}
 				//level->updateLight(LightLayer::Sky, x * 16, 0, z * 16, x * 16 + 15, 128, z * 16 + 15);

@@ -16,6 +16,7 @@
 #include "ContainerSetSlotPacket.h"
 #include "ContainerSetContentPacket.h"
 #include "ChunkDataPacket.h"
+#include "CompressedChunkDataPacket.h"
 #include "DropItemPacket.h"
 #include "EntityEventPacket.h"
 #include "ExplodePacket.h"
