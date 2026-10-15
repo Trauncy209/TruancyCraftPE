@@ -90,7 +90,7 @@ with zipfile.ZipFile(work/'unsigned.apk', 'a', compression=zipfile.ZIP_DEFLATED)
         apk.write(library, 'lib/'+args.abi+'/'+library.name)
 run(tools/'zipalign', '-f', '-P', '16', '4', work/'unsigned.apk', work/'aligned.apk')
 release_signing = bool(os.environ.get('TCPE_RELEASE_KEYSTORE'))
-name = 'TruancyCraftPE-0.5.23.1-Android-'+args.abi+('' if release_signing else '-development')+'.apk'
+name = 'TruancyCraftPE-0.5.23.2-Android-'+args.abi+('' if release_signing else '-development')+'.apk'
 output = (args.output or work/name).resolve()
 output.parent.mkdir(parents=True, exist_ok=True)
 if release_signing:

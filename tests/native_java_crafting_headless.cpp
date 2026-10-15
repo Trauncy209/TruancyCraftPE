@@ -9,6 +9,8 @@
 #include "network/java/JavaGameMode.h"
 #include "client/gui/screens/JavaInventoryScreen.h"
 #include "network/java/JavaLevel.h"
+#include "client/renderer/GameRenderer.h"
+#include "world/entity/Mob.h"
 #include "world/level/storage/MemoryLevelStorage.h"
 #include "world/level/tile/Tile.h"
 #include "world/level/material/Material.h"
@@ -19,6 +21,9 @@
 #include <cassert>
 #include <png.h>
 #include <iostream>
+#ifdef TCPE_TEST_MOBILE_PICK
+void tcpeQaWorldAtlasPass(int,int){} // Unused desktop-only QA hook in the shared headless link.
+#endif
 class PackGameProbe:public Minecraft{public:PackGameProbe():Minecraft(){}};
 // Access only the real deferred-screen gate for a headless event-loop fixture.
 template<class Tag,typename Tag::type Member>struct TestMember{friend typename Tag::type field(Tag){return Member;}};
@@ -28,6 +33,11 @@ struct NextScreenTag{using type=Screen* Minecraft::*;friend type field(NextScree
 template struct TestMember<ScreenMutexTag,&Minecraft::screenMutex>;
 template struct TestMember<ScheduledTag,&Minecraft::hasScheduledScreen>;
 template struct TestMember<NextScreenTag,&Minecraft::scheduledScreen>;
+struct ModelTag{using type=float (GameRenderer::*)[16];friend type field(ModelTag);};
+struct ProjTag{using type=float (GameRenderer::*)[16];friend type field(ProjTag);};
+template struct TestMember<ModelTag,&GameRenderer::lastModelMatrix>;
+template struct TestMember<ProjTag,&GameRenderer::lastProjMatrix>;
+
 class SemanticInventoryProbe:public JavaInventoryScreen{public:explicit SemanticInventoryProbe(int id):JavaInventoryScreen(id){}using Screen::buttons;};
 static std::string sent;
 static unsigned sentCalls=0;
@@ -142,6 +152,30 @@ sent.clear();sentCalls=0;(game->*field(ScheduledTag{}))=false;popup.buttonClicke
  // Real menu routing retains the explicit preference across new container
  // generations, reconnect-style IDs and options saves, then resets on Menu.
  game->level=new JavaLevel(new MemoryLevelStorage(),session.chunks);session.dead=false;
+ {TouchInputHolder holder(game,&game->options);auto* turn=dynamic_cast<UnifiedTurnBuild*>(holder.getBuildInput());assert(turn);int tx=200,ty=70;assert(turn->isInsideArea(tx,ty));BuildActionIntention action;session.spawned=true;session.targetingEpoch=77;session.worldRevision=13;session.dead=false;session.pickInputRevision=20;session.pickRayEnabled=true;session.pickRaySent=true;
+ // Three complete gestures in one tick survive finger-up without a current hit.
+ Multitouch::reset();Multitouch::resetThisUpdate();for(int i=0;i<3;++i){Multitouch::feed(1,MouseAction::DATA_DOWN,tx+i,ty,1);Multitouch::feed(1,MouseAction::DATA_UP,tx+i,ty,1);}Multitouch::commit();sentCalls=0;turn->tickBuild(nullptr,&action);assert(turn->javaTaps.taps.size()==3&&sentCalls==0);Multitouch::reset();Multitouch::resetThisUpdate();Multitouch::commit();
+ session.entities[900].id=900;
+#ifdef TCPE_TEST_MOBILE_PICK
+ struct CameraMob:Mob{explicit CameraMob(Level* l):Mob(l){}int getEntityTypeId()const override{return 0;}};CameraMob camera(game->level);camera.health=20;game->cameraTargetPlayer=&camera;game->inputHolder=&holder;GameRenderer renderer(game);for(int i=0;i<16;++i){(renderer.*field(ModelTag{}))[i]=(i%5==0)?1:0;(renderer.*field(ProjTag{}))[i]=(i%5==0)?1:0;}
+ renderer.pick(0);assert(turn->javaTaps.locked(session.pickInputRevision));const auto capturedRevision=session.pickInputRevision;(renderer.*field(ModelTag{}))[12]=.01f;renderer.pick(0);assert(session.pickInputRevision==capturedRevision); // Render/camera jitter cannot invalidate a pending tap.
+#endif
+
+ for(int i=0;i<3;++i){assert(turn->javaTaps.taps.front().x==tx+i);
+#ifdef TCPE_TEST_MOBILE_PICK
+ renderer.pick(0);assert(turn->javaTaps.locked(session.pickInputRevision));
+#else
+ ++session.pickInputRevision;turn->javaTaps.bind(session.pickInputRevision);
+#endif
+session.targeting.epoch=77;session.targeting.world=13;session.targeting.age=0;session.targeting.inputRevision=session.pickInputRevision-1;session.targeting.kind="entity";session.targeting.entityId=900;
+ unsigned before=sentCalls;turn->tickBuild(nullptr,&action);assert(sentCalls==before);session.targeting.inputRevision=session.pickInputRevision;turn->tickBuild(nullptr,&action);assert(sentCalls==before+1&&sent.find("\"type\":\"attack\"")!=std::string::npos&&sent.find("900")!=std::string::npos);}
+ assert(turn->javaTaps.taps.empty());turn->javaTaps.push(tx,ty,getTimeS(),77,13);session.worldRevision=14;assert(!turn->pendingJavaTap());turn->javaTaps.push(tx,ty,getTimeS()-1,77,14);assert(!turn->pendingJavaTap());turn->javaTaps.push(tx,ty,getTimeS(),77,14);turn->cancelJavaTaps();assert(!turn->pendingJavaTap());
+ JavaTouchTapQueue bounded;for(int i=0;i<8;++i)assert(bounded.push(i,0,0,1,1));assert(!bounded.push(9,0,0,1,1));bounded.prune(1,1,1);assert(bounded.taps.empty());
+#ifdef TCPE_TEST_MOBILE_PICK
+ game->inputHolder=nullptr;game->cameraTargetPlayer=nullptr;
+#endif
+ session.entities.erase(900);session.spawned=false;session.clearTargeting();session.targetingEpoch=0;session.worldRevision=0;std::cout<<"Tap trace: 3 release gestures / 3 captured positions / 0 stale-target commands / 3 exact attacks; expiry/world/menu cancellation and bounded queue PASS"<<std::endl;}
+
  JavaInventoryViewPreference::setStorage(true);OptionsFile().save(StringVector{"unrelated_setting:kept"});assert(JavaInventoryViewPreference::read());
  for(int id:{8,9}){session.inventory.windowId=id;++session.inventory.menuGeneration;game->screen=nullptr;(game->*field(ScheduledTag{}))=false;sent.clear();sentCalls=0;assert(showJavaInventory(game,true));auto* next=dynamic_cast<JavaStorageScreen*>(game->*field(NextScreenTag{}));assert(next&&next->window()==id&&sentCalls==0);game->screen=next;next->Screen::init(game,400,240);(game->*field(ScheduledTag{}))=false;assert(showJavaInventory(game,true));assert(!(game->*field(ScheduledTag{})));game->screen=nullptr;delete next;}
  JavaInventoryViewPreference::setStorage(false);assert(!JavaInventoryViewPreference::read());session.inventory.windowId=10;++session.inventory.menuGeneration;(game->*field(ScheduledTag{}))=false;sent.clear();sentCalls=0;assert(showJavaInventory(game,true));assert(dynamic_cast<JavaInventoryScreen*>(game->*field(NextScreenTag{}))&&sentCalls==0);

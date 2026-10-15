@@ -2,6 +2,7 @@
 #define NET_MINECRAFT_CLIENT_PLAYER_INPUT_TOUCHSCREEN_TouchInputHolder_H__
 
 #include "../IInputHolder.h"
+#include "JavaTouchTapQueue.h"
 #include "TouchscreenInput.h"
 #include "../HybridMoveInput.h"
 #include "network/java/JavaGameSession.h"
@@ -319,6 +320,23 @@ public:
 	//
 	virtual bool tickBuild(Player* player, BuildActionIntention* bai) {
 		_lastPlayer = player;
+        const bool queuedJava=_minecraft->javaSession&&_minecraft->level&&_minecraft->level->isJavaServerLevel()&&!_options->isJoyTouchArea;
+        if(queuedJava){
+            collectJavaTaps();
+            auto& session=*_minecraft->javaSession;
+            if(pendingJavaTap()){
+                auto tap=javaTaps.taps.front();
+                if(javaTaps.locked(session.pickInputRevision)&&session.targetingCurrent()){
+                    const int target=session.hasAttackTargeting()?session.targeting.attackEntityId:session.hasTargeting()&&session.targeting.kind=="entity"?session.targeting.entityId:-1;
+                    if(target>=0){if(player)player->swing();session.connection.send("{\"type\":\"attack\",\"entity_id\":"+std::to_string(target)+"}");}
+                    else session.connection.send(session.useOffHand?"{\"type\":\"use\",\"hand\":\"off\"}":"{\"type\":\"use\"}");
+                    if(std::getenv("TCPE_JAVA_TRACE_TOUCH"))fprintf(stderr,"Touch tap dispatched: xy=%d,%d revision=%llu target=%d\n",tap.x,tap.y,(unsigned long long)tap.revision,target);
+                    javaTaps.taps.pop_front();
+                }
+                return false;
+            }
+        }
+
 
 		if (state == State_Destroy) {
             // A held entity gesture is use/interact, never block mining.
@@ -367,6 +385,7 @@ public:
 						// We've pressed and released in haste; Let's build!
 						// Java air/block taps must reach useItem as well as placement.
                         // A short entity tap retains the native attack gesture.
+                        if(queuedJava)continue; // collected above; wait for this tap's own pick result
                         const bool javaUse=_minecraft->javaSession && _minecraft->hitResult.type!=ENTITY;
                         *bai = BuildActionIntention(BuildActionIntention::BAI_BUILD | (javaUse?BuildActionIntention::BAI_INTERACT:BuildActionIntention::BAI_ATTACK));
 						handled = true;
@@ -382,6 +401,26 @@ public:
 		return handled;
 	}
 
+    JavaTouchTapQueue javaTaps;
+    struct JavaPress {bool down=false;int x=0,y=0;float time=0;bool moved=false;uint64_t epoch=0;unsigned world=0;};
+    JavaPress javaPress[Multitouch::MAX_POINTERS];
+    void cancelJavaTaps(){javaTaps.clear();for(auto& press:javaPress)press.down=false;}
+    bool pendingJavaTap(){auto* s=_minecraft->javaSession;if(!s){cancelJavaTaps();return false;}javaTaps.prune(getTimeS(),s->targetingEpoch,s->worldRevision);return !javaTaps.taps.empty();}
+    void collectJavaTaps(){
+        auto& s=*_minecraft->javaSession;Multitouch::rewind();const float now=getTimeS();
+        while(Multitouch::next()){
+            const auto& e=Multitouch::getEvent();const int id=e.pointerId;if(id<0||id>=Multitouch::MAX_POINTERS)continue;auto& press=javaPress[id];
+            if(e.action==MouseAction::ACTION_LEFT&&e.data==MouseAction::DATA_DOWN){press={};if(isInsideArea(e.x,e.y)){press.down=true;press.x=e.x;press.y=e.y;press.time=now;press.epoch=s.targetingEpoch;press.world=s.worldRevision;}}
+            else if(press.down){if(std::abs(int(e.x)-press.x)+std::abs(int(e.y)-press.y)>40)press.moved=true;
+                if(e.action==MouseAction::ACTION_LEFT&&e.data==MouseAction::DATA_UP){
+                    if(!press.moved&&now-press.time<.4f&&press.epoch==s.targetingEpoch&&press.world==s.worldRevision&&isInsideArea(e.x,e.y)){
+                        const bool added=javaTaps.push(e.x,e.y,now,s.targetingEpoch,s.worldRevision);
+                        if(std::getenv("TCPE_JAVA_TRACE_TOUCH"))fprintf(stderr,"Touch tap captured: xy=%d,%d queued=%d count=%zu\n",int(e.x),int(e.y),int(added),javaTaps.taps.size());
+                    }press.down=false;
+                }
+            }
+        }
+    }
 	bool allowPicking;
 	float alpha;
 	SmoothFloat smoothAlpha;
@@ -475,6 +514,7 @@ public:
 	}
 
 	virtual bool allowPicking() {
+        if(_turnBuild.pendingJavaTap()){const auto& tap=_turnBuild.javaTaps.taps.front();mousex=tap.x;mousey=tap.y;return true;}
 		const int* pointerIds;
 		int pointerCount = Multitouch::getActivePointerIds(&pointerIds);
 		for (int i = 0; i < pointerCount; ++i) {

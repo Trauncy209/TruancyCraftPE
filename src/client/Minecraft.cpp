@@ -1136,6 +1136,7 @@ void Minecraft::setScreen( Screen* screen )
 	Mouse::reset();
 	Multitouch::reset();
 	Multitouch::resetThisUpdate();
+    if(inputHolder)if(auto* touch=dynamic_cast<UnifiedTurnBuild*>(inputHolder->getBuildInput()))touch->cancelJavaTaps();
 
 	if (screenMutex) {
 		hasScheduledScreen = true;

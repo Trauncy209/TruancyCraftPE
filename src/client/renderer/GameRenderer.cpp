@@ -25,6 +25,7 @@
 #include "../../NinecraftApp.h"
 #include "../../world/level/tile/Tile.h"
 #include "../player/input/IInputHolder.h"
+#include "../player/input/touchscreen/TouchInputHolder.h"
 #include "Textures.h"
 #include "../gui/components/ImageButton.h"
 #include "Tesselator.h"
@@ -719,7 +720,11 @@ void GameRenderer::pick(float a) {
 #else
         const bool freeform=false;
 #endif
-        if(freeform){
+        auto* touch=mc->inputHolder?dynamic_cast<UnifiedTurnBuild*>(mc->inputHolder->getBuildInput()):nullptr;
+        const bool queuedTap=freeform&&touch&&touch->pendingJavaTap();
+        const bool lockedTap=queuedTap&&touch->javaTaps.locked(session.pickInputRevision);
+        if(lockedTap){enabled=true;offset=Vec3(session.pickRayOffset[0],session.pickRayOffset[1],session.pickRayOffset[2]);direction=Vec3(session.pickRayDirection[0],session.pickRayDirection[1],session.pickRayDirection[2]);}
+        else if(freeform){
             enabled=mc->inputHolder->allowPicking();
             if(enabled){
                 int vp[4]={0,0,mc->width,mc->height};float nearPoint[3],farPoint[3];
@@ -730,6 +735,7 @@ void GameRenderer::pick(float a) {
         }
         pickDirection=direction;mc->cameraTargetPlayer->aimDirection=direction;_shTicks=-1;
         enabled=session.updatePickRay(enabled,{{offset.x,offset.y,offset.z}},{{direction.x,direction.y,direction.z}})&&enabled;
+        if(queuedTap&&enabled&&!lockedTap)touch->javaTaps.bind(session.pickInputRevision);
         mc->hitResult=HitResult();
         if(enabled&&session.hasTargeting()){
             const JavaGameSession::Targeting& hit=session.targeting;
