@@ -268,6 +268,24 @@ void LocalPlayer::closeContainer() {
 
 //@Override
 void LocalPlayer::move(float xa, float ya, float za) {
+    // Native server terrain is usable only after its authoritative snapshot.
+    // Hold at the loaded frontier instead of falling through pending chunks.
+    if (minecraft && level && level->isClientSide && !level->isJavaServerLevel()
+        && minecraft->netCallback) {
+        ClientSideNetworkHandler* handler = static_cast<ClientSideNetworkHandler*>(minecraft->netCallback);
+        const int x0 = Mth::floor(std::min(bb.x0, bb.x0 + xa) / CHUNK_WIDTH);
+        const int x1 = Mth::floor((std::max(bb.x1, bb.x1 + xa) - 0.0001f) / CHUNK_WIDTH);
+        const int z0 = Mth::floor(std::min(bb.z0, bb.z0 + za) / CHUNK_DEPTH);
+        const int z1 = Mth::floor((std::max(bb.z1, bb.z1 + za) - 0.0001f) / CHUNK_DEPTH);
+        for (int cx = x0; cx <= x1; ++cx) {
+            for (int cz = z0; cz <= z1; ++cz) {
+                if (!handler->isChunkLoaded(cx, cz)) {
+                    xd = yd = zd = 0;
+                    return;
+                }
+            }
+        }
+    }
     //@note: why is this == minecraft->player needed?
     if (this == minecraft->player && minecraft->options.isFlying) {
         noPhysics = true;

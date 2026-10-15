@@ -8,6 +8,7 @@
 #include "EmptyLevelChunk.h"
 #include "../Level.h"
 #include "../LevelConstants.h"
+#include "../dimension/Dimension.h"
 
 class ChunkCache: public ChunkSource {
     //static const int CHUNK_CACHE_WIDTH = CHUNK_CACHE_WIDTH; // WAS 32;
@@ -94,7 +95,18 @@ public:
                 }
             }
 
-            LevelChunk* newChunk = load(x, z);
+            // Native network worlds receive complete authoritative snapshots. A
+            // cache miss must never run local generation or load stale terrain.
+            const bool remoteNative = isNativeClient();
+            LevelChunk* newChunk = remoteNative ?
+                new LevelChunk(level, new unsigned char[LevelChunk::ChunkBlockCount](), x, z) : load(x, z);
+            if (remoteNative) {
+                newChunk->terrainPopulated = true;
+                // Empty space starts with unobstructed sky; received blocks
+                // then update lighting through the normal tile setters.
+                memset(newChunk->skyLight.data, level->dimension->hasCeiling ? 0 : 0xff,
+                       newChunk->skyLight.length);
+            }
 			bool updateLights = false;
             if (newChunk == NULL) {
                 if (source == NULL) {
@@ -131,10 +143,10 @@ public:
                 chunks[slot]->load();
             }
 
-            if (!chunks[slot]->terrainPopulated && hasChunk(x + 1, z + 1) && hasChunk(x, z + 1) && hasChunk(x + 1, z)) postProcess(this, x, z);
-            if (hasChunk(x - 1, z) && !getChunk(x - 1, z)->terrainPopulated && hasChunk(x - 1, z + 1) && hasChunk(x, z + 1) && hasChunk(x - 1, z)) postProcess(this, x - 1, z);
-            if (hasChunk(x, z - 1) && !getChunk(x, z - 1)->terrainPopulated && hasChunk(x + 1, z - 1) && hasChunk(x, z - 1) && hasChunk(x + 1, z)) postProcess(this, x, z - 1);
-            if (hasChunk(x - 1, z - 1) && !getChunk(x - 1, z - 1)->terrainPopulated && hasChunk(x - 1, z - 1) && hasChunk(x, z - 1) && hasChunk(x - 1, z)) postProcess(this, x - 1, z - 1);
+            if (!remoteNative && !chunks[slot]->terrainPopulated && hasChunk(x + 1, z + 1) && hasChunk(x, z + 1) && hasChunk(x + 1, z)) postProcess(this, x, z);
+            if (!remoteNative && hasChunk(x - 1, z) && !getChunk(x - 1, z)->terrainPopulated && hasChunk(x - 1, z + 1) && hasChunk(x, z + 1) && hasChunk(x - 1, z)) postProcess(this, x - 1, z);
+            if (!remoteNative && hasChunk(x, z - 1) && !getChunk(x, z - 1)->terrainPopulated && hasChunk(x + 1, z - 1) && hasChunk(x, z - 1) && hasChunk(x + 1, z)) postProcess(this, x, z - 1);
+            if (!remoteNative && hasChunk(x - 1, z - 1) && !getChunk(x - 1, z - 1)->terrainPopulated && hasChunk(x - 1, z - 1) && hasChunk(x, z - 1) && hasChunk(x - 1, z)) postProcess(this, x - 1, z - 1);
         }
         xLast = x;
         zLast = z;
@@ -151,7 +163,7 @@ public:
 	}
 
     void postProcess(ChunkSource* parent, int x, int z) {
-		if (!fits(x, z)) return;
+		if (isNativeClient() || !fits(x, z)) return;
         LevelChunk* chunk = getChunk(x, z);
         if (!chunk->terrainPopulated) {
             chunk->terrainPopulated = true;
@@ -197,6 +209,7 @@ public:
     //}
 
     bool tick() {
+        if (isNativeClient()) return false;
         if (storage != NULL) storage->tick();
         return source->tick();
     }
@@ -210,6 +223,7 @@ public:
     }
 
 	void saveAll(bool onlyUnsaved) {
+        if (isNativeClient()) return;
 		if (storage != NULL) {
 			std::vector<LevelChunk*> loadedChunks;
 			for (int i = 0; i < cacheWidth * cacheWidth; ++i) {
@@ -223,6 +237,8 @@ public:
 		}
 	}
 private:
+    bool isNativeClient() const { return level->isClientSide && !level->isJavaServerLevel(); }
+
     LevelChunk* load(int x, int z) {
         if (storage == NULL) return emptyChunk;
         //try {

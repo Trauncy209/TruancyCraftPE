@@ -7,11 +7,12 @@
 #include "../world/level/LevelConstants.h"
 
 #include <vector>
-#include <set>
+#include <map>
 #include <utility>
 
 class Minecraft;
 class Level;
+class LevelChunk;
 class IRakNetInstance;
 
 struct SBufferedBlockUpdate
@@ -82,12 +83,12 @@ public:
 	virtual void handle(const RakNet::RakNetGUID& source, AdventureSettingsPacket* packet);
 	virtual void handle(const RakNet::RakNetGUID& source, SignUpdatePacket* packet);
 	void recenterChunkRequests();
+	bool isChunkLoaded(int x, int z);
 private:
 
 	void requestNextChunk();
     void arrangeRequestChunkOrder();
 
-	bool isChunkLoaded(int x, int z);
 	bool areAllChunksLoaded();
 	void clearChunksLoaded();
 private:
@@ -107,7 +108,7 @@ private:
     int requestNextChunkIndex;
     IntPair requestNextChunkIndexList[NumRequestChunks];
 	bool chunksLoaded[NumRequestChunks];
-	std::set<std::pair<int, int> > receivedChunks;
+	std::map<std::pair<int, int>, LevelChunk*> receivedChunks;
 	bool requestedChunksReadySent = false;
 	void finishChunkRequests();
 };

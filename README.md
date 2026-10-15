@@ -16,16 +16,16 @@ We want to preserve what made early Pocket Edition special, fix what was broken,
 [![Issues](https://img.shields.io/github/issues/Trauncy209/TruancyCraftPE?style=for-the-badge)](https://github.com/Trauncy209/TruancyCraftPE/issues)
 [![Last Commit](https://img.shields.io/github/last-commit/Trauncy209/TruancyCraftPE?style=for-the-badge)](https://github.com/Trauncy209/TruancyCraftPE/commits/main)
 
-**v0.5.25.1 · Native server fix** · [Previous release: v0.5.25](https://github.com/Trauncy209/TruancyCraftPE/releases/tag/v0.5.25) · [Checksums & signing details](verification/README.md)
+**v0.5.25.2 · Terrain streaming fix** · [Previous release: v0.5.25.1](https://github.com/Trauncy209/TruancyCraftPE/releases/tag/v0.5.25.1) · [Checksums & signing details](verification/README.md)
 
 Pick the build for your device:
 
 | Your device | Download |
 | :--- | :--- |
-| Android 64-bit — recommended for most newer phones | [Android 64-bit APK](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.25.1/TruancyCraftPE-0.5.25.1-Android-arm64-v8a.apk) |
-| Android 32-bit — older ARM phones | [Android 32-bit APK](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.25.1/TruancyCraftPE-0.5.25.1-Android-armeabi-v7a.apk) |
-| Linux 64-bit — x86_64 desktop/laptop | [Linux archive](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.25.1/TruancyCraftPE-0.5.25.1-Linux-x86_64.tar.gz) |
-| Host your own native TCPE server — Linux x86_64 | [Server download](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.25.1/TruancyCraftPE-Server-0.5.25.1-Linux-x86_64.tar.gz) |
+| Android 64-bit — recommended for most newer phones | [Android 64-bit APK](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.25.2/TruancyCraftPE-0.5.25.2-Android-arm64-v8a.apk) |
+| Android 32-bit — older ARM phones | [Android 32-bit APK](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.25.2/TruancyCraftPE-0.5.25.2-Android-armeabi-v7a.apk) |
+| Linux 64-bit — x86_64 desktop/laptop | [Linux archive](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.25.2/TruancyCraftPE-0.5.25.2-Linux-x86_64.tar.gz) |
+| Host your own native TCPE server — Linux x86_64 | [Server download](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.25.2/TruancyCraftPE-Server-0.5.25.2-Linux-x86_64.tar.gz) |
 
 On Linux, extract the archive and run `launch.sh`. Keep the included `data` and `lib` folders beside the game.
 
@@ -42,7 +42,7 @@ Our **[native server software](https://github.com/Trauncy209/TruancyCraftPE-Serv
 
 v0.5.25 brings **rain, snow and thunderstorms** to singleplayer and native TCPE servers: smooth weather changes, lightning, rain sounds, snow buildup and freezing. Weather saves with the world and stays in sync when players join. Singleplayer owners and server operators can use `/weather clear|rain|thunder [seconds]`; multiplayer operator grants stay console-only. Same Pocket Edition feel, with a world that does a little more.
 
-v0.5.25.1 fixes native infinite-server joins that could hang on **Locating server**. Clients now receive the server's full terrain, including custom generation. Use the matching client and server.
+v0.5.25.2 fixes native terrain changing as you explore. Clients wait for the server's terrain before entering new chunks, and keep the **0.5.25.1** join fixes. Use the matching client and server.
 
 Native multiplayer is still alpha. **Microsoft login is not working yet**; username-only Java servers remain supported.
 
@@ -288,7 +288,7 @@ bash tools/build-android-network.sh "$ABI"
   APP_ABI="$ABI" TCPE_GLES3=1 \
   NDK_MODULE_PATH="$PWD/project/lib_projects"
 python3 tools/build-android-apk.py --abi "$ABI" --gles3 \
-  --output "build/TruancyCraftPE-0.5.25.1-Android-$ABI-development.apk"
+  --output "build/TruancyCraftPE-0.5.25.2-Android-$ABI-development.apk"
 ```
 
 To build Android 32-bit, set `ABI=armeabi-v7a` and repeat the networking, NDK and packaging steps. Keep each ABI's networking library in `mobile-libs/<ABI>/`.

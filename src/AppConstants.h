@@ -2,7 +2,7 @@
 #define _MINECRAFT_APPCONSTANTS_H_
 
 
-#define APP_VERSION_STRING "0.5.25.1"
+#define APP_VERSION_STRING "0.5.25.2"
 #define APP_NAME "TruancyCraftPE " APP_VERSION_STRING
 
 

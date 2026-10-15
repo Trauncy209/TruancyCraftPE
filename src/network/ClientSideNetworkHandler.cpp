@@ -86,7 +86,7 @@ void ClientSideNetworkHandler::requestNextChunk()
 bool ClientSideNetworkHandler::areAllChunksLoaded()
 {
 	for (int i = 0; i < NumRequestChunks; ++i)
-		if (!chunksLoaded[i]) return false;
+		if (!isChunkLoaded(requestNextChunkIndexList[i].x, requestNextChunkIndexList[i].y)) return false;
 	return true;
 }
 
@@ -94,7 +94,11 @@ bool ClientSideNetworkHandler::isChunkLoaded(int x, int z)
 {
 	for (int i = 0; i < NumRequestChunks; ++i) {
 		if (requestNextChunkIndexList[i].x == x && requestNextChunkIndexList[i].y == z)
-			return chunksLoaded[i];
+			{
+                const auto receipt = receivedChunks.find(std::make_pair(x, z));
+                return chunksLoaded[i] && level && level->hasChunkNow(x, z) &&
+                    receipt != receivedChunks.end() && level->getChunk(x, z) == receipt->second;
+            }
 	}
 	return false;
 	//return areAllChunksLoaded();
@@ -609,7 +613,7 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, ChunkDat
  	}
 	chunk->unsaved = false;
 
-	receivedChunks.insert(std::make_pair(packet->x, packet->z));
+	receivedChunks[std::make_pair(packet->x, packet->z)] = chunk;
 	bool newlyReceived = false;
 	for (int i = 0; i < NumRequestChunks; ++i) {
 		if (requestNextChunkIndexList[i].x == packet->x && requestNextChunkIndexList[i].y == packet->z) {
@@ -667,7 +671,8 @@ private:
 void ClientSideNetworkHandler::arrangeRequestChunkOrder() {
     // A receipt is valid only while that authoritative chunk remains resident.
     for (auto it = receivedChunks.begin(); it != receivedChunks.end();) {
-        if (!level || !level->hasChunkNow(it->first, it->second))
+        if (!level || !level->hasChunkNow(it->first.first, it->first.second) ||
+            level->getChunk(it->first.first, it->first.second) != it->second)
             it = receivedChunks.erase(it);
         else ++it;
     }
