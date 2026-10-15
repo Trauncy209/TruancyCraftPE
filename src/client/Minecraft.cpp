@@ -815,7 +815,7 @@ void Minecraft::tickInput() {
 			#endif
 			if (!screen && key && key == options.keyFog.key) options.viewDistance = (options.viewDistance + 1) % 4;
 			#if defined(WIN32)
-				if (key == Keyboard::KEY_F) {
+				if (key == Keyboard::KEY_F && level && !level->isClientSide) {
 					options.isFlying = !options.isFlying;
 					player->noPhysics = options.isFlying;
 				}
@@ -824,15 +824,15 @@ void Minecraft::tickInput() {
 				if (key == Keyboard::KEY_L)
 					options.viewDistance = (options.viewDistance + 1) % 4;
 
-				if (key == Keyboard::KEY_U) {
+				if (key == Keyboard::KEY_U && level && !level->isClientSide) {
 					onGraphicsReset();
 					player->heal(100);
 				}
 
-				if (key == Keyboard::KEY_B || key == 108) // Toggle the game mode
+				if ((key == Keyboard::KEY_B || key == 108) && level && !level->isClientSide) // Local world only
 					setIsCreativeMode(!isCreativeMode());
 
-				if (key == Keyboard::KEY_P) // Step forward in time
+				if (key == Keyboard::KEY_P && level && !level->isClientSide) // Local world only
 					level->setTime( level->getTime() + 1000);
 
 				if (key == Keyboard::KEY_G) {
@@ -1627,6 +1627,8 @@ bool Minecraft::isCreativeMode() {
 
 void Minecraft::toggleGameMode(bool persistToLevel)
 {
+	// A remote server owns the game mode; local world controls must not override it.
+	if (level && level->isClientSide) return;
 	const bool makeCreative = !isCreativeMode();
 
 	// Keep this hot-path intentionally tiny. The old implementation did a

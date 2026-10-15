@@ -1,3 +1,5 @@
+#include "network/NativeOperators.h"
+#include <sys/stat.h>
 #include "NinecraftApp.h"
 #include "AppConstants.h"
 #include "AppPlatform.h"
@@ -27,7 +29,7 @@ namespace {
 volatile std::sig_atomic_t stopping=0;
 void requestStop(int){stopping=1;}
 struct Settings {
-    std::string directory=".",world="world",name="TruancyCraftPE Server";
+    std::string directory=".",world="world",name="TruancyCraftPE Server",consolePath;
     int port=25565,players=16,autosave=60,mode=GameType::Survival;
     long seed=getEpochTimeS();
 };
@@ -40,6 +42,7 @@ void help(){std::cout<<"TruancyCraftPE native server "<<APP_VERSION_STRING<<"\n"
     <<"Usage: ./tcpe-server [options]\n"
     <<"  --port 25565        Native UDP gameplay and TCP server listing\n"
     <<"  --directory .      Directory containing saved worlds\n"
+    <<"  --console PATH     Owner-only local console FIFO (optional)\n"
     <<"  --world world      World folder name (loaded if it already exists)\n"
     <<"  --name NAME        Server-list name\n"
     <<"  --seed NUMBER      Seed for a new world\n"
@@ -80,6 +83,7 @@ int main(int argc,char** argv){
             else if(key=="--directory"||key=="--externalpath")settings.directory=value;
             else if(key=="--world"||key=="--leveldir")settings.world=value;
             else if(key=="--name"||key=="--levelname")settings.name=value;
+            else if(key=="--console")settings.consolePath=value;
             else if(key=="--seed")settings.seed=number(value,std::numeric_limits<int>::min(),std::numeric_limits<int>::max());
             else if(key=="--max-players")settings.players=number(value,1,64);
             else if(key=="--autosave")settings.autosave=number(value,10,3600);
@@ -97,10 +101,11 @@ int main(int argc,char** argv){
         app->selectLevel(settings.world,settings.name,LevelSettings(settings.seed,settings.mode));app->finishLoading();app->save();
         if(!static_cast<RakNetInstance*>(app->raknetInstance)->listingActive())throw std::runtime_error("Cannot bind TCP listing port "+std::to_string(settings.port));
         std::cout<<"READY: "<<settings.name<<" | native TCPE "<<APP_VERSION_STRING<<" | port "<<settings.port<<" | max "<<settings.players<<"\n";
-        auto next=std::chrono::steady_clock::now();auto nextSave=next+std::chrono::seconds(settings.autosave);bool console=true;std::string line;
+        auto next=std::chrono::steady_clock::now();auto nextSave=next+std::chrono::seconds(settings.autosave);bool console=true;std::string line;int consoleFd=STDIN_FILENO;
+        if(!settings.consolePath.empty()){if(mkfifo(settings.consolePath.c_str(),0600)&&errno!=EEXIST)throw std::runtime_error("Cannot create console FIFO");consoleFd=open(settings.consolePath.c_str(),O_RDWR|O_NONBLOCK|O_NOFOLLOW);struct stat st{};if(consoleFd<0||fstat(consoleFd,&st)||!S_ISFIFO(st.st_mode)||st.st_uid!=geteuid()||(st.st_mode&0077))throw std::runtime_error("Console must be an owner-only FIFO");}
         while(!stopping){
             app->update();auto now=std::chrono::steady_clock::now();if(now>=nextSave){app->save();nextSave=now+std::chrono::seconds(settings.autosave);std::cout<<"World saved\n";}
-            if(console){pollfd input{STDIN_FILENO,POLLIN,0};if(poll(&input,1,0)>0){char data[256];ssize_t count=read(STDIN_FILENO,data,sizeof(data));if(count<=0)console=false;else for(ssize_t i=0;i<count;++i){if(data[i]=='\n'){if(line=="stop")stopping=1;else if(line=="save"){app->save();std::cout<<"World saved\n";}else if(line=="list"){std::cout<<app->level->players.size()<<" player(s):";for(auto* player:app->level->players)std::cout<<" "<<player->name;std::cout<<"\n";}else if(line=="help")std::cout<<"Commands: save, list, stop, help\n";else if(!line.empty())std::cout<<"Unknown command; use help\n";line.clear();}else if(data[i]!='\r'){if(line.size()<4096)line+=data[i];else{line.clear();std::cout<<"Console line too long\n";}}}}}
+            if(console){pollfd input{consoleFd,POLLIN,0};if(poll(&input,1,0)>0){char data[256];ssize_t count=read(consoleFd,data,sizeof(data));if(count<=0)console=false;else for(ssize_t i=0;i<count;++i){if(data[i]=='\n'){if(line.compare(0,4,"/op ")==0||line.compare(0,3,"op ")==0||line.compare(0,6,"/deop ")==0||line.compare(0,5,"deop ")==0){bool grant=line.find("deop")>1;std::string name=line.substr(line.find(' ')+1);std::cout<<(NativeOperators::change(name,grant)?(grant?"Operator granted: ":"Operator revoked: "):"Invalid username or operator file write failed: ")<<name<<"\n";}else if(line=="stop")stopping=1;else if(line=="save"){app->save();std::cout<<"World saved\n";}else if(line=="list"){std::cout<<app->level->players.size()<<" player(s):";for(auto* player:app->level->players)std::cout<<" "<<player->name;std::cout<<"\n";}else if(line=="help")std::cout<<"Commands: save, list, stop, help, /op username, /deop username\n";else if(!line.empty())std::cout<<"Unknown command; use help\n";line.clear();}else if(data[i]!='\r'){if(line.size()<4096)line+=data[i];else{line.clear();std::cout<<"Console line too long\n";}}}}}
             next+=std::chrono::milliseconds(50);if(next<now-std::chrono::seconds(1))next=now;std::this_thread::sleep_until(next);
         }
         std::cout<<"Saving world and stopping...\n";app->close();app.reset();platform.finish();std::cout<<"Server stopped cleanly\n";return 0;

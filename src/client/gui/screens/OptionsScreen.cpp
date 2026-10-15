@@ -1,3 +1,4 @@
+#include "../../../world/level/Level.h"
 #include "OptionsScreen.h"
 
 #include "StartMenuScreen.h"
@@ -250,14 +251,15 @@ void OptionsScreen::generateOptionScreens() {
 	optionPanes.push_back(new OptionsPane());
 	optionPanes.push_back(new OptionsPane());
 
-	OptionsGroup& gameOptions = optionPanes[0]->createOptionsGroup("options.group.game")
-		.addOptionItem(&Options::Option::DIFFICULTY, minecraft);
-	if (returnToPause)
+	OptionsGroup& gameOptions = optionPanes[0]->createOptionsGroup("options.group.game");
+	if (!minecraft->level || !minecraft->level->isClientSide)
+		gameOptions.addOptionItem(&Options::Option::DIFFICULTY, minecraft);
+	if (returnToPause && minecraft->level && !minecraft->level->isClientSide)
 		gameOptions.addGameModeToggle(minecraft);
-	if (returnToPause)
+	if (returnToPause && minecraft->level && !minecraft->level->isClientSide)
 		gameOptions.addKeepInventoryToggle(minecraft);
 	gameOptions.addOptionItem(&Options::Option::DEBUG_MENU, minecraft);
-	if (returnToPause)
+	if (returnToPause && minecraft->level && !minecraft->level->isClientSide)
 		gameOptions.addOptionItem(&Options::Option::DEBUG_TICK_SPEED, minecraft);
 	gameOptions
 		.addOptionItem(&Options::Option::SERVER_VISIBLE, minecraft)
