@@ -25,6 +25,7 @@
 #include "MobSpawner.h"
 #include "../../network/packet/SetEntityDataPacket.h"
 #include "../../network/RakNetInstance.h"
+#include "../../raknet/RakPeerInterface.h"
 #include "../../network/packet/EntityEventPacket.h"
 #include "../../network/packet/SetTimePacket.h"
 #include "../entity/monster/Zombie.h"
@@ -1648,6 +1649,12 @@ void Level::tick(Entity* e) {
 }
 
 void Level::tick(Entity* e, bool actual) {
+    // Mobile movement and HUD buttons are polled by the local player's tick.
+    // Keep polling while server chunks stream; LocalPlayer::move separately
+    // holds physics at any boundary without an authoritative snapshot.
+    const bool nativeLocalPlayer = isClientSide && !isJavaServerLevel() && e->isPlayer()
+        && raknetInstance && raknetInstance->getPeer()
+        && static_cast<Player*>(e)->owner == raknetInstance->getPeer()->GetMyGUID();
     // Recover saves/remote players already stranded outside a finite map.
     // Reattach before ticking so the old inChunk=false state cannot freeze them.
     if (actual && !isJavaServerLevel() && levelData.getGeneratorVersion()!=LGV_INFINITE &&
@@ -1664,7 +1671,7 @@ void Level::tick(Entity* e, bool actual) {
     int xc = Mth::floor(e->x);
     int zc = Mth::floor(e->z);
     int r = 32;
-    if (actual && !isJavaServerLevel()) {
+    if (actual && !isJavaServerLevel() && !nativeLocalPlayer) {
         int x0=xc-r,z0=zc-r,x1=xc+r,z1=zc+r;
         if (levelData.getGeneratorVersion()!=LGV_INFINITE) {
             // Finite worlds have no chunks beyond their perimeter. Requiring
@@ -1683,7 +1690,7 @@ void Level::tick(Entity* e, bool actual) {
     e->yRotO = e->yRot;
     e->xRotO = e->xRot;
 
-    if (actual && (e->inChunk || isJavaServerLevel())) {
+    if (actual && (e->inChunk || isJavaServerLevel() || nativeLocalPlayer)) {
         e->tick();
     }
 
