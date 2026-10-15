@@ -2,10 +2,12 @@
 #define NET_MINECRAFT_NETWORK_PACKET__SendInventoryPacket_H__
 
 #include "../Packet.h"
+#include "NativeHotbarState.h"
 
 class SendInventoryPacket: public Packet
 {
 public:
+    NativeHotbarState hotbar;
 	SendInventoryPacket()
 	{
 	}
@@ -15,6 +17,7 @@ public:
 		extra(dropItems? ExtraDrop : 0)
 	{
         Inventory* inv = player->inventory;
+        hotbar.capture(inv);
 		numItems = 0;
         for (int i = Inventory::MAX_SELECTION_SIZE; i < inv->getContainerSize(); ++i) {
 			++numItems;
@@ -39,6 +42,7 @@ public:
         // Armor
         for (int i = 0; i < NumArmorItems; ++i)
             PacketUtil::writeItemInstance(items[i + numItems], bitStream);
+        hotbar.write(bitStream);
 	}
 
 	void read(RakNet::BitStream* bitStream)
@@ -50,6 +54,7 @@ public:
         // Inventory, Armor
 		for (int i = 0; i < numItems + NumArmorItems; ++i)
 			items.push_back(PacketUtil::readItemInstance(bitStream));
+        hotbar.read(bitStream);
 	}
 
 	void handle(const RakNet::RakNetGUID& source, NetEventCallback* callback)

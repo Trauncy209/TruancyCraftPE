@@ -4,10 +4,12 @@
 //package net.minecraft.network.packet;
 
 #include "../Packet.h"
+#include "NativeHotbarState.h"
 
 class ContainerSetContentPacket: public Packet
 {
 public:
+    NativeHotbarState hotbar;
     ContainerSetContentPacket() {
     }
 
@@ -23,6 +25,7 @@ public:
         bitStream->Write((short)items.size());
         for (unsigned int i = 0; i < items.size(); ++i)
     		PacketUtil::writeItemInstance(items[i], bitStream);
+        if (containerId==0) hotbar.write(bitStream);
     }
 
 	void read(RakNet::BitStream* bitStream) {
@@ -31,6 +34,7 @@ public:
         bitStream->Read(numItems);
         for (int i = 0; i < numItems; ++i)
             items.push_back( PacketUtil::readItemInstance(bitStream) );
+        if (containerId==0) hotbar.read(bitStream);
     }
 
 	void handle(const RakNet::RakNetGUID& source, NetEventCallback* callback) {

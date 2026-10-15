@@ -25,6 +25,9 @@ public:
 	virtual void reset();
 
 	void tick();
+    void nativeInventoryRestored();
+    bool nativeInventoryReady = false;
+    std::string nativeInventoryState;
     void move(float xa, float ya, float za);
 
     void aiStep();

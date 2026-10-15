@@ -2,6 +2,7 @@
 
 #include "LevelData.h"
 #include "../../entity/player/Player.h"
+#include "../../entity/player/Inventory.h"
 #include <cerrno>
 #include <cctype>
 #include <sys/stat.h>
@@ -146,6 +147,9 @@ bool ExternalFileLevelStorage::saveNetworkPlayer(Player* player) {
     CompoundTag tag;
     player->saveWithoutId(&tag);
     tag.putInt("NativePlayerVersion", 1);
+    tag.putInt("NativeSelectedSlot", player->inventory->selected);
+    for (int i=0;i<Inventory::MAX_SELECTION_SIZE;++i)
+        tag.putInt("NativeHotbarSlot" + std::to_string(i), player->inventory->linkedSlots[i].inventorySlot);
     tag.putString("NativePlayerName", key);
     RakNet::BitStream data;
     RakDataOutput output(data);
@@ -209,7 +213,20 @@ int ExternalFileLevelStorage::loadNetworkPlayer(Player* player) {
     if (!tag) return -1;
     ok = tag->getInt("NativePlayerVersion") == 1 && tag->getString("NativePlayerName") == key
         && tag->contains("Pos", Tag::TAG_List) && tag->contains("Inventory", Tag::TAG_List);
-    if (ok) ok = player->load(tag);
+    if (ok) {
+        ok = player->load(tag);
+        // Legacy inventory loading compacts empty hotbar slots. Restore the exact
+        // native layout afterwards, including deliberate gaps.
+        for (int i=0;i<Inventory::MAX_SELECTION_SIZE;++i) {
+            std::string field="NativeHotbarSlot"+std::to_string(i);
+            if (tag->contains(field)) {
+                int slot=tag->getInt(field);
+                if (slot==-1 || (slot>=Inventory::MAX_SELECTION_SIZE && slot<player->inventory->getContainerSize()))
+                    player->inventory->linkedSlots[i].inventorySlot=slot;
+            }
+        }
+        player->inventory->selectSlot(tag->getInt("NativeSelectedSlot"));
+    }
     tag->deleteChildren(); delete tag;
     return ok ? 1 : -1;
 }

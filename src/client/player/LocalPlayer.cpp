@@ -104,6 +104,13 @@ bool LocalPlayer::isSolidTile(int x, int y, int z) {
 	return tileId > 0 && Tile::tiles[tileId]->material->isSolid();
 }
 
+void LocalPlayer::nativeInventoryRestored() {
+    nativeInventoryReady = true;
+    SendInventoryPacket snapshot(this, false);
+    RakNet::BitStream wire; snapshot.write(&wire);
+    nativeInventoryState.assign((const char*)wire.GetData(), wire.GetNumberOfBytesUsed());
+}
+
 void LocalPlayer::tick() {
 
 	super::tick();
@@ -141,6 +148,17 @@ void LocalPlayer::tick() {
 			sentRotY = yRot;
 		}
 
+        // Native crafting, consumption and hotbar arrangement happen on the client.
+        // Sync changed state only, after the initial server inventory was received.
+        if (nativeInventoryReady) {
+            SendInventoryPacket snapshot(this, false);
+            RakNet::BitStream wire; snapshot.write(&wire);
+            std::string state((const char*)wire.GetData(), wire.GetNumberOfBytesUsed());
+            if (state != nativeInventoryState) {
+                minecraft->raknetInstance->send(snapshot);
+                nativeInventoryState.swap(state);
+            }
+        }
 		ItemInstance* item = inventory->getSelected();
 		int newItemId   = (item && item->count > 0) ? item->id : 0;
 		int newItemData = (item && item->count > 0) ? item->getAuxValue() : 0;

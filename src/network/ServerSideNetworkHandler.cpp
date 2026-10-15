@@ -371,6 +371,7 @@ void ServerSideNetworkHandler::onReady_ClientGeneration(const RakNet::RakNetGUID
         restoredItems.push_back(item ? *item : ItemInstance());
     }
     ContainerSetContentPacket restoredInventory(0, restoredItems);
+    restoredInventory.hotbar.capture(newPlayer->inventory);
     raknetInstance->send(source, restoredInventory);
     SetHealthPacket restoredHealth(newPlayer->health);
     raknetInstance->send(source, restoredHealth);
@@ -649,6 +650,9 @@ void ServerSideNetworkHandler::handle( const RakNet::RakNetGUID& source, SendInv
 	if (entity && entity->isPlayer() && ((Player*)entity)->owner == source) {
 		Player* p = (Player*)entity;
 		p->inventory->replace(packet->items, packet->numItems);
+        packet->hotbar.apply(p->inventory);
+        for (int i=0;i<SendInventoryPacket::NumArmorItems;++i)
+            if ((int)packet->items.size()>packet->numItems+i) p->setArmor(i,&packet->items[packet->numItems+i]);
 		bool keepInventory = level->getLevelData() && level->getLevelData()->getKeepInventory();
 		if (!keepInventory && (packet->extra & SendInventoryPacket::ExtraDrop) != 0) {
 			p->inventory->dropAll(false);

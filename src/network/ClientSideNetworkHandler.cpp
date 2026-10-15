@@ -933,6 +933,10 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, Containe
         for (unsigned int i = 0; i < packet->items.size(); ++i) {
             minecraft->player->inventory->setItem(Inventory::MAX_SELECTION_SIZE + i, &packet->items[i]);
         }
+        if (packet->hotbar.present) packet->hotbar.apply(minecraft->player->inventory);
+        else for (unsigned int i=0;i<packet->items.size();++i)
+            if (!packet->items[i].isNull()) minecraft->player->inventory->linkEmptySlot(Inventory::MAX_SELECTION_SIZE+i);
+        minecraft->player->nativeInventoryRestored();
     } else if (minecraft->player->containerMenu && minecraft->player->containerMenu->containerId == packet->containerId) {
         for (unsigned int i = 0; i < packet->items.size(); ++i) {
             minecraft->player->containerMenu->setSlot(i, &packet->items[i]);
