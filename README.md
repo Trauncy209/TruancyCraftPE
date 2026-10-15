@@ -35,6 +35,14 @@ Both Android APKs and Linux require **GLES3-capable graphics**. The GLES3 shader
 If you want updates as they drop, **star the repo, join the Discord, and turn on notifications/watch it** — releases are frequent and you do not want to miss out.
 
 
+## Native TCPE servers
+
+We now have our own **[TruancyCraftPE Server](https://github.com/Trauncy209/TruancyCraftPE-Server)** alpha — native TCPE worlds, running without a game window or Java server. Keeping old Pocket Edition multiplayer alive and giving it a proper home.
+
+**Come play TCSMP:** `45.41.206.239:25566` · **Type: TCPE** · **Native TruancyCraftPE survival**. Survival, 16 slots, autosaves every minute, hosted on our homelab through Chicago and set to come back after reboots.
+
+You'll need a matching client with the native-server list changes; those are on [feature/native-tcpe-servers](https://github.com/Trauncy209/TruancyCraftPE/tree/feature/native-tcpe-servers), and may not be in the public APK you're using yet. This is a separate native protocol from our Java server support. The [server repo](https://github.com/Trauncy209/TruancyCraftPE-Server) has build instructions, the TCSMP logo, and the current alpha limitations. Plugin support and a broader server-authority/security audit are still ahead of us.
+
 ## Come say hi
 
 I'm also really busy running our cracked Java network, **[ZeusPvP.net](https://www.zeuspvp.net/)**. Feel free to [join our community](https://discord.gg/zeuspvp), say hi, and mention **TruancyCraftPE**!
