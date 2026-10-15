@@ -1486,9 +1486,9 @@ void Minecraft::_levelGenerated()
 	gui.onLevelGenerated();
 #endif
 
-	if (!level->isJavaServerLevel()) level->validateSpawn();
+	if (!level->isClientSide && !level->isJavaServerLevel()) level->validateSpawn();
 	const bool hadSavedPlayerData = level->getLevelData()->getLoadedPlayerTag() != NULL || level->getLevelData()->playerDataVersion == 1;
-	if (!level->isJavaServerLevel()) level->loadPlayer(player, true);
+	if (!level->isClientSide && !level->isJavaServerLevel()) level->loadPlayer(player, true);
 	// If we are client side, we trust the server to have given us a correct position.
 	// For local saved worlds, also trust the stored player position instead of always
 	// running collision-based resetPos(), which can shove underground saves upward
