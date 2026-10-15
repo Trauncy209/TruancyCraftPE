@@ -470,7 +470,10 @@ void Minecraft::prepareLevel(const std::string& title) {
 
 	LOGI("status: 3\n");
 	progressStageStatusId = 3;
-	if (level->isNew()) {
+	if (level->isClientSide && !level->isJavaServerLevel()) {
+		// Native server spawn, terrain and persistence are server-owned.
+		// Searching blank pending chunks locally cannot find a valid spawn.
+	} else if (level->isNew()) {
 		level->setInitialSpawn(); // @note: should obviously be called from Level itself
 		level->saveLevelData();
 		level->getChunkSource()->saveAll(false);
