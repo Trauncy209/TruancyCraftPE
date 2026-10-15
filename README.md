@@ -38,7 +38,7 @@ If you want updates as they drop, **star the repo, join the Discord, and turn on
 
 ## Native TCPE servers
 
-Our **[native server software](https://github.com/Trauncy209/TruancyCraftPE-Server)** is here. Come play **TCSMP** at `45.41.206.239:25566` — add it as **Type: TCPE**. Native TruancyCraftPE survival, hosted through Chicago. Server setup and alpha limitations are in the [server repo](https://github.com/Trauncy209/TruancyCraftPE-Server).
+Our **[native server software](https://github.com/Trauncy209/TruancyCraftPE-Server)** is here. Come play **TCSMP** at `45.41.206.239:25566` — add it as **Type: TCPE**. Native TruancyCraftPE survival with infinite Extreme Terrain and custom world generation, hosted through Chicago. Server setup and alpha limitations are in the [server repo](https://github.com/Trauncy209/TruancyCraftPE-Server).
 
 v0.5.25 brings **rain, snow and thunderstorms** to singleplayer and native TCPE servers: smooth weather changes, lightning, rain sounds, snow buildup and freezing. Weather saves with the world and stays in sync when players join. Singleplayer owners and server operators can use `/weather clear|rain|thunder [seconds]`; multiplayer operator grants stay console-only. Same Pocket Edition feel, with a world that does a little more.
 
