@@ -18,6 +18,9 @@ We want to preserve what made early Pocket Edition special, fix what was broken,
 
 **v0.5.25.2 · Terrain streaming fix** · [Previous release: v0.5.25.1](https://github.com/Trauncy209/TruancyCraftPE/releases/tag/v0.5.25.1) · [Checksums & signing details](verification/README.md)
 
+
+**Testing:** [v0.5.25.3 prerelease](https://github.com/Trauncy209/TruancyCraftPE/releases/tag/v0.5.25.3) speeds up native terrain streaming with lossless chunk compression and lighter saved-chunk lighting work. Use the matching client and server.
+
 Pick the build for your device:
 
 | Your device | Download |
