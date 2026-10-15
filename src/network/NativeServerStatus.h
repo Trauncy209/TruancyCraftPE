@@ -22,7 +22,13 @@ class NativeServerStatus{public:void start(int,const std::string&,int){}void upd
 // protocol. TCP status uses the existing status client/icon decoder, on the same
 // numeric port, without sending a login or translating any gameplay packets.
 class NativeServerStatus{
- std::thread worker;std::atomic<bool> running{false};std::atomic<int> online{1};int listener=-1,port=0,maxPlayers=1;std::string title,icon;
+ std::thread worker;std::atomic<bool> running{false};std::atomic<int> online{
+#ifdef STANDALONE_SERVER
+ 0
+#else
+ 1
+#endif
+ };int listener=-1,port=0,maxPlayers=1;std::string title,icon;
  static void varint(std::string& out,unsigned value){do{unsigned char b=value&127;value>>=7;out+=char(b|(value?128:0));}while(value);}
  static std::chrono::steady_clock::time_point& deadline(){static thread_local std::chrono::steady_clock::time_point value;return value;}
  static bool wait(int fd,short events){auto ms=std::chrono::duration_cast<std::chrono::milliseconds>(deadline()-std::chrono::steady_clock::now()).count();if(ms<=0)return false;pollfd p{fd,events,0};return poll(&p,1,int(ms))==1;}

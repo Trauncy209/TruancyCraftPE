@@ -25,6 +25,6 @@ The TCP service only provides listing metadata. Native connections use the origi
 - Native connection errors and pre-world disconnects display the error screen; full/refusing hosts reach the failure callback.
 - Full rendered world play between a physical phone and Linux host: pending.
 
-This first step restores direct-address native joining and the shared list around the existing in-game host. A separately packaged dedicated server, IPv6 native transport and universal compatibility with other Minecraft editions are not included.
+Native joining works with the existing in-game host and the new [standalone Linux server](native-dedicated-server.md). Native IPv6 transport and compatibility with other Minecraft editions are not included.
 
 To rerun the transport checks on Linux, complete a CMake build using the Unix Makefiles generator, then run `python3 tools/test-native-network.py --build /path/to/build`. The runner uses isolated temporary files and does not open a game window.

@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.21)
 project(MinecraftPE)
 
+option(TCPE_DEDICATED_SERVER "Build the headless native TCPE server only" OFF)
+if(TCPE_DEDICATED_SERVER)
+    include(cmake/NativeServer.cmake)
+    return()
+endif()
+
 include(cmake/CPM.cmake)
 
 set(CMAKE_CXX_STANDARD 14)

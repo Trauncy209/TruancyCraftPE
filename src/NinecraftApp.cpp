@@ -116,7 +116,7 @@ void NinecraftApp::init()
 	}
 #else
 	user->name = "Server";
-	hostMultiplayer();
+    // The dedicated entry point binds its configured port before loading.
 #endif
 }
 

@@ -1,4 +1,7 @@
 #include "GameMode.h"
+#ifdef STANDALONE_SERVER
+#include "../../server/ServerPlayer.h"
+#endif
 #include "../Minecraft.h"
 #include "../../network/packet/UseItemPacket.h"
 #include "../../network/packet/PlayerActionPacket.h"
@@ -27,7 +30,11 @@ GameMode::GameMode( Minecraft* minecraft)
 
 /*virtual*/
 Player* GameMode::createPlayer(Level* level) {
+#ifdef STANDALONE_SERVER
+    return new ServerPlayer(minecraft,level);
+#else
     return new LocalPlayer(minecraft, level, minecraft->user, level->dimension->id, isCreativeType());
+#endif
 }
 
 /*virtual*/

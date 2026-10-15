@@ -201,6 +201,8 @@ RakNetInstance::RakNetInstance()
     rakPeer->SetOccasionalPing(true);
 }
 
+bool RakNetInstance::listingActive() const{return nativeStatus->active();}
+
 RakNetInstance::~RakNetInstance()
 {
     nativeStatus->stop();
@@ -214,7 +216,11 @@ RakNetInstance::~RakNetInstance()
 
 bool RakNetInstance::host(const std::string& localName, int port, int maxConnections /* = 4 */)
 {
-    nativeStatus->stop();nativePort=port;nativeMaximum=maxConnections+1;
+    nativeStatus->stop();nativePort=port;nativeMaximum=maxConnections
+#ifndef STANDALONE_SERVER
+    +1
+#endif
+    ;
 	if (rakPeer->IsActive())
 	{
 		rakPeer->Shutdown(500);
@@ -372,7 +378,11 @@ bool RakNetInstance::isMyLocalGuid(const RakNet::RakNetGUID& guid)
 
 void RakNetInstance::runEvents(NetEventCallback* callback)
 {
-    if(_isServer)nativeStatus->update(1+rakPeer->NumberOfConnections());
+    if(_isServer)nativeStatus->update(
+#ifndef STANDALONE_SERVER
+    1+
+#endif
+    rakPeer->NumberOfConnections());
 	RakNet::Packet* currentEvent;
 
 	while ((currentEvent = rakPeer->Receive()) != NULL)

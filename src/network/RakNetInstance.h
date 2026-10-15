@@ -67,6 +67,7 @@ public:
 class RakNetInstance: public IRakNetInstance
 {
 public:
+    bool listingActive() const;
 
 	RakNetInstance();
 	virtual ~RakNetInstance();

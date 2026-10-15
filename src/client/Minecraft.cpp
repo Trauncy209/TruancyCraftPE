@@ -1,3 +1,4 @@
+#ifndef STANDALONE_SERVER
 #include "gui/screens/JavaChatActionsScreen.h"
 #include "gui/screens/JavaConnectScreen.h"
 #include "../network/java/JavaEntityAdapter.h"
@@ -12,8 +13,11 @@
 #ifndef STANDALONE_SERVER
 #include "gui/screens/DisconnectionScreen.h"
 #endif
+#endif
 #include "Minecraft.h"
+#ifndef STANDALONE_SERVER
 #include "gui/screens/ChatScreen.h"
+#endif
 #include <cstdlib>
 #include "client/player/input/IBuildInput.h"
 
@@ -284,7 +288,9 @@ Minecraft::~Minecraft()
 	delete inputHolder;
 
 	delete storageSource;
+#ifndef STANDALONE_SERVER
 	delete _perfRenderer;
+#endif
 	delete _commandServer;
 
 	MobFactory::clearStaticTestMobs();
@@ -1131,8 +1137,8 @@ void Minecraft::gameLostFocus() {
 
 void Minecraft::setScreen( Screen* screen )
 {
- if(dynamic_cast<ChatScreen*>(screen)){delete screen;screen=new ConsoleScreen();}
 #ifndef	STANDALONE_SERVER
+ if(dynamic_cast<ChatScreen*>(screen)){delete screen;screen=new ConsoleScreen();}
 	Mouse::reset();
 	Multitouch::reset();
 	Multitouch::resetThisUpdate();
@@ -1245,7 +1251,9 @@ void Minecraft::init()
 
 	user = new User("TestUser", "");
 	setIsCreativeMode(false); // false means it's Survival Mode
+#ifndef STANDALONE_SERVER
 	reloadOptions();
+#endif
 
 }
 
@@ -1724,6 +1732,7 @@ void Minecraft::optionUpdated( const Options::Option* option, int value ) {
     }
 }
 
+#ifndef STANDALONE_SERVER
 bool Minecraft::joinJavaServer(const std::string& address,const std::string& identity,bool online){
     if(level)return false;
     stopJavaServer();javaSession=new JavaGameSession();if(font)font->setJavaTextEnabled(true);
@@ -1822,3 +1831,9 @@ void Minecraft::updateJavaServer(){
  }
 #endif
 }
+
+#else
+bool Minecraft::joinJavaServer(const std::string&,const std::string&,bool){return false;}
+void Minecraft::stopJavaServer(){}
+void Minecraft::updateJavaServer(){}
+#endif

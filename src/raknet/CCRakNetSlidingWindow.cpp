@@ -1,8 +1,12 @@
+#include <limits>
 #include "CCRakNetSlidingWindow.h"
 
 #if USE_SLIDING_WINDOW_CONGESTION_CONTROL==1
 
 static const double UNSET_TIME_US=-1;
+// RTT uses a negative floating sentinel; converting that to unsigned time is
+// undefined. Use a representable integer sentinel for ACK deadlines.
+static const CCTimeType UNSET_ACK_TIME=std::numeric_limits<CCTimeType>::max();
 
 #if CC_TIME_TYPE_BYTES==4
 static const CCTimeType SYN=10;
@@ -80,7 +84,7 @@ bool CCRakNetSlidingWindow::ShouldSendACKs(CCTimeType curTime, CCTimeType estima
 	(void) estimatedTimeToNextTick;
 
 	// iphone crashes on comparison between double and int64 http://www.jenkinssoftware.com/forum/index.php?topic=2717.0
-	if (rto==(CCTimeType) UNSET_TIME_US)
+	if (rto==UNSET_ACK_TIME)
 	{
 		// Unknown how long until the remote system will retransmit, so better send right away
 		return true;
@@ -320,7 +324,7 @@ uint64_t CCRakNetSlidingWindow::GetBytesPerSecondLimitByCongestionControl(void) 
 CCTimeType CCRakNetSlidingWindow::GetSenderRTOForACK(void) const
 {
 	if (RTT==UNSET_TIME_US)
-		return (CCTimeType) UNSET_TIME_US;
+		return UNSET_ACK_TIME;
 	return (CCTimeType)(RTT + SYN);
 }
 // ----------------------------------------------------------------------------------------------------------------------------
