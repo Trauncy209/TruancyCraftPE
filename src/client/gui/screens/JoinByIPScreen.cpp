@@ -7,6 +7,7 @@
 #include "client/gui/components/TextBox.h"
 
 JoinByIPScreen::JoinByIPScreen() :
+    bProtocol(6,"Type: Java"),
     tName(0, "Server Name"),
     tIP(1, "Address or IP"),
     tPort(2, "Port"),
@@ -23,9 +24,11 @@ JoinByIPScreen::~JoinByIPScreen()
 
 void JoinByIPScreen::buttonClicked(Button* button)
 {
+    if(button==&bProtocol){native=!native;bProtocol.msg=native?"Type: TCPE":"Type: Java";return;}
 	if (button->id == bJoin.id)
 	{
         SavedServerEntry entry;
+        entry.native=native;
         entry.name = tName.text;
         entry.address = tIP.text;
         entry.port = std::atoi(tPort.text.c_str());
@@ -63,14 +66,16 @@ void JoinByIPScreen::init()
 	def.setSrc(IntRectangle(150, 0, (int)def.width, (int)def.height));
 	bBack.setImageDef(def, true);
 
-	buttons.push_back(&bJoin);
+	buttons.push_back(&bProtocol);
+    buttons.push_back(&bJoin);
 	buttons.push_back(&bBack);
 	buttons.push_back(&bHeader);
     textBoxes.push_back(&tName);
     textBoxes.push_back(&tIP);
     textBoxes.push_back(&tPort);
 #ifdef ANDROID
-	tabButtons.push_back(&bJoin);
+	tabButtons.push_back(&bProtocol);
+    tabButtons.push_back(&bJoin);
 	tabButtons.push_back(&bBack);
     tabButtons.push_back(&bHeader);
 #endif
@@ -95,7 +100,8 @@ void JoinByIPScreen::setupPositions() {
 
     tName.x = centerX;
     tName.y = baseY;
-    tName.width = boxWidth;
+    tName.width = boxWidth-96;
+    bProtocol.x=tName.x+tName.width+6;bProtocol.y=tName.y;bProtocol.width=90;bProtocol.height=boxHeight;
     tName.height = boxHeight;
 
     tIP.x = centerX;
@@ -118,7 +124,7 @@ void JoinByIPScreen::render( int xm, int ym, float a )
 
     const int cardLeft = tName.x - 12;
     const int cardTop = tName.y - 18;
-    const int cardRight = tName.x + tName.width + 12;
+    const int cardRight = tPort.x + tPort.width + 12;
     const int cardBottom = bJoin.y + bJoin.height + 12;
     fill(cardLeft, cardTop, cardRight, cardBottom, 0xff202020);
     fill(cardLeft + 1, cardTop + 1, cardRight - 1, cardBottom - 1, 0x70404040);

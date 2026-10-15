@@ -1,5 +1,12 @@
 #include "network/java/JavaPackFontRuntime.h"
 #include "client/gui/screens/JavaServerRow.h"
+#include "client/gui/screens/NativeServerListing.h"
+#include "network/ClientSideNetworkHandler.h"
+#include "client/gui/screens/DisconnectionScreen.h"
+#include "client/gui/screens/JoinGameScreen.h"
+#include "client/gui/screens/touch/TouchJoinGameScreen.h"
+#include "client/gui/screens/JoinByIPScreen.h"
+#include "client/gui/screens/ProgressScreen.h"
 #include <set>
 #include "platform/input/TouchMouseOwner.h"
 #include <map>
@@ -19,6 +26,7 @@
 #include "util/Mth.h"
 #include "AppPlatform_glfw.h"
 #include <cassert>
+#include <cstdlib>
 #include <png.h>
 #include <iostream>
 #ifdef TCPE_TEST_MOBILE_PICK
@@ -33,6 +41,12 @@ struct NextScreenTag{using type=Screen* Minecraft::*;friend type field(NextScree
 template struct TestMember<ScreenMutexTag,&Minecraft::screenMutex>;
 template struct TestMember<ScheduledTag,&Minecraft::hasScheduledScreen>;
 template struct TestMember<NextScreenTag,&Minecraft::scheduledScreen>;
+struct NativeListTag{using type=Touch::AvailableGamesList* Touch::JoinGameScreen::*;friend type field(NativeListTag);};
+struct NativeSelectedTag{using type=int Touch::AvailableGamesList::*;friend type field(NativeSelectedTag);};
+template struct TestMember<NativeListTag,&Touch::JoinGameScreen::gamesList>;
+template struct TestMember<NativeSelectedTag,&Touch::AvailableGamesList::selectedItem>;
+struct NativeCountTag{using type=int (Touch::AvailableGamesList::*)();friend type field(NativeCountTag);};template struct TestMember<NativeCountTag,&Touch::AvailableGamesList::getNumberOfItems>;
+
 struct ModelTag{using type=float (GameRenderer::*)[16];friend type field(ModelTag);};
 struct ProjTag{using type=float (GameRenderer::*)[16];friend type field(ProjTag);};
 template struct TestMember<ModelTag,&GameRenderer::lastModelMatrix>;
@@ -57,7 +71,7 @@ static JavaGameSession::PackFonts bundle(const char* pack,unsigned char red,unsi
 static void projection(){glViewport(0,0,400,240);glMatrixMode(GL_PROJECTION);glLoadIdentity();glOrthof(0,400,240,0,-100,100);glMatrixMode(GL_MODELVIEW);glLoadIdentity();glDisable2(GL_LIGHTING);glDisable2(GL_FOG);glDisable2(GL_CULL_FACE);glDisable2(GL_DEPTH_TEST);glEnable2(GL_TEXTURE_2D);glEnable2(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glClearColor(0,0,0,1);glClearDepthf(1);glDepthMask(GL_TRUE);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);}
 static std::vector<unsigned char> pixels(){glFinish();assert(glGetError()==GL_NO_ERROR);std::vector<unsigned char> p(400*240*4);glReadPixels(0,0,400,240,GL_RGBA,GL_UNSIGNED_BYTE,p.data());return p;}
 static std::array<unsigned char,3> color(const std::vector<unsigned char>& p,int x,int y){size_t i=((239-y)*400+x)*4;return {{p[i],p[i+1],p[i+2]}};}
-static void save(const std::vector<unsigned char>& p,const std::string& file){std::vector<unsigned char> flipped(p.size());for(int y=0;y<240;++y)std::copy(p.begin()+y*400*4,p.begin()+(y+1)*400*4,flipped.begin()+(239-y)*400*4);png_image image{};image.version=PNG_IMAGE_VERSION;image.width=400;image.height=240;image.format=PNG_FORMAT_RGBA;assert(png_image_write_to_file(&image,file.c_str(),0,flipped.data(),0,nullptr));}
+static void save(const std::vector<unsigned char>& p,const std::string& file){std::string target=file;if(file.find('/')==std::string::npos){const char* directory=std::getenv("TCPE_TEST_SCREENSHOT_DIR");if(!directory)return;target=std::string(directory)+"/"+file;}std::vector<unsigned char> flipped(p.size());for(int y=0;y<240;++y)std::copy(p.begin()+y*400*4,p.begin()+(y+1)*400*4,flipped.begin()+(239-y)*400*4);png_image image{};image.version=PNG_IMAGE_VERSION;image.width=400;image.height=240;image.format=PNG_FORMAT_RGBA;assert(png_image_write_to_file(&image,target.c_str(),0,flipped.data(),0,nullptr));}
 static Button* button(SemanticInventoryProbe& s,int id){for(auto* b:s.buttons)if(b->id==id)return b;assert(false);return nullptr;}
 static bool overlaps(Button* a,Button* b){return a->visible&&b->visible&&a->x<b->x+b->width&&b->x<a->x+a->width&&a->y<b->y+b->height&&b->y<a->y+a->height;}
 #include "headless_egl.h"
@@ -65,7 +79,7 @@ int main(){
  char previousDirectory[4096];assert(getcwd(previousDirectory,sizeof(previousDirectory)));char preferenceDirectory[]="/tmp/tcpe-view-preference-XXXXXX";assert(mkdtemp(preferenceDirectory));assert(symlink((std::string(previousDirectory)+"/data").c_str(),(std::string(preferenceDirectory)+"/data").c_str())==0);assert(chdir(preferenceDirectory)==0);{std::ofstream f("options.txt");f<<"mp_username:Fixture\nmp_saved_server_0_address:fixture.invalid\n";}assert(!JavaInventoryViewPreference::read());assert(!JavaInventoryViewPreference::storage());
  NativeHeadlessEGL offscreen(400,240);
  Mth::initMth();Material::initMaterials();MobCategory::initMobCategories();Tile::initTiles();Item::initItems();Biome::initBiomes();Tesselator::instance.init();
- AppPlatform_glfw platform;Options options;Textures textures(&options,&platform);Font font(&options,"font/default8.png",&textures);font.setJavaTextEnabled(true);auto* game=new PackGameProbe();game->textures=&textures;game->font=&font;game->options.useTouchScreen=true;JavaGameSession session;game->javaSession=&session;assert(session.connection.connect("headless-fixture.invalid","fixture",false));
+ AppPlatform_glfw platform;auto* game=new PackGameProbe();Options options;options.minecraft=game;options.initDefaultValues();game->options.minecraft=game;game->options.initDefaultValues();Textures textures(&options,&platform);Font font(&options,"font/default8.png",&textures);font.setJavaTextEnabled(true);game->textures=&textures;game->font=&font;game->options.useTouchScreen=true;JavaGameSession session;game->javaSession=&session;assert(session.connection.connect("headless-fixture.invalid","fixture",false));
  auto setup=[&](const std::string& kind){session.recipeGhost=JavaGameSession::RecipeGhost{};session.inventory=JavaGameSession::Inventory{};auto& inv=session.inventory;inv.menuKind=kind;inv.windowId=kind=="player"?0:7;inv.menuGeneration=42;inv.title=kind=="crafting"?"Crafting table":kind=="player"?"Inventory":"Smelting";inv.slots.resize(kind=="player"||kind=="crafting"?46:39);auto r=[&](const char* key,int start,int end){JavaGameSession::SlotRange range;range.start=start;range.end=end;inv.slotRanges[key]=range;};r("result",0,1);if(kind=="player"){r("crafting",1,5);r("armor",5,9);r("player_inventory",9,36);r("hotbar",36,45);r("offhand",45,46);}else if(kind=="crafting"){r("crafting",1,10);r("player_inventory",10,37);r("hotbar",37,46);}else{r("ingredient",0,1);r("fuel",1,2);r("result",2,3);r("player_inventory",3,30);r("hotbar",30,39);}inv.carried.count=3;inv.carried.resourceId="minecraft:stone";};
  class Probe:public JavaCraftingScreen{public:explicit Probe(int id):JavaCraftingScreen(id){}using Screen::buttons;};
  auto find=[](Probe& ui,int id){for(auto* b:ui.buttons)if(b->id==id)return b;assert(false);return static_cast<Button*>(nullptr);};
@@ -79,7 +93,7 @@ int main(){
   auto other=recipe;other.id=18;other.result.resourceId="minecraft:torch";other.result.originalId=50;session.recipes.insert(session.recipes.begin(),other);++session.recipesRevision;ui.tick();sent.clear();ui.buttonClicked(find(ui,1));assert(sent.find("\"recipe_id\":17")!=std::string::npos);++session.inventoryRevision;ui.tick();ui.setupPositions();sent.clear();ui.buttonClicked(find(ui,1));assert(sent.find("\"recipe_id\":17")!=std::string::npos);++session.inventoryRevision;ui.tick();
   ui.buttonClicked(find(ui,102));assert(ui.getItems(nullptr).empty());ui.buttonClicked(find(ui,102));assert(ui.getItems(nullptr).size()==(kind=="player"?2:3));sent.clear();ui.buttonClicked(find(ui,1));assert(sent.find("\"recipe_id\":17")!=std::string::npos);++session.inventoryRevision;ui.tick();
   session.recipeGhost.present=true;session.recipeGhost.windowId=session.inventory.windowId;session.recipeGhost.preview=recipe;++session.recipesRevision;ui.tick();assert(!find(ui,1)->active);sent.clear();ui.buttonClicked(find(ui,1));assert(sent.empty());
-  projection();glMatrixMode(GL_PROJECTION);glLoadIdentity();glOrthof(0,size.first,size.second,0,-100,100);glMatrixMode(GL_MODELVIEW);glLoadIdentity();ui.render(-1,-1,0);save(pixels(),"/home/truancy/Documents/Codex/2026-10-13/referenced-chatgpt-conversation-this-is-an/work/headless-crafting-ghost-"+kind+"-"+std::to_string(size.first)+".png");
+  projection();glMatrixMode(GL_PROJECTION);glLoadIdentity();glOrthof(0,size.first,size.second,0,-100,100);glMatrixMode(GL_MODELVIEW);glLoadIdentity();ui.render(-1,-1,0);save(pixels(),"headless-crafting-ghost-"+kind+"-"+std::to_string(size.first)+".png");
   session.recipeGhost.windowId=999;ui.tick();assert(find(ui,1)->active);session.recipeGhost={};++session.inventoryRevision;ui.tick();
   // Native One puts a real result into an empty hotbar slot. No fabricated
   // result, no shift modifier on the destination, and no repeated transfer.
@@ -146,7 +160,7 @@ sent.clear();sentCalls=0;(game->*field(ScheduledTag{}))=false;popup.buttonClicke
   sent.clear();assert(drawer.addItem(drawer.paneFor(false),kind.second-1));assert(sent.find("\"slot\":"+std::to_string(kind.second-1)+",")!=std::string::npos);sent.clear();assert(drawer.addItem(drawer.paneFor(true),0));assert(sent.find("\"slot\":"+std::to_string(kind.second+27)+",")!=std::string::npos);
   drawer.buttonClicked(storageButton(drawer,5));sent.clear();drawer.addItem(drawer.paneFor(false),0);assert(sent.find("\"right\":true")!=std::string::npos);drawer.buttonClicked(storageButton(drawer,5));sent.clear();drawer.addItem(drawer.paneFor(true),9);assert(sent.find("\"type\":\"quick_move\"")!=std::string::npos);
   sent.clear();sentCalls=0;drawer.buttonClicked(storageButton(drawer,4));assert(sent.empty()&&sentCalls==0&&dynamic_cast<JavaInventoryScreen*>(game->*field(NextScreenTag{})));assert(inv.carried.count==3&&inv.windowId==7&&inv.menuGeneration==91);assert(!JavaInventoryViewPreference::storage()&&!JavaInventoryViewPreference::read());
-  projection();glMatrixMode(GL_PROJECTION);glLoadIdentity();glOrthof(0,size.first,size.second,0,-100,100);glMatrixMode(GL_MODELVIEW);glLoadIdentity();drawer.render(80,70,0);assert(glGetError()==GL_NO_ERROR);if(kind.first=="generic_9x3"||kind.first=="generic_9x6")save(pixels(),"/home/truancy/Documents/Codex/2026-10-13/referenced-chatgpt-conversation-this-is-an/work/native-storage-"+kind.first+"-"+std::to_string(size.first)+".png");
+  projection();glMatrixMode(GL_PROJECTION);glLoadIdentity();glOrthof(0,size.first,size.second,0,-100,100);glMatrixMode(GL_MODELVIEW);glLoadIdentity();drawer.render(80,70,0);assert(glGetError()==GL_NO_ERROR);if(kind.first=="generic_9x3"||kind.first=="generic_9x6")save(pixels(),"native-storage-"+kind.first+"-"+std::to_string(size.first)+".png");
   ++inv.menuGeneration;sent.clear();sentCalls=0;assert(!drawer.addItem(drawer.paneFor(false),0));drawer.buttonClicked(storageButton(drawer,5));assert(sent.empty()&&sentCalls==0);
  }
  // Real menu routing retains the explicit preference across new container
@@ -205,6 +219,18 @@ session.targeting.epoch=77;session.targeting.world=13;session.targeting.age=0;se
    ++session.inventory.menuGeneration;sent.clear();(game->*field(ScheduledTag{}))=false;ui.keyPressed(Keyboard::KEY_ESCAPE);assert(sent.empty()&&!(game->*field(ScheduledTag{})));
   }
  }
+ // Saved transports cannot overwrite/delete each other at the same endpoint.
+ {{std::ofstream reset("options.txt");reset<<"mp_username:Fixture\n";}SavedServerEntry java;java.name="Java fixture";java.address="127.0.0.1";java.port=25565;SavedServerEntry native=java;native.native=true;native.name="TCPE fixture";
+ assert(SavedServerList::addOrUpdate(java)&&SavedServerList::addOrUpdate(native));auto saved=SavedServerList::load();assert(saved.size()==2&&saved[0].native!=saved[1].native);native.name="TCPE updated";assert(SavedServerList::addOrUpdate(native));assert(SavedServerList::load().size()==2);
+ ServerList lan;PingedCompatibleServer discovered;discovered.name="TCPE LAN";discovered.address=RakNet::SystemAddress("127.0.0.1",25565);lan.push_back(discovered);auto visible=visibleServerEntries<JoinGameListEntry>(SavedServerList::load(),lan);assert(visible.size()==3&&visible[2].isNative&&visible[2].isLan&&visible[2].isSaved);assert(visible[1].javaAddress!=visible[2].javaAddress);
+ assert(SavedServerList::remove("127.0.0.1",25565,true));auto remaining=SavedServerList::load();assert(remaining.size()==1&&!remaining[0].native);assert(SavedServerList::addOrUpdate(native));
+ struct Peer:IRakNetInstance{ServerList lan;int connected=0,port=0,pings=0;std::string host;ClientProtocol protocol=CLIENT_PROTOCOL_PROXY_RESERVED;bool connect(const char* h,int p)override{++connected;host=h;port=p;return true;}void pingForHosts(int)override{}bool pingForHost(const char*,int)override{++pings;return true;}const ServerList& getServerList()override{return lan;}void setClientProtocol(ClientProtocol p)override{protocol=p;}} peer;peer.lan=lan;
+ auto* oldPeer=game->raknetInstance;game->raknetInstance=&peer;game->javaSession=nullptr;game->isLookingForMultiplayer=false;game->width=400;game->height=240;Gui::GuiScale=1;Gui::InvGuiScale=1;
+ class NativeListProbe:public Touch::JoinGameScreen{public:using Screen::buttons;};NativeListProbe listing;listing.Screen::init(game,400,240);listing.tick();auto* rows=listing.*field(NativeListTag{});assert((rows->*field(NativeCountTag{}))()==3);projection();listing.render(-1,-1,0);assert(glGetError()==GL_NO_ERROR);auto rowPixels=pixels();std::set<std::array<unsigned char,3>> iconColors;for(int y=144;y<174;++y)for(int x=11;x<41;++x)iconColors.insert(color(rowPixels,x,y));assert(iconColors.size()>16);if(const char* output=std::getenv("TCPE_NATIVE_LIST_PREVIEW"))save(rowPixels,output);
+ auto* list=listing.*field(NativeListTag{});list->*field(NativeSelectedTag{})=2;for(auto* b:listing.buttons)if(b->id==2)listing.buttonClicked(b);assert(peer.connected==1&&peer.host=="127.0.0.1"&&peer.port==25565&&peer.protocol==CLIENT_PROTOCOL_CLASSIC);assert(dynamic_cast<ProgressScreen*>(game->*field(NextScreenTag{})));delete (game->*field(NextScreenTag{}));game->*field(NextScreenTag{})=nullptr;game->*field(ScheduledTag{})=false;game->cancelLocateMultiplayer();ClientSideNetworkHandler failed(game,&peer);failed.onUnableToConnect();assert(dynamic_cast<DisconnectionScreen*>(game->*field(NextScreenTag{})));delete (game->*field(NextScreenTag{}));game->*field(NextScreenTag{})=nullptr;game->*field(ScheduledTag{})=false;failed.onDisconnect(RakNet::UNASSIGNED_RAKNET_GUID);assert(dynamic_cast<DisconnectionScreen*>(game->*field(NextScreenTag{})));delete (game->*field(NextScreenTag{}));game->*field(NextScreenTag{})=nullptr;game->*field(ScheduledTag{})=false;
+ class AddNativeProbe:public JoinByIPScreen{public:using Screen::buttons;using Screen::textBoxes;};AddNativeProbe add;add.Screen::init(game,400,240);assert(add.textBoxes[2]->text=="25565");for(auto* b:add.buttons)if(b->id==6){assert(b->msg=="Type: Java");add.buttonClicked(b);assert(b->msg=="Type: TCPE");}add.textBoxes[0]->text="New native";add.textBoxes[1]->text="192.0.2.10";for(auto* b:add.buttons)if(b->id==4)add.buttonClicked(b);assert(SavedServerList::load().back().native);delete (game->*field(NextScreenTag{}));game->*field(NextScreenTag{})=nullptr;game->*field(ScheduledTag{})=false;
+ game->javaSession=&session;game->raknetInstance=oldPeer;font.setJavaTextEnabled(true);JavaServerRow::refreshAt(game,{},std::chrono::steady_clock::time_point{});statusStarts.clear();statusClock=0;
+ std::cout<<"Native UI: mixed Java/TCPE rows, LAN de-duplication, distinct transport save/update/delete, default25565/type toggle, real native Join button routing and PNG row rendering PASS"<<std::endl;}
  // Real native polling scheduler with controlled completion and clock, including
  // offscreen entries. No DNS, game input or public server traffic in this test.
  std::vector<JavaServerRow::Endpoint> endpoints;for(int i=0;i<10;++i)endpoints.push_back({"fixture-"+std::to_string(i)+".invalid",25565});endpoints.push_back(endpoints.front());

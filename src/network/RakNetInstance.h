@@ -4,6 +4,8 @@
 #include <vector>
 #include <string>
 #include "ClientProtocol.h"
+#include <memory>
+class NativeServerStatus;
 #include "../raknet/RakNetTypes.h"
 #include "../raknet/RakString.h"
 
@@ -108,6 +110,7 @@ public:
 #endif
 
 private:
+    std::unique_ptr<NativeServerStatus> nativeStatus;int nativePort=0,nativeMaximum=0;
 	int handleUnconnectedPong(const RakNet::RakString& data, const RakNet::Packet*, const char* appid, bool insertAtBeginning);
 
 	RakNet::RakPeerInterface*	rakPeer;

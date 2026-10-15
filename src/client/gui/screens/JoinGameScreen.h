@@ -15,10 +15,12 @@ struct JoinGameListEntry {
     std::string title;
     std::string subtitle;
     std::string javaAddress;
+    std::string statusHost;
     std::string savedHost;unsigned short savedPort=25565;
     RakNet::SystemAddress address;
     bool isSpecial;
     bool isSaved;
+    bool isNative=false,isLan=false;
 };
 
 class JoinGameScreen;

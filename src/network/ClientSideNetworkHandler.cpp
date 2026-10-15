@@ -107,11 +107,17 @@ void ClientSideNetworkHandler::onConnect(const RakNet::RakNetGUID& hostGuid)
 void ClientSideNetworkHandler::onUnableToConnect()
 {
 	LOGI("onUnableToConnect\n");
+#ifndef STANDALONE_SERVER
+    minecraft->setScreen(new DisconnectionScreen("Could not connect to TCPE server"));
+#endif
 }
 
 void ClientSideNetworkHandler::onDisconnect(const RakNet::RakNetGUID& guid)
 {
 	LOGI("onDisconnect\n");
+#ifndef STANDALONE_SERVER
+    if(!level){minecraft->setScreen(new DisconnectionScreen("Disconnected from TCPE server"));return;}
+#endif
 	if (level)
 	{
 		level->isClientSide = false;

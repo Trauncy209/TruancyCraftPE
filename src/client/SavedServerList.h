@@ -6,14 +6,15 @@
 struct SavedServerEntry {
     std::string name;
     std::string address;
-    int port;
+    int port=25565;
+    bool native=false;
 };
 
 class SavedServerList {
 public:
     static std::vector<SavedServerEntry> load();
     static bool addOrUpdate(const SavedServerEntry& entry);
-    static bool remove(const std::string& address, int port);
+    static bool remove(const std::string& address, int port, bool native=false);
 
 private:
     static bool save(const std::vector<SavedServerEntry>& entries);

@@ -40,15 +40,15 @@ public:
    status.next=now+std::chrono::seconds(1);
   }
  }
- static void render(Minecraft* game,const std::string& host,unsigned short port,const std::string& title,bool featured,int left,int right,int y){
+ static void render(Minecraft* game,const std::string& host,unsigned short port,const std::string& title,bool featured,int left,int right,int y,bool native=false,bool lanKnown=false){
   JavaServerRow painter;const std::string key=host+":"+std::to_string(port);auto& status=cache()[key];
   glEnable2(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glEnable2(GL_TEXTURE_2D);
-  if(status.uploaded){game->textures->loadAndBindTexture(status.texture);auto& t=Tesselator::instance;t.begin();t.color(255,255,255,255);t.vertexUV(left,y+35,0,0,1);t.vertexUV(left+32,y+35,0,1,1);t.vertexUV(left+32,y+3,0,1,0);t.vertexUV(left,y+3,0,0,0);t.draw();}else{painter.fill(left,y+3,left+32,y+35,0xff303030);}
+  if(status.uploaded||native){game->textures->loadAndBindTexture(status.uploaded?status.texture:"gui/tcpe-server.png");auto& t=Tesselator::instance;t.begin();t.color(255,255,255,255);t.vertexUV(left,y+35,0,0,1);t.vertexUV(left+32,y+35,0,1,1);t.vertexUV(left+32,y+3,0,1,0);t.vertexUV(left,y+3,0,0,0);t.draw();}else{painter.fill(left,y+3,left+32,y+35,0xff303030);}
   glEnable2(GL_BLEND);Font& font=*game->font;auto draw=[&](const std::string& text,int x,int row,int maxWidth){auto fitted=font.fitJava(text,maxWidth);font.drawJava(fitted,x+1,row+1,0xffffffff,true);font.drawJava(fitted,x,row,0xffffffff);};
-  std::string count=status.state>0?std::to_string(status.online)+"/"+std::to_string(status.max):status.state<0?"§cOffline":"§7Pinging...";const int countWidth=font.widthJava(count);draw(count,right-countWidth-18,y+3,countWidth);
+  std::string count=status.state>0?std::to_string(status.online)+"/"+std::to_string(status.max):native&&lanKnown?"§aOnline":status.state<0?"§cOffline":"§7Pinging...";const int countWidth=font.widthJava(count);draw(count,right-countWidth-18,y+3,countWidth);
   const int bars=status.state>0?(status.latency<150?5:status.latency<300?4:status.latency<600?3:status.latency<1000?2:1):0;for(int i=0;i<5;++i)painter.fill(right-14+i*3,y+11-i,right-12+i*3,y+12,i<bars?0xff55ff55:0xff555555);glEnable2(GL_BLEND);
   draw((featured?"§e★ §r":"")+title,left+38,y+3,std::max(0,right-left-60-countWidth));
-  const std::string description=status.state>0?status.motd:key;auto lines=font.wrapJava(description,1048576);for(size_t i=0;i<std::min(size_t(2),lines.size());++i)draw(lines[i],left+38,y+14+i*10,right-left-38);
+  const std::string description=(native?"§7TCPE · §r":"")+(status.state>0?status.motd:key);auto lines=font.wrapJava(description,1048576);for(size_t i=0;i<std::min(size_t(2),lines.size());++i)draw(lines[i],left+38,y+14+i*10,right-left-38);
  }
 };
 #endif

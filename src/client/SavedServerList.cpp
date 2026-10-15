@@ -119,6 +119,8 @@ std::vector<SavedServerEntry> SavedServerList::load() {
             indexedEntries[index].name = value;
         } else if (field == "address") {
             indexedEntries[index].address = value;
+        } else if(field=="protocol"){
+            indexedEntries[index].native=value=="tcpe";
         } else if (field == "port") {
             indexedEntries[index].port = std::atoi(value.c_str());
         }
@@ -128,6 +130,7 @@ std::vector<SavedServerEntry> SavedServerList::load() {
 
     for (std::map<int, SavedServerEntry>::const_iterator it = indexedEntries.begin(); it != indexedEntries.end(); ++it) {
         SavedServerEntry entry;
+        entry.native=it->second.native;
         entry.address = sanitizeAddress(it->second.address);
         if (entry.address.empty()) {
             continue;
@@ -188,6 +191,7 @@ bool SavedServerList::save(const std::vector<SavedServerEntry>& entries) {
         std::fprintf(output, "%s%u_name:%s\n", kSavedServerPrefix, (unsigned)i, name.c_str());
         std::fprintf(output, "%s%u_address:%s\n", kSavedServerPrefix, (unsigned)i, address.c_str());
         std::fprintf(output, "%s%u_port:%d\n", kSavedServerPrefix, (unsigned)i, port);
+        std::fprintf(output,"%s%u_protocol:%s\n",kSavedServerPrefix,(unsigned)i,entry.native?"tcpe":"java");
     }
 
     std::fclose(output);
@@ -205,7 +209,7 @@ bool SavedServerList::addOrUpdate(const SavedServerEntry& entry) {
     std::string name = sanitizeName(entry.name, address);
 
     for (size_t i = 0; i < entries.size(); ++i) {
-        if (sanitizeAddress(entries[i].address) == address && sanitizePort(entries[i].port) == port) {
+        if (sanitizeAddress(entries[i].address) == address && sanitizePort(entries[i].port) == port && entries[i].native==entry.native) {
             entries[i].name = name;
             entries[i].address = address;
             entries[i].port = port;
@@ -214,6 +218,7 @@ bool SavedServerList::addOrUpdate(const SavedServerEntry& entry) {
     }
 
     SavedServerEntry cleaned;
+    cleaned.native=entry.native;
     cleaned.name = name;
     cleaned.address = address;
     cleaned.port = port;
@@ -221,7 +226,7 @@ bool SavedServerList::addOrUpdate(const SavedServerEntry& entry) {
     return save(entries);
 }
 
-bool SavedServerList::remove(const std::string& address, int port) {
+bool SavedServerList::remove(const std::string& address, int port, bool native) {
     std::string cleanedAddress = sanitizeAddress(address);
     if (cleanedAddress.empty()) {
         return false;
@@ -231,7 +236,7 @@ bool SavedServerList::remove(const std::string& address, int port) {
     std::vector<SavedServerEntry> entries = load();
 
     for (std::vector<SavedServerEntry>::iterator it = entries.begin(); it != entries.end(); ++it) {
-        if (sanitizeAddress(it->address) == cleanedAddress && sanitizePort(it->port) == cleanedPort) {
+        if (sanitizeAddress(it->address) == cleanedAddress && sanitizePort(it->port) == cleanedPort && it->native==native) {
             entries.erase(it);
             return save(entries);
         }

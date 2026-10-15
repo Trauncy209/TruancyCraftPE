@@ -1378,6 +1378,8 @@ void Minecraft::_reloadInput() {
 // Multiplayer
 //
 void Minecraft::locateMultiplayer() {
+    if(isLookingForMultiplayer&&netCallback)return;
+    delete netCallback;netCallback=NULL;
 	isLookingForMultiplayer = true;
 
 	raknetInstance->pingForHosts(19132);

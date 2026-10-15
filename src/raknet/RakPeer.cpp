@@ -1,3 +1,5 @@
+#include <mutex>
+#include <cstdio>
 // \file
 //
 // This file is part of RakNet Copyright 2003 Jenkins Software LLC
@@ -4125,9 +4127,14 @@ uint64_t RakPeerInterface::Get64BitUniqueRandomNumber(void)
 	return g;
 
 #else
-	struct timeval tv;
-	gettimeofday(&tv, NULL);
-	return tv.tv_usec + tv.tv_sec * 1000000;
+    // A timestamp alone gives identical IDs to peers started in one microsecond.
+    // Use OS entropy on Linux/Android, with a serialized monotonic fallback.
+    uint64_t random;
+    FILE* source=std::fopen("/dev/urandom","rb");
+    if(source){const bool ok=std::fread(&random,1,sizeof(random),source)==sizeof(random);std::fclose(source);if(ok&&random!=0&&random!=uint64_t(-1))return random;}
+    static std::mutex lock;static uint64_t previous=0;std::lock_guard<std::mutex> guard(lock);
+    struct timeval tv;gettimeofday(&tv,NULL);uint64_t now=uint64_t(tv.tv_sec)*1000000+tv.tv_usec;
+    previous=now>previous?now:previous+1;return previous;
 #endif
 }
 // --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 ArgumentsSettings::ArgumentsSettings(int numArguments, char** arguments)
-: externalPath("."), levelName("level"), showHelp(false), port(19132), serverKey(""), cachePath("."), levelDir("level") {
+: externalPath("."), levelName("level"), showHelp(false), port(25565), serverKey(""), cachePath("."), levelDir("level") {
 	for(int a = 0; a < numArguments; ++a) {
 		if(strcmp(arguments[a], "--help") == 0) {
 			showHelp = true;

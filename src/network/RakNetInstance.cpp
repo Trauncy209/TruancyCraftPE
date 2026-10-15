@@ -1,4 +1,5 @@
 #include "RakNetInstance.h"
+#include "NativeServerStatus.h"
 #include "Packet.h"
 #include "NetEventCallback.h"
 #include "../raknet/RakPeerInterface.h"
@@ -192,7 +193,8 @@ RakNetInstance::RakNetInstance()
 :	rakPeer(NULL),
 	_isServer(false),
 	_isLoggedIn(false),
-	_clientProtocol(CLIENT_PROTOCOL_CLASSIC)
+	_clientProtocol(CLIENT_PROTOCOL_CLASSIC),
+    nativeStatus(new NativeServerStatus())
 {
 	rakPeer = RakNet::RakPeerInterface::GetInstance();
 	rakPeer->SetTimeoutTime(20000, RakNet::UNASSIGNED_SYSTEM_ADDRESS);
@@ -201,6 +203,7 @@ RakNetInstance::RakNetInstance()
 
 RakNetInstance::~RakNetInstance()
 {
+    nativeStatus->stop();
 	if (rakPeer)
 	{
 		rakPeer->Shutdown(100, 0);
@@ -211,6 +214,7 @@ RakNetInstance::~RakNetInstance()
 
 bool RakNetInstance::host(const std::string& localName, int port, int maxConnections /* = 4 */)
 {
+    nativeStatus->stop();nativePort=port;nativeMaximum=maxConnections+1;
 	if (rakPeer->IsActive())
 	{
 		rakPeer->Shutdown(500);
@@ -222,7 +226,7 @@ bool RakNetInstance::host(const std::string& localName, int port, int maxConnect
 	rakPeer->SetMaximumIncomingConnections(maxConnections);
 	RakNet::StartupResult result = rakPeer->Startup(maxConnections, &socket, 1);
 
-	_isServer = true;
+	_isServer = (result == RakNet::RAKNET_STARTED);
 	isPingingForServers = false;
 
 	return (result == RakNet::RAKNET_STARTED);
@@ -230,6 +234,7 @@ bool RakNetInstance::host(const std::string& localName, int port, int maxConnect
 
 void RakNetInstance::announceServer(const std::string& localName)
 {
+    if(_isServer)nativeStatus->start(nativePort,localName,nativeMaximum);
 	if (_isServer && rakPeer->IsActive())
 	{
 		RakNet::RakString connectionData;
@@ -249,6 +254,7 @@ void RakNetInstance::announceServer(const std::string& localName)
 
 bool RakNetInstance::connect(const char* host, int port)
 {
+    nativeStatus->stop();
 	_isLoggedIn = false;
 	serverGuid = RakNet::UNASSIGNED_RAKNET_GUID;
 	RakNet::StartupResult result;
@@ -278,6 +284,7 @@ bool RakNetInstance::connect(const char* host, int port)
 
 void RakNetInstance::disconnect()
 {
+    nativeStatus->stop();
 	if (rakPeer->IsActive())
 	{
 		rakPeer->Shutdown(500);
@@ -301,6 +308,7 @@ void RakNetInstance::pingForHosts(int basePort)
 
 	for (int i = 0; i < 4; ++i)
 		rakPeer->Ping("255.255.255.255", basePort + i, true);
+    if(basePort!=25565)rakPeer->Ping("255.255.255.255",25565,true);
 }
 
 bool RakNetInstance::pingForHost(const char* host, int port)
@@ -364,6 +372,7 @@ bool RakNetInstance::isMyLocalGuid(const RakNet::RakNetGUID& guid)
 
 void RakNetInstance::runEvents(NetEventCallback* callback)
 {
+    if(_isServer)nativeStatus->update(1+rakPeer->NumberOfConnections());
 	RakNet::Packet* currentEvent;
 
 	while ((currentEvent = rakPeer->Receive()) != NULL)
@@ -400,6 +409,11 @@ void RakNetInstance::runEvents(NetEventCallback* callback)
 					callback->onConnect(currentEvent->guid);
 					break;
 				case ID_CONNECTION_ATTEMPT_FAILED:
+                case ID_NO_FREE_INCOMING_CONNECTIONS:
+                case ID_CONNECTION_BANNED:
+                case ID_INVALID_PASSWORD:
+                case ID_INCOMPATIBLE_PROTOCOL_VERSION:
+                case ID_ALREADY_CONNECTED:
 					callback->onUnableToConnect();
 					break;
 				case ID_DISCONNECTION_NOTIFICATION:
@@ -573,6 +587,11 @@ const char* RakNetInstance::getPacketName(int packetId)
 		return "ID_CONNECTION_REQUEST_ACCEPTED";
 
 	case ID_CONNECTION_ATTEMPT_FAILED:
+                case ID_NO_FREE_INCOMING_CONNECTIONS:
+                case ID_CONNECTION_BANNED:
+                case ID_INVALID_PASSWORD:
+                case ID_INCOMPATIBLE_PROTOCOL_VERSION:
+                case ID_ALREADY_CONNECTED:
 		return "ID_CONNECTION_ATTEMPT_FAILED";
 
 	case ID_ALREADY_CONNECTED:

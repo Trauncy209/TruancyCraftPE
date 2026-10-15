@@ -20,6 +20,8 @@ public:
 	void buttonClicked(Button* button);
     virtual bool handleBackEvent(bool isDown);
 private:
+    bool native=false;
+    Touch::TButton bProtocol;
     TextBox tName;
     TextBox tIP;
     TextBox tPort;

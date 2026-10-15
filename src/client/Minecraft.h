@@ -89,7 +89,7 @@ public:
     JavaGameSession* javaSession;
     unsigned appliedJavaInventoryRevision=0;
     unsigned appliedJavaWorldRevision=0;
-	void hostMultiplayer(int port=19132);
+	void hostMultiplayer(int port=25565);
 	Player* respawnPlayer(int playerId);
 	void respawnPlayer();
 	void resetPlayer(Player* player);

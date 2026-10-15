@@ -1,3 +1,5 @@
+#include "../NativeServerListing.h"
+#include "../DisconnectionScreen.h"
 #include "../JavaAccountScreen.h"
 #include "../JavaServerRow.h"
 #include "TouchJoinGameScreen.h"
@@ -10,28 +12,6 @@
 #include "../../../renderer/Textures.h"
 #include "../../../../network/ClientSideNetworkHandler.h"
 
-namespace {
-std::vector<Touch::JoinGameListEntry> buildVisibleServerList(const std::vector<SavedServerEntry>& savedServers) {
-    std::vector<Touch::JoinGameListEntry> serverList;
-
-    Touch::JoinGameListEntry featured;featured.title="Zeus";featured.subtitle="Featured server";featured.savedHost="zeuspvp.net";featured.savedPort=25565;featured.javaAddress="zeuspvp.net:25565";featured.isSpecial=true;featured.isSaved=false;serverList.push_back(featured);
-    for (size_t i = 0; i < savedServers.size(); ++i) {
-        std::string normalized=savedServers[i].address;std::transform(normalized.begin(),normalized.end(),normalized.begin(),[](unsigned char c){return std::tolower(c);});if(normalized=="zeuspvp.net"&&savedServers[i].port==25565)continue;
-        Touch::JoinGameListEntry entry;
-        entry.savedHost=savedServers[i].address;entry.savedPort=savedServers[i].port;
-        entry.javaAddress = (savedServers[i].address.find(':')!=std::string::npos&&savedServers[i].address.front()!='['?"["+savedServers[i].address+"]":savedServers[i].address) + ":" + std::to_string(savedServers[i].port);
-        entry.title = savedServers[i].name.empty() ? entry.javaAddress : savedServers[i].name;
-        entry.subtitle = entry.javaAddress;
-        entry.isSpecial = false;
-        entry.isSaved = true;
-        serverList.push_back(entry);
-    }
-
-    return serverList;
-}
-
-
-}
 
 namespace Touch {
 
@@ -65,7 +45,7 @@ void AvailableGamesList::renderItem(int i, int x, int y, int h, Tesselator& t)
     fill(left, y, right, bottom, borderColor);
     fill(left + 1, y + 1, right - 1, bottom - 1, panelColor);
 
-    JavaServerRow::render(minecraft,s.savedHost,s.savedPort,s.title,s.isSpecial,left+4,right-4,y+1);
+    JavaServerRow::render(minecraft,s.statusHost.empty()?s.savedHost:s.statusHost,s.savedPort,s.title,s.isSpecial,left+4,right-4,y+1,s.isNative,s.isLan);
 }
 
 JoinGameScreen::JoinGameScreen()
@@ -93,6 +73,7 @@ bool JoinGameScreen::canDeleteSelection() const
 
 void JoinGameScreen::init()
 {
+    minecraft->locateMultiplayer();
 	buttons.push_back(&bHeader);
 	buttons.push_back(&bBack);
     buttons.push_back(&bAddServer);
@@ -142,6 +123,14 @@ void JoinGameScreen::buttonClicked(Button* button)
 		if (isIndexValid(gamesList->selectedItem))
 		{
 			JoinGameListEntry selectedServer = gamesList->copiedServerList[gamesList->selectedItem];
+            if(selectedServer.isNative){
+                if(selectedServer.statusHost.empty())return;
+                minecraft->stopJavaServer();minecraft->raknetInstance->setClientProtocol(CLIENT_PROTOCOL_CLASSIC);
+                PingedCompatibleServer native;native.address=RakNet::SystemAddress(selectedServer.statusHost.c_str(),selectedServer.savedPort);
+                if(minecraft->joinMultiplayer(native))minecraft->setScreen(new ProgressScreen());else minecraft->setScreen(new DisconnectionScreen("Could not connect to TCPE server"));
+                return;
+            }
+            minecraft->cancelLocateMultiplayer();
             const bool online=JavaAccountSelection::selected();
             const std::string identity=online?JavaAccountSelection::username():minecraft->options.username;
             if(minecraft->joinJavaServer(selectedServer.javaAddress,identity,online))minecraft->setScreen(new JavaConnectScreen());
@@ -152,7 +141,7 @@ void JoinGameScreen::buttonClicked(Button* button)
     {
         if (canDeleteSelection()) {
             const JoinGameListEntry& selectedServer = gamesList->copiedServerList[gamesList->selectedItem];
-            if (SavedServerList::remove(selectedServer.savedHost,selectedServer.savedPort)) {
+            if (SavedServerList::remove(selectedServer.savedHost,selectedServer.savedPort,selectedServer.isNative)) {
                 gamesList->selectItem(-1, false);
                 bJoin.active = false;
                 bDelete.active = false;
@@ -188,8 +177,9 @@ bool JoinGameScreen::isIndexValid(int index)
 void JoinGameScreen::tick()
 {
     std::vector<SavedServerEntry> savedServers = SavedServerList::load();
-    std::vector<JoinGameListEntry> serverList = buildVisibleServerList(savedServers);
-    std::vector<JavaServerRow::Endpoint> endpoints;for(const auto& server:serverList)endpoints.push_back({server.savedHost,server.savedPort});JavaServerRow::refresh(minecraft,endpoints);
+    refreshNativeServerDiscovery(minecraft,savedServers);
+    std::vector<JoinGameListEntry> serverList = visibleServerEntries<Touch::JoinGameListEntry>(savedServers,minecraft->raknetInstance->getServerList());
+    std::vector<JavaServerRow::Endpoint> endpoints;for(const auto& server:serverList)if(!server.statusHost.empty())endpoints.push_back({server.statusHost,server.savedPort});JavaServerRow::refresh(minecraft,endpoints);
 
     std::string selectedAddress;
     bool hasSelection = false;
@@ -213,7 +203,7 @@ void JoinGameScreen::tick()
 		}
 	}
 
-	bJoin.active = isIndexValid(gamesList->selectedItem);
+	bJoin.active = isIndexValid(gamesList->selectedItem)&&(!gamesList->copiedServerList[gamesList->selectedItem].isNative||!gamesList->copiedServerList[gamesList->selectedItem].statusHost.empty());
     bDelete.active = canDeleteSelection();
 }
 
