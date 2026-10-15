@@ -1,51 +1,69 @@
 {
   "version": "0.5.23",
-  "status": "Signed local test candidates; not published",
-  "scans": "Not uploaded; no previous scan results apply",
+  "status": "signed_scanned_release_ready",
+  "scans": [
+    {
+      "platform": "Android 64-bit",
+      "file": "TruancyCraftPE-0.5.23-Android-arm64-v8a.apk",
+      "sha256": "b5bb4831490ed261d2a9407482e47d94ddfae72b5318fbd688f37b94bd54524e",
+      "url": "https://www.virustotal.com/gui/file/b5bb4831490ed261d2a9407482e47d94ddfae72b5318fbd688f37b94bd54524e",
+      "status": "completed",
+      "detections": 0,
+      "engine_total": 64,
+      "checked_utc": "2026-10-15T00:16:10.407905+00:00"
+    },
+    {
+      "platform": "Android 32-bit",
+      "file": "TruancyCraftPE-0.5.23-Android-armeabi-v7a.apk",
+      "sha256": "c27bd1928897b2f31bddf061b60cab79e617fcefdea98054cde1e13931232abe",
+      "url": "https://www.virustotal.com/gui/file/c27bd1928897b2f31bddf061b60cab79e617fcefdea98054cde1e13931232abe",
+      "status": "completed",
+      "detections": 0,
+      "engine_total": 64,
+      "checked_utc": "2026-10-15T00:15:33.807665+00:00"
+    },
+    {
+      "platform": "Linux x86_64",
+      "file": "TruancyCraftPE-0.5.23-Linux-x86_64.tar.gz",
+      "sha256": "d8cb82b9d827af06690552357d6b89fbd39bbf75b04227843d2308c76cead850",
+      "url": "https://www.virustotal.com/gui/file/d8cb82b9d827af06690552357d6b89fbd39bbf75b04227843d2308c76cead850",
+      "status": "completed",
+      "detections": 0,
+      "engine_total": 56,
+      "checked_utc": "2026-10-15T00:17:12.872991+00:00"
+    }
+  ],
   "live_mining_acceptance": "Pending; native window control unavailable",
   "game_files_identical_to_0_5_22": false,
-  "artifacts": {
-    "arm64": {
-      "sha256": "2667d64ab61a72f8796f489b5826351df1d26a6eecbfa73190d16f94e6ab08fd",
-      "bytes": 399298842,
-      "abi": "arm64-v8a",
-      "versionCode": 6002,
-      "versionName": "0.5.23",
-      "official_cert_sha256": "e0e241d7c0730e3d2ef1987f6bda63f24bc56b5cb9c4e94713d09235093628df",
-      "native_sha256": "f4e3bea964a50e281e339da6bbefadc11cafb2ef80a6e6b1c35cd4aa00e7b7f5",
-      "rust_sha256": "93faffa4ffa577d023fd72e242358a4993cc3d716654769370e2c11705b43604",
-      "all_assets_verified": 4690,
-      "ffi_exports_verified": 14,
-      "elf_and_zip_alignment_16kb": true,
-      "rust_source_identity_sha256": "e897a3157dcde9a6ad4de1825955dd6a25b112de523596c41b01aa2fdce7b487"
+  "artifacts": [
+    {
+      "name": "TruancyCraftPE-0.5.23-Android-arm64-v8a.apk",
+      "sha256": "b5bb4831490ed261d2a9407482e47d94ddfae72b5318fbd688f37b94bd54524e",
+      "bytes": 399298842
     },
-    "armv7": {
-      "sha256": "5d555bf087f9eca74642fc41c8b22968e170d374bb3445ba737400bb8cea2aeb",
-      "bytes": 397291806,
-      "abi": "armeabi-v7a",
-      "versionCode": 6002,
-      "versionName": "0.5.23",
-      "official_cert_sha256": "e0e241d7c0730e3d2ef1987f6bda63f24bc56b5cb9c4e94713d09235093628df",
-      "native_sha256": "2bfbe72d458080da5301c087ffd3acb6fc9e330b72b201507e5b599298e54211",
-      "rust_sha256": "55bb9aec809fdde805f358a065c1007f4fe98da5511cd67f5f2c05c234bd9078",
-      "all_assets_verified": 4690,
-      "ffi_exports_verified": 14,
-      "elf_and_zip_alignment_16kb": true,
-      "rust_source_identity_sha256": "e897a3157dcde9a6ad4de1825955dd6a25b112de523596c41b01aa2fdce7b487"
+    {
+      "name": "TruancyCraftPE-0.5.23-Android-armeabi-v7a.apk",
+      "sha256": "c27bd1928897b2f31bddf061b60cab79e617fcefdea98054cde1e13931232abe",
+      "bytes": 397291806
+    },
+    {
+      "name": "TruancyCraftPE-0.5.23-Linux-x86_64.tar.gz",
+      "sha256": "d8cb82b9d827af06690552357d6b89fbd39bbf75b04227843d2308c76cead850",
+      "bytes": 570659842
     }
-  },
+  ],
   "Linux": {
-    "sha256": "54d33eec733764b192a5b666d8f881c5bdacc0101e56bead03a5f5277764390b",
-    "bytes": 570659785,
-    "native_sha256": "d4181f44397b6557cc34f8d17fc51ce81d292ec71d4871d2da3f2861a0aff220",
+    "sha256": "d8cb82b9d827af06690552357d6b89fbd39bbf75b04227843d2308c76cead850",
+    "bytes": 570659842,
+    "native_sha256": "89223af6a397f50ce2756831baf10427d77db7f12d63e4eec1e4d855a92229b6",
     "rust_sha256": "4d93dea9ef0b679b0ffe168188a7deae2a40a7b66cb2b415c1aa662b8d229da7",
     "max_GLIBC": "2.38",
     "final_combined_Ubuntu24_loader": "PASS",
     "detached_signature": {
       "format": "Detached CMS/PKCS7 DER SHA256",
       "file": "TruancyCraftPE-0.5.23-Linux-x86_64.tar.gz.p7s",
-      "sha256": "10db0d8cd47671d6f67db0d7d06cffaedc7f75b906cff20df38e89bbce343b77",
-      "archive_sha256": "54d33eec733764b192a5b666d8f881c5bdacc0101e56bead03a5f5277764390b",
+      "sha256": "d41e411ae42ef1d4552637819579eff7c652e4b66e6a13e4feddabfd41126709",
+      "archive_sha256": "d8cb82b9d827af06690552357d6b89fbd39bbf75b04227843d2308c76cead850",
       "certificate_sha256": "e0e241d7c0730e3d2ef1987f6bda63f24bc56b5cb9c4e94713d09235093628df",
       "verification": "PASS using exact release public certificate as trust anchor"
     }
@@ -54,7 +72,7 @@
     "native_ui_regressions": "PASS on host and Ubuntu24 GLES3, 2x2/3x3 and bone blocks; One auto-bag, All, full bag, rejection, Shift, delayed snapshot and wait/retry",
     "live_acceptance": "pending next user-controlled game restart",
     "wait_retry_seconds": 2,
-    "Linux_native_sha256": "d4181f44397b6557cc34f8d17fc51ce81d292ec71d4871d2da3f2861a0aff220",
+    "Linux_native_sha256": "89223af6a397f50ce2756831baf10427d77db7f12d63e4eec1e4d855a92229b6",
     "current_game_closed": false
   },
   "native_gui_updates": {
@@ -63,7 +81,14 @@
     "server_list": "One-second polling across all saved/featured endpoints, including offscreen; fair four-request bound and no per-row overlap; controlled native timing, slow/offline and duplicate tests PASS",
     "native_GLES3": "Host and portable Ubuntu24 actual native UI tests PASS; storage layout visually inspected at 400x240 and 200x120 logical sizes",
     "live_acceptance": "Pending next user-controlled game launch",
-    "Linux_native_sha256": "d4181f44397b6557cc34f8d17fc51ce81d292ec71d4871d2da3f2861a0aff220",
+    "Linux_native_sha256": "89223af6a397f50ce2756831baf10427d77db7f12d63e4eec1e4d855a92229b6",
     "current_game_closed": false
-  }
+  },
+  "release_branding": {
+    "Android_application_label": "TruancyCraftPE",
+    "Android_launcher_label": "TCPE",
+    "Linux_window_title": "TruancyCraftPE",
+    "unchanged_asset_entries": 4690
+  },
+  "verified_utc": "2026-10-15T00:17:12.918457+00:00"
 }

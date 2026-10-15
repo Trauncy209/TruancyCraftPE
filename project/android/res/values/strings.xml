@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-	<string name="app_name">Minecraft - Pocket Edition</string>
-	<string name="app_name_demo">Minecraft - Pocket Edition Demo</string>
+	<string name="app_name">TruancyCraftPE</string>
+	<string name="app_name_demo">TruancyCraftPE Demo</string>
     <string name="xperiaplayoptimized_content">true</string>
-    <string name="app_name_short">Minecraft PE</string>
-    <string name="app_name_short_demo">Minecraft PE Demo</string>
+    <string name="app_name_short">TCPE</string>
+    <string name="app_name_short_demo">TCPE Demo</string>
 
 	<!-- CREATE NEW WORLD -->
 	<string name="createworld_name">World name</string>

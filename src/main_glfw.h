@@ -169,7 +169,7 @@ int main(void) {
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
 #endif
 
-	GLFWwindow* window = glfwCreateWindow(appContext.platform->getScreenWidth(), appContext.platform->getScreenHeight(), "main", NULL, NULL);
+	GLFWwindow* window = glfwCreateWindow(appContext.platform->getScreenWidth(), appContext.platform->getScreenHeight(), "TruancyCraftPE", NULL, NULL);
 	
 	if (window == NULL) {
 		return 1;

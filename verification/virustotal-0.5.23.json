@@ -1,0 +1,32 @@
+[
+  {
+    "platform": "Android 64-bit",
+    "file": "TruancyCraftPE-0.5.23-Android-arm64-v8a.apk",
+    "sha256": "b5bb4831490ed261d2a9407482e47d94ddfae72b5318fbd688f37b94bd54524e",
+    "url": "https://www.virustotal.com/gui/file/b5bb4831490ed261d2a9407482e47d94ddfae72b5318fbd688f37b94bd54524e",
+    "status": "completed",
+    "detections": 0,
+    "engine_total": 64,
+    "checked_utc": "2026-10-15T00:16:10.407905+00:00"
+  },
+  {
+    "platform": "Android 32-bit",
+    "file": "TruancyCraftPE-0.5.23-Android-armeabi-v7a.apk",
+    "sha256": "c27bd1928897b2f31bddf061b60cab79e617fcefdea98054cde1e13931232abe",
+    "url": "https://www.virustotal.com/gui/file/c27bd1928897b2f31bddf061b60cab79e617fcefdea98054cde1e13931232abe",
+    "status": "completed",
+    "detections": 0,
+    "engine_total": 64,
+    "checked_utc": "2026-10-15T00:15:33.807665+00:00"
+  },
+  {
+    "platform": "Linux x86_64",
+    "file": "TruancyCraftPE-0.5.23-Linux-x86_64.tar.gz",
+    "sha256": "d8cb82b9d827af06690552357d6b89fbd39bbf75b04227843d2308c76cead850",
+    "url": "https://www.virustotal.com/gui/file/d8cb82b9d827af06690552357d6b89fbd39bbf75b04227843d2308c76cead850",
+    "status": "completed",
+    "detections": 0,
+    "engine_total": 56,
+    "checked_utc": "2026-10-15T00:17:12.872991+00:00"
+  }
+]

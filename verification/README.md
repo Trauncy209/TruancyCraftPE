@@ -1,8 +1,8 @@
 # Download verification
 
-v0.5.23 local test candidates are signed and checked. They have not been
-published or uploaded for new scans. Previous scan results do not describe
-these builds. Live gameplay confirmation of the mining fixes is still pending.
+v0.5.23 downloads are signed and checked. The VirusTotal links below refer to
+the exact final download hashes. Live gameplay confirmation of the latest
+mining, crafting and storage fixes is still pending.
 
 ## What has been checked
 
@@ -37,9 +37,9 @@ SHA-256 values below match the exact signed APKs and Linux archive.
 
 | Download | SHA-256 |
 | :--- | :--- |
-| `TruancyCraftPE-0.5.23-Android-arm64-v8a.apk` | `2667d64ab61a72f8796f489b5826351df1d26a6eecbfa73190d16f94e6ab08fd` |
-| `TruancyCraftPE-0.5.23-Android-armeabi-v7a.apk` | `5d555bf087f9eca74642fc41c8b22968e170d374bb3445ba737400bb8cea2aeb` |
-| `TruancyCraftPE-0.5.23-Linux-x86_64.tar.gz` | `54d33eec733764b192a5b666d8f881c5bdacc0101e56bead03a5f5277764390b` |
+| `TruancyCraftPE-0.5.23-Android-arm64-v8a.apk` | `b5bb4831490ed261d2a9407482e47d94ddfae72b5318fbd688f37b94bd54524e` |
+| `TruancyCraftPE-0.5.23-Android-armeabi-v7a.apk` | `c27bd1928897b2f31bddf061b60cab79e617fcefdea98054cde1e13931232abe` |
+| `TruancyCraftPE-0.5.23-Linux-x86_64.tar.gz` | `d8cb82b9d827af06690552357d6b89fbd39bbf75b04227843d2308c76cead850` |
 
 ## Android signature
 
@@ -71,14 +71,21 @@ openssl cms -verify -binary -inform DER \
 
 ## Scans
 
-New scans have not been uploaded. Report links and the date checked will go
-here once they refer to the exact final download hashes. No detection counts
-from an older release are carried forward.
+Checked 2026-10-15. These are new reports for the exact files above.
+
+| Download | VirusTotal result |
+| :--- | :--- |
+| Android 64-bit | [0/64 detections](https://www.virustotal.com/gui/file/b5bb4831490ed261d2a9407482e47d94ddfae72b5318fbd688f37b94bd54524e) |
+| Android 32-bit | [0/64 detections](https://www.virustotal.com/gui/file/c27bd1928897b2f31bddf061b60cab79e617fcefdea98054cde1e13931232abe) |
+| Linux x86_64 | [0/56 detections](https://www.virustotal.com/gui/file/d8cb82b9d827af06690552357d6b89fbd39bbf75b04227843d2308c76cead850) |
+
+Scan results describe the engines that returned a result, not a guarantee of
+safety. Some engines do not support these file types or time out. VirusTotal
+also displayed an archive-inspection size warning for the APK uploads; these
+reports do not certify every embedded asset or library separately.
 
 [Previous release verification: v0.5.22.1](v0.5.22.1/README.md)
 
 The crafting GUI result-delivery and response/retry fixes pass native GLES3 checks, including bone blocks, a full bag and delayed inventory updates. Live confirmation is pending the next game restart.
 
-GUI mode stays the default for server menus. The Storage toggle uses PE chest drawers without reopening the server window. Native checks cover nine container layouts and whole/half/quick transfers. One-second server refresh checks cover offscreen rows, slow/offline replies and bounded requests. Live confirmation is pending.
-
-GUI mode stays the default for server menus. The Storage toggle uses PE chest drawers without reopening the server window. Native checks cover nine container layouts and whole/half/quick transfers. One-second server refresh checks cover offscreen rows, slow/offline replies and bounded requests. Live confirmation is pending.
+GUI mode is the default on a new install; your Storage/Menu choice persists across windows and game restarts. The Storage toggle uses PE chest drawers without reopening the server window. Native checks cover nine container layouts and whole/half/quick transfers. One-second server refresh checks cover offscreen rows, slow/offline replies and bounded requests. Live confirmation is pending.
