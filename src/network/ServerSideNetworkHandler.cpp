@@ -414,10 +414,10 @@ void ServerSideNetworkHandler::handle(const RakNet::RakNetGUID& source, RequestC
 
     LevelChunk* chunk = level->getChunk(packet->x, packet->z);
 
-	if (!chunk)
+	if (!chunk || chunk->isEmpty())
         return;
 
-	ChunkDataPacket cpacket(chunk->x, chunk->z, chunk);
+	ChunkDataPacket cpacket(chunk->x, chunk->z, chunk,true);
 
 	RakNet::BitStream bitStream;
 	cpacket.write(&bitStream);

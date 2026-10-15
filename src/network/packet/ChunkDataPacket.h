@@ -11,15 +11,15 @@ public:
 	int x, z;
 	RakNet::BitStream chunkData;
 	LevelChunk* chunk;
+    bool fullSnapshot;
 
-	ChunkDataPacket()
-	{
-	}
+    ChunkDataPacket():x(0),z(0),chunk(nullptr),fullSnapshot(false) {}
 
-	ChunkDataPacket(int x, int z, LevelChunk* chunk)
+	ChunkDataPacket(int x, int z, LevelChunk* chunk,bool fullSnapshot=false)
 	:	x(x),
 		z(z),
-		chunk(chunk)
+		chunk(chunk),
+        fullSnapshot(fullSnapshot)
 	{
 	}
 
@@ -39,7 +39,9 @@ public:
 		chunkData.Reset();
 		for (int i = 0; i < CHUNK_COLUMNS; i++)
 		{
-			unsigned char updateBits = chunk->updateMap[i];
+			// A joining client may have generated a different base world. Send
+            // every section (including air and metadata) without dirtying it.
+            unsigned char updateBits = fullSnapshot?0xff:chunk->updateMap[i];
 			chunkData.Write(updateBits);
 
 			if (updateBits > 0)

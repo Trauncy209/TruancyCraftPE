@@ -80,11 +80,14 @@ void ClientSideNetworkHandler::requestNextChunk()
 		requestNextChunkIndex++;
         requestNextChunkPosition++;
 	}
+	if (areAllChunksLoaded()) finishChunkRequests();
 }
 
 bool ClientSideNetworkHandler::areAllChunksLoaded()
 {
-	return (requestNextChunkPosition >= (CHUNK_CACHE_WIDTH * CHUNK_CACHE_WIDTH));
+	for (int i = 0; i < NumRequestChunks; ++i)
+		if (!chunksLoaded[i]) return false;
+	return true;
 }
 
 bool ClientSideNetworkHandler::isChunkLoaded(int x, int z)
@@ -173,11 +176,15 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, StartGam
 	LevelStorageSource* storageSource = minecraft->getLevelSource();
 	storageSource->deleteLevel(levelId);
 	//level = new Level(storageSource->selectLevel(levelId, true), "temp", packet->levelSeed, SharedConstants::StorageVersion);
+    const int generatorVersion=LevelSettings::validateGeneratorVersion(packet->levelGeneratorVersion);
 	MultiPlayerLevel* level = new MultiPlayerLevel(
 		storageSource->selectLevel(levelId, true),
 		"temp",
-		LevelSettings(packet->levelSeed, LevelSettings::validateGameType(packet->gameType), packet->levelGeneratorVersion),
-		SharedConstants::StorageVersion);
+		LevelSettings(packet->levelSeed, LevelSettings::validateGameType(packet->gameType), generatorVersion),
+        // This argument selects terrain bounds, not the level.dat format.
+        // Using StorageVersion silently turned infinite servers into finite
+        // client worlds, so negative spawn chunks could never become ready.
+        generatorVersion);
 	level->isClientSide = true;
 
 	bool isCreative = (packet->gameType == GameType::Creative);
@@ -482,6 +489,7 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, EntityEv
 
 void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, ChunkDataPacket* packet)
 {
+	if (source != serverGuid) return;
 	if (!level) {
 		LOGI("level @ handle ChunkDataPacket is 0\n");
 		return;
@@ -550,13 +558,13 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, ChunkDat
 					memcpy(&blockData.data[(colDataPosition + (set << setShift)) >> 1], readDataBuffer, setSize >> 1);
 				}
 
-				if (((1 << set) << setShift) < y0)
+				if ((set << setShift) < y0)
 				{
-					y0 = ((1 << set) << setShift);
+					y0 = (set << setShift);
 				}
-				if (((1 << set) << setShift) + (LEVEL_HEIGHT / 8) - 1 > y1)
+				if ((set << setShift) + (LEVEL_HEIGHT / 8) - 1 > y1)
 				{
-					y1 = ((1 << set) << setShift) + (LEVEL_HEIGHT / 8) - 1;
+					y1 = (set << setShift) + (LEVEL_HEIGHT / 8) - 1;
 				}
 			}
 			if ((i % CHUNK_WIDTH) < x0)
@@ -580,7 +588,7 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, ChunkDat
 
  	if (recalcHeight)
  	{
-// 		chunk->recalcHeightmap();
+		chunk->recalcHeightmapOnly();
 // 		//chunk->recalcBlockLights();
  		level->setTilesDirty((packet->x << 4) + x0, y0, (packet->z << 4) + z0, (packet->x << 4) + x1, y1, (packet->z << 4) + z1);
 // 		int rx = packet->x << 4;
@@ -601,33 +609,37 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, ChunkDat
  	}
 	chunk->unsaved = false;
 
+	receivedChunks.insert(std::make_pair(packet->x, packet->z));
+	bool newlyReceived = false;
 	for (int i = 0; i < NumRequestChunks; ++i) {
 		if (requestNextChunkIndexList[i].x == packet->x && requestNextChunkIndexList[i].y == packet->z) {
+			newlyReceived = !chunksLoaded[i];
 			chunksLoaded[i] = true;
 			break;
 		}
 	}
 
-	if (areAllChunksLoaded())
-	{
-		ReadyPacket packet(ReadyPacket::READY_REQUESTEDCHUNKS);
-		raknetInstance->send(packet);
+	if (areAllChunksLoaded()) finishChunkRequests();
+	else if (newlyReceived) requestNextChunk();
+}
 
-		for (unsigned int i = 0; i < bufferedBlockUpdates.size(); i++)
-		{
-			const SBufferedBlockUpdate& update = bufferedBlockUpdates[i];
-			int tileId = Tile::transformToValidBlockId( update.blockId, update.x, update.y, update.z );
-			if (update.setData)
-				level->setTileAndData(update.x, update.y, update.z, tileId, update.blockData);
-			else
-				level->setTile(update.x, update.y, update.z, tileId);
-		}
-		bufferedBlockUpdates.clear();
-	}
-	else
+void ClientSideNetworkHandler::finishChunkRequests()
+{
+	if (requestedChunksReadySent) return;
+	requestedChunksReadySent = true;
+	ReadyPacket packet(ReadyPacket::READY_REQUESTEDCHUNKS);
+	raknetInstance->send(packet);
+
+	for (unsigned int i = 0; i < bufferedBlockUpdates.size(); i++)
 	{
-		requestNextChunk();
+		const SBufferedBlockUpdate& update = bufferedBlockUpdates[i];
+		int tileId = Tile::transformToValidBlockId( update.blockId, update.x, update.y, update.z );
+		if (update.setData)
+			level->setTileAndData(update.x, update.y, update.z, tileId, update.blockData);
+		else
+			level->setTile(update.x, update.y, update.z, tileId);
 	}
+	bufferedBlockUpdates.clear();
 }
 
 class _ChunkSorter
@@ -651,6 +663,12 @@ private:
 
 
 void ClientSideNetworkHandler::arrangeRequestChunkOrder() {
+    // A receipt is valid only while that authoritative chunk remains resident.
+    for (auto it = receivedChunks.begin(); it != receivedChunks.end();) {
+        if (!level || !level->hasChunkNow(it->first, it->second))
+            it = receivedChunks.erase(it);
+        else ++it;
+    }
 	requestNextChunkIndex = 0;
 	requestNextChunkPosition = 0;
 
@@ -690,7 +708,10 @@ void ClientSideNetworkHandler::arrangeRequestChunkOrder() {
 
     for (int i = 0; i < NumRequestChunks; ++i) {
         const IntPair& chunk = requestNextChunkIndexList[i];
-        chunksLoaded[i] = level && level->hasChunkNow(chunk.x, chunk.y);
+        // Local terrain generation is not an authoritative server response.
+        chunksLoaded[i] = level && level->hasChunkNow(chunk.x, chunk.y) &&
+            receivedChunks.count(std::make_pair(chunk.x, chunk.y)) != 0;
+        if (!chunksLoaded[i]) receivedChunks.erase(std::make_pair(chunk.x, chunk.y));
     }
 }
 
@@ -972,6 +993,8 @@ void ClientSideNetworkHandler::clearChunksLoaded()
 {
 	requestNextChunkIndex = 0;
 	requestNextChunkPosition = 0;
+	receivedChunks.clear();
+	requestedChunksReadySent = false;
 
 	// Init the chunk positions
 	for (int i = 0; i < NumRequestChunks; ++i) {

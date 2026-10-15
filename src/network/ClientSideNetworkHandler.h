@@ -7,6 +7,8 @@
 #include "../world/level/LevelConstants.h"
 
 #include <vector>
+#include <set>
+#include <utility>
 
 class Minecraft;
 class Level;
@@ -105,6 +107,9 @@ private:
     int requestNextChunkIndex;
     IntPair requestNextChunkIndexList[NumRequestChunks];
 	bool chunksLoaded[NumRequestChunks];
+	std::set<std::pair<int, int> > receivedChunks;
+	bool requestedChunksReadySent = false;
+	void finishChunkRequests();
 };
 
 #endif
