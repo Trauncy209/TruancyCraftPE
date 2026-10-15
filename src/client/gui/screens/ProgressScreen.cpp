@@ -96,6 +96,7 @@ void ProgressScreen::tick() {
 	// Multiplayer can legitimately remain on progress while chunks finish bootstrapping.
 	if (++ticks == 10 * SharedConstants::TicksPerSecond
 	&& minecraft->getProgressStatusId() == 0
+    && minecraft->level == NULL
 	&& !minecraft->isLevelGenerated()) {
 		minecraft->setScreen( new DisconnectionScreen("Could not connect to server. Try again.") );
 	}
