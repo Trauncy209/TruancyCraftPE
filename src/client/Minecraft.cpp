@@ -633,6 +633,23 @@ void Minecraft::tick(int nTick, int maxTick) {
 
 			TIMER_POP_PUSH("level");
 			level->tickEntities();
+#ifdef ANDROID
+            if (level->isClientSide && !level->isJavaServerLevel() && player) {
+                static unsigned lastNativeState = 0;
+                const unsigned now = getTimeMs();
+                if (now - lastNativeState >= 2000) {
+                    lastNativeState = now;
+                    const int px = Mth::floor(player->x), pz = Mth::floor(player->z);
+                    ClientSideNetworkHandler* h = static_cast<ClientSideNetworkHandler*>(netCallback);
+                    LOGI("Native movement state registered=%d inChunk=%d nearby=%d current=%d screen=%d input=%f,%f pos=%f,%f,%f\n",
+                        level->getEntity(player->entityId) == player, player->inChunk,
+                        level->hasChunksAt(px-32,0,pz-32,px+32,127,pz+32),
+                        h && h->isChunkLoaded(px >> 4, pz >> 4), screen != NULL,
+                        player->input ? player->input->xa : 0.f, player->input ? player->input->ya : 0.f,
+                        player->x, player->y, player->z);
+                }
+            }
+#endif
 			level->tick();
 #ifndef STANDALONE_SERVER
 			TIMER_POP_PUSH("animateTick");

@@ -175,6 +175,9 @@ public:
             if (source != NULL) {
                 source->postProcess(parent, x, z);
 				chunk->clearUpdateMap();
+                // Population is persisted even when no player has edited it.
+                // Clearing network deltas must not mark generated terrain saved.
+                if (!level->isClientSide) chunk->unsaved = true;
             }
         }
     }

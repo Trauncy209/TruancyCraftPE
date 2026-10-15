@@ -417,6 +417,14 @@ void ServerSideNetworkHandler::handle(const RakNet::RakNetGUID& source, RequestC
 	if (!chunk || chunk->isEmpty())
         return;
 
+    // Population writes cross chunk borders without individual block broadcasts.
+    // Finish this chunk and its west/north population owners before snapshotting;
+    // their southeast dependencies are satisfied by this loaded 3x3 halo.
+    for (int dx = -1; dx <= 1; ++dx)
+        for (int dz = -1; dz <= 1; ++dz)
+            level->getChunk(packet->x + dx, packet->z + dz);
+    chunk = level->getChunk(packet->x, packet->z);
+
 	ChunkDataPacket cpacket(chunk->x, chunk->z, chunk,true);
 
 	RakNet::BitStream bitStream;
