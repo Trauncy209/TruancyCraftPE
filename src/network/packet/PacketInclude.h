@@ -32,6 +32,8 @@
 #include "PlayerEquipmentPacket.h"
 #include "PlayerArmorEquipmentPacket.h"
 #include "ReadyPacket.h"
+#include "WeatherPacket.h"
+#include "WeatherLightningPacket.h"
 #include "RemoveBlockPacket.h"
 #include "RemoveEntityPacket.h"
 #include "RemovePlayerPacket.h"

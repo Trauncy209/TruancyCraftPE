@@ -1,6 +1,7 @@
 #include "ServerLevel.h"
 #include "../network/RakNetInstance.h"
 #include "../network/packet/SetTimePacket.h"
+#include "../network/packet/WeatherPacket.h"
 #include "../network/packet/SetHealthPacket.h"
 #include "../world/level/tile/LevelEvent.h"
 ServerLevel::ServerLevel(LevelStorage* levelStorage, const std::string& levelName, const LevelSettings& settings, int generatorVersion, Dimension* fixedDimension /* = NULL */)
@@ -28,6 +29,8 @@ void ServerLevel::updateSleepingPlayerList() {
 }
 
 void ServerLevel::awakenAllPlayers() {
+    levelData.weather.clearAfterSleep();
+    if(raknetInstance){WeatherPacket update(levelData.weather);raknetInstance->send(update);}
 	allPlayersAreSleeping = false;
 	for(PlayerList::iterator it = players.begin(); it != players.end(); ++it) {
 		Player* player = *it;

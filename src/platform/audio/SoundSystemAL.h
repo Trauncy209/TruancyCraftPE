@@ -2,6 +2,7 @@
 #define SoundSystemAL_H__
 
 #include "SoundSystem.h"
+#include "SoundVoiceBudget.h"
 
 #include <AL/al.h>
 #include <AL/alc.h>
@@ -49,7 +50,9 @@ private:
     
 	void removeStoppedSounds();
 
-    static const int MaxNumSources = 12;
+    static const int MaxNumSources = SoundVoiceBudget::TotalVoices;
+    SoundVoiceBudget::Voice _voiceBudget[MaxNumSources];
+    uint64_t _voiceSequence=0;
 
 	//SoundList playingBuffers;
 
@@ -61,10 +64,11 @@ private:
     ALCcontext* context;
 	ALCdevice* device;
     
-    ALuint _sources[MaxNumSources];
+    ALuint _sources[MaxNumSources] = {};
+    int _sourceCount=0;
     std::vector<Buffer> _buffers;
 
-    bool getFreeSourceIndex(int* src);
+    bool getFreeSourceIndex(int* src,bool rain);
     bool getBufferId(const SoundDesc& sound, ALuint* buf);
     
 public:

@@ -17,6 +17,11 @@ Packet* MinecraftPackets::createPacket(int id)
 	default:
 		break;
 
+	case PACKET_WEATHER_LIGHTNING:
+        packet=new WeatherLightningPacket();break;
+	case PACKET_WEATHER:
+        packet=new WeatherPacket();
+        break;
 	case PACKET_LOGIN:
 		packet = new LoginPacket();
 		break;

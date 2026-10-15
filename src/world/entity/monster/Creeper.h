@@ -16,6 +16,10 @@ public:
 
     /*@Override*/
     int getMaxHealth();
+    bool isPowered() const;
+    void setPowered(bool powered);
+    void addAdditonalSaveData(CompoundTag* tag);
+    void readAdditionalSaveData(CompoundTag* tag);
 
     void tick();
 
@@ -40,6 +44,7 @@ private:
 	int swellDir;
 
 	static const int DATA_SWELL_DIR = 16;
+    static const int DATA_POWERED = 17;
 	static const int MAX_SWELL = 30;
 };
 

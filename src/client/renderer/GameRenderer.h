@@ -4,6 +4,7 @@
 //package net.minecraft.client.renderer;
 
 #include "gles.h"
+#include "WeatherEffects.h"
 #include <cstddef>
 #include "../../util/SmoothFloat.h"
 #include "../../world/phys/Vec3.h"
@@ -41,6 +42,7 @@ public:
 	float getFov(float a, bool applyEffects);
 private:
 	void setupFog(int i);
+	void renderNativePrecipitation(float a);
 
 	void tickFov();
 	
@@ -56,6 +58,7 @@ public:
 
 private:
 	Minecraft* mc;
+	WeatherEffects weatherEffects;
 
 	float renderDistance;
 	int _tick;

@@ -13,9 +13,12 @@
 #include "../../../platform/time.h"
 #include "../../../nbt/CompoundTag.h"
 
+#include "../WeatherState.h"
+
 class LevelData
 {
 public:
+    WeatherState weather;
 	LevelData();
     LevelData(const LevelSettings& settings, const std::string& levelName, int generatorVersion = -1);
 	LevelData(CompoundTag* tag);

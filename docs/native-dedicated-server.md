@@ -2,7 +2,7 @@
 
 A standalone Linux host for TCPE's native multiplayer. It runs the existing TCPE world and networking code without opening the game, a window, graphics context or audio device. Java networking and Rust are not required by this server.
 
-Use the matching native-client test builds. In TCPE, choose **Servers → Add → Type: TCPE**, enter the server computer's IPv4 address or hostname, and leave the port at **25565**. This server accepts native TCPE clients; Java Edition servers remain a separate client connection type.
+Use the matching 0.5.25 native clients. In TCPE, choose **Servers → Add → Type: TCPE**, enter the server computer's IPv4 address or hostname, and leave the port at **25565**. This server accepts native TCPE clients; Java Edition servers remain a separate client connection type.
 
 ## Start a server
 
@@ -30,7 +30,7 @@ Place a **64 × 64 PNG**, named `server-icon.png`, beside `start-server.sh` befo
 
 Worlds save automatically every 60 seconds. Set `--autosave SECONDS` to change this (10–3600 seconds).
 
-The console accepts `save`, `list`, `help` and `stop`. **Ctrl+C and SIGTERM save the world and stop cleanly.** Closing standard input does not stop a background server. Use `./start-server.sh --help` for all options.
+The console accepts `save`, `list`, `help`, `stop`, `/op username` and `/deop username`. Only this local console can grant or revoke operators. Players cannot grant themselves operators through chat. Operators may use `/weather clear|rain|thunder [seconds]` (1–50000 seconds, default 300), `/time set day|night|NUMBER` and the supported `/gamerule` settings. Other players are denied world administration. Snow falls in cold biomes when rain is enabled; eligible exposed water can freeze. Weather and its remaining timers save with the world. **Ctrl+C and SIGTERM save the world and stop cleanly.** Closing standard input does not stop a background server. Use `./start-server.sh --help` for all options.
 
 ## Build from source
 
@@ -43,7 +43,7 @@ cmake --build build-server -j1
 python3 tools/test-dedicated-server.py --build build-server
 ```
 
-The downloadable x86_64 build is compiled on Ubuntu 24.04. Source and test evidence are kept with the local server checkpoint. This alpha has not been published as a GitHub release.
+The downloadable x86_64 build is compiled on Ubuntu 24.04. Source and test evidence are kept with the local server checkpoint. The native server remains alpha; use the current GitHub release and its matching client.
 
 ## Compatibility and verification
 
@@ -58,5 +58,7 @@ The downloadable x86_64 build is compiled on Ubuntu 24.04. Source and test evide
 - [x] Invalid settings are rejected before hosting.
 - [x] The legacy ACK timestamp sentinel uses a defined integer conversion, with a regression check under optimized builds.
 - [ ] Physical phone and rendered Linux-client acceptance across inventory, crafting, containers, combat and longer play sessions.
+
+Weather checks additionally cover real two-client state and lightning synchronization, rejected client forgeries, terrain snow/ice replication, all-player bed sleep and storm/clear persistence across full process restarts. A released 0.5.24.1 Linux client remained playable against the weather development server while ignoring new weather visuals. Matching 0.5.25 clients are needed to see the new weather.
 
 These checks exercise actual native server world handlers using protocol clients. They do not establish complete gameplay fidelity or production readiness.

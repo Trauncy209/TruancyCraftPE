@@ -1,4 +1,5 @@
 #include "ChatScreen.h"
+#include "../../NativeWeatherCommand.h"
 #include "DialogDefinitions.h"
 #include "../Gui.h"
 #include "../../Minecraft.h"
@@ -29,6 +30,8 @@ void ChatScreen::render(int xm, int ym, float a)
             std::string msg = std::string("<") + minecraft->player->name + "> " + v[0];
             if (minecraft->javaSession) {
                 minecraft->javaSession->connection.chat(v[0]);
+            } else if (NativeWeatherCommand::dispatch(*minecraft,v[0])) {
+                // Same authority/usage behavior as the native console.
             } else if (minecraft->netCallback && minecraft->raknetInstance->isServer()) {
                 static_cast<ServerSideNetworkHandler*>(minecraft->netCallback)->displayGameMessage(msg);
             } else if (minecraft->netCallback) {

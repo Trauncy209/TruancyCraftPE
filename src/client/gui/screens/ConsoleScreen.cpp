@@ -1,5 +1,6 @@
 #include "../../../network/java/JavaGameSession.h"
 #include "ConsoleScreen.h"
+#include "../../NativeWeatherCommand.h"
 #include "JavaChatActionsScreen.h"
 #include "../Gui.h"
 #include "../components/Button.h"
@@ -221,6 +222,8 @@ void ConsoleScreen::execute(bool closeAfter)
 
     if (minecraft->javaSession) {
         minecraft->javaSession->connection.chat(_input);
+    } else if (NativeWeatherCommand::dispatch(*minecraft,_input)) {
+        // Local owner execution or unchanged remote-server forwarding.
     } else if (_input[0] == '/') {
         std::string result = processCommand(_input);
         if (!result.empty())

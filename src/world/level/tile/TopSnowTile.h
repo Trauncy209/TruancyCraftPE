@@ -38,7 +38,8 @@ public:
 
     bool mayPlace(Level* level, int x, int y, int z) {
         int t = level->getTile(x, y - 1, z);
-        if (t == 0 || !Tile::tiles[t]->isSolidRender()) return false;
+        // Leaf support is a world rule, independent of fancy leaf rendering.
+        if (t == 0 || (t != ((Tile*)Tile::leaves)->id && !Tile::tiles[t]->isSolidRender())) return false;
         return level->getMaterial(x, y - 1, z)->blocksMotion();
     }
 

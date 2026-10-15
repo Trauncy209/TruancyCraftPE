@@ -96,6 +96,7 @@ public:
     virtual bool shouldRenderAtSqrDistance(float distance);
 
 	virtual bool hurt(Entity* source, int damage);
+    void thunderHit();
     virtual void animateHurt();
 
     virtual void handleEntityEvent(char eventId) {}

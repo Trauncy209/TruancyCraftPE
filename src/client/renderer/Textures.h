@@ -46,7 +46,7 @@ public:
     TextureId assignTexture(const std::string& resourceName, const TextureData& img);
 	const TextureData* getTemporaryTextureData(TextureId id);
 
-	void tick(bool uploadToGraphicsCard);
+	void tick(bool uploadToGraphicsCard,bool nativeWorld=true,bool nativeFireOnly=false);
 
 	void clear();
 	void reloadAll();

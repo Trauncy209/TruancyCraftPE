@@ -1,5 +1,7 @@
 #include "network/java/JavaGameSession.h"
 #include "GameRenderer.h"
+#include "WeatherLightningRenderer.h"
+#include "WeatherPrecipitationPolicy.h"
 #include "gles.h"
 
 #include "../../util/PerfTimer.h"
@@ -15,6 +17,10 @@
 #include "../player/LocalPlayer.h"
 #include "../gui/Screen.h"
 #include "../../world/level/Level.h"
+#include "../../world/level/biome/Biome.h"
+#include "../../world/level/dimension/Dimension.h"
+#include <cmath>
+#include <cstdint>
 #include "../../world/entity/Mob.h"
 #include "../../world/level/chunk/ChunkCache.h"
 #include "../../world/level/material/Material.h"
@@ -431,6 +437,9 @@ void GameRenderer::renderLevel(float a) {
 //        glDisable2(GL_FOG);
         setupFog(1);
 
+        renderNativePrecipitation(a);
+        if(!mc->level->isJavaServerLevel()) WeatherLightningRenderer::render(*mc->level,cameraEntity->getPos(a));
+
         if (zoom == 1) {
 			TIMER_POP_PUSH("hand");
             glClear(GL_DEPTH_BUFFER_BIT);
@@ -835,6 +844,7 @@ void GameRenderer::pick(float a) {
 }
 /*public*/
 void GameRenderer::tick(int nTick, int maxTick) {
+    weatherEffects.tick(*mc,_tick);
 	--_t_keepPic;
 
 	if (!mc->player)
@@ -910,6 +920,13 @@ void GameRenderer::setupClearColor(float a) {
     fr += (sr - fr) * whiteness;
     fg += (sg - fg) * whiteness;
     fb += (sb - fb) * whiteness;
+
+    if(!level->isJavaServerLevel()) {
+        const float rain=level->getLevelData()->weather.rainAt(a);
+        const float storm=level->getLevelData()->weather.thunderAt(a);
+        const float redGreen=(1.f-.5f*rain)*(1.f-.5f*storm);
+        fr*=redGreen;fg*=redGreen;fb*=(1.f-.4f*rain)*(1.f-.5f*storm);
+    }
 
     if (player->isUnderLiquid(Material::water)) {
         fr = 0.02f;
@@ -1048,4 +1065,61 @@ void GameRenderer::prepareAndRenderClouds( LevelRenderer* levelRenderer, float a
 	glMatrixMode(GL_MODELVIEW);
 	TIMER_POP();
 	//}
+}
+
+// Independent native precipitation pass using existing TCPE textures. Two
+// batches avoid per-column draw calls and only loaded columns are inspected.
+void GameRenderer::renderNativePrecipitation(float a) {
+    Level* level=mc->level;Mob* camera=mc->cameraTargetPlayer;
+    if(!level||!camera||level->isJavaServerLevel()||level->dimension->hasCeiling)return;
+    const float intensity=level->getLevelData()->weather.rainAt(a);
+    if(intensity<=0)return;
+    const Vec3 origin=camera->getPos(a);
+    const int radius=WeatherPrecipitationPolicy::radius(1);
+    const int cx=Mth::floor(camera->x),cz=Mth::floor(camera->z);
+    struct Column {int x,z;WeatherPrecipitationPolicy::Column shape;};Column columns[361];int count=0;
+    for(int z=cz-radius;z<=cz+radius;++z)for(int x=cx-radius;x<=cx+radius;++x){
+        if(!level->hasChunkAtNow(x,64,z))continue;
+        Biome* biome=level->getBiome(x,z);
+        if(!biome)continue;
+        // Existing TCPE snow biomes map to the reference cold classification.
+        // Warm native biomes stay above the reference .15 rain/snow threshold.
+        const float temperature=biome->hasSnow()?(biome==Biome::taiga?.05f:0.f):.8f;
+        auto shape=WeatherPrecipitationPolicy::sample(x,z,level->getTopRainBlock(x,z),temperature,
+            biome->hasRain()||biome->hasSnow(),camera->x,camera->y,camera->z,origin.y,
+            _tick,a,intensity);
+        if(shape.visible)columns[count++]={x,z,shape};
+    }
+#if defined(PLATFORM_DESKTOP)
+    static unsigned qaPass=0;
+    if(std::getenv("TCPE_WEATHER_QA") && (++qaPass%300)==1){
+        int snowColumns=0;for(int i=0;i<count;++i)if(columns[i].shape.snowy)++snowColumns;
+        std::fprintf(stderr,"WEATHER_QA rain=%.3f thunder=%.3f columns=%d snow=%d camera=%.2f,%.2f,%.2f roof=%d\n",intensity,level->getLevelData()->weather.thunderAt(a),count,snowColumns,camera->x,camera->y,camera->z,level->getTopRainBlock(cx,cz));
+    }
+#endif
+    glDisable2(GL_CULL_FACE);glEnable2(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+    GLint previousShade=GL_FLAT;glGetIntegerv(GL_SHADE_MODEL,&previousShade);
+    glShadeModel2(GL_SMOOTH);
+    glAlphaFunc(GL_GREATER,.01f);
+    glDepthMask(GL_FALSE);glColor4f(1,1,1,1);
+    Tesselator& t=Tesselator::instance;
+    for(int pass=0;pass<2;++pass){
+        mc->textures->loadAndBindTexture(pass?"environment/snow.png":"environment/rain.png");
+        t.begin();t.offset(-origin.x,-origin.y,-origin.z);
+        for(int i=0;i<count;++i){const Column& col=columns[i];const auto& q=col.shape;
+            if(q.snowy!=bool(pass))continue;
+            float light=level->getBrightness(col.x,std::min(127,std::max(0,q.lightY)),col.z);
+            if(pass)light=light*.75f+.25f;
+            t.color(light,light,light,q.lowerAlpha);
+            t.vertexUV(col.x+.5f-q.sideX,q.bottom,col.z+.5f-q.sideZ,q.u0,q.v0);
+            t.vertexUV(col.x+.5f+q.sideX,q.bottom,col.z+.5f+q.sideZ,q.u1,q.v0);
+            t.color(light,light,light,q.upperAlpha);
+            t.vertexUV(col.x+.5f+q.sideX,q.top,col.z+.5f+q.sideZ,q.u1,q.v1);
+            t.vertexUV(col.x+.5f-q.sideX,q.top,col.z+.5f-q.sideZ,q.u0,q.v1);
+        }
+        t.draw();t.offset(0,0,0);
+    }
+    glShadeModel2(previousShade);
+    glAlphaFunc(GL_GREATER,.1f);
+    glDepthMask(GL_TRUE);glDisable2(GL_BLEND);glEnable2(GL_CULL_FACE);glColor4f(1,1,1,1);
 }

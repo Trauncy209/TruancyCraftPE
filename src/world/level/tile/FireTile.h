@@ -6,6 +6,7 @@
 #include "../../../util/Random.h"
 #include "../material/Material.h"
 #include "../Level.h"
+#include "../WeatherEcology.h"
 
 #include "Tile.h"
 
@@ -55,6 +56,10 @@ public:
         return false;
     }
 
+    int getRenderLayer() override {
+        return Tile::RENDERLAYER_ALPHATEST;
+    }
+
     bool isCubeShaped() {
         return false;
     }
@@ -72,13 +77,28 @@ public:
     }
 
     void tick(Level* level, int x, int y, int z, Random* random) {
-        bool infiniBurn = false;//level->getTile(x, y - 1, z) == Tile::hellRock->id;
+        const bool infiniBurn = !level->isJavaServerLevel() && Tile::netherrack &&
+            level->getTile(x, y - 1, z) == Tile::netherrack->id;
+
+        // Scheduled fire ticks remain active even when random ticking is off.
+        // Native authoritative rain reaches the fire through its own column or
+        // an exposed horizontal neighbor; retain existing non-weather behavior.
+        if (!infiniBurn && !level->isClientSide && !level->isJavaServerLevel() &&
+            (WeatherEcology::exposedToRain(*level, x, y, z) ||
+             WeatherEcology::exposedToRain(*level, x - 1, y, z) ||
+             WeatherEcology::exposedToRain(*level, x + 1, y, z) ||
+             WeatherEcology::exposedToRain(*level, x, y, z - 1) ||
+             WeatherEcology::exposedToRain(*level, x, y, z + 1))) {
+            level->setTile(x, y, z, 0);
+            return;
+        }
 
         int age = level->getData(x, y, z);
         if (age < 15) {
             level->setData(x, y, z, age + 1);
-            level->addToTickNextTick(x, y, z, id, getTickDelay());
         }
+        // Continue checking aged fire, including weather/support changes.
+        level->addToTickNextTick(x, y, z, id, getTickDelay());
         if (!infiniBurn && !isValidFireLocation(level, x, y, z)) {
             if (!level->isSolidBlockingTile(x, y - 1, z) || age > 3) level->setTile(x, y, z, 0);
             return;

@@ -14,6 +14,7 @@ Creeper::Creeper( Level* level )
 	this->textureName = "mob/creeper.png";
 
 	entityData.define(DATA_SWELL_DIR, (SynchedEntityData::TypeChar) -1);
+    entityData.define(DATA_POWERED,(SynchedEntityData::TypeChar)0);
 }
 
 int Creeper::getMaxHealth() {
@@ -85,7 +86,7 @@ void Creeper::checkHurtTarget( Entity* target, float d ) {
 		setSwellDir(1);
 
 		if (++swell >= MAX_SWELL) {
-			level->explode(this, x, y, z, 2.4f);
+			level->explode(this, x, y, z, isPowered()?4.8f:2.4f);
 			remove();
 		}
 		holdGround = true;
@@ -112,3 +113,8 @@ void Creeper::setSwellDir( int dir ) {
 //        spawnAtLocation(Item::record_01->id + random.nextInt(2), 1);
 //    }
 //}
+
+bool Creeper::isPowered() const {return entityData.getByte(DATA_POWERED)!=0;}
+void Creeper::setPowered(bool value) {entityData.set(DATA_POWERED,(SynchedEntityData::TypeChar)(value?1:0));}
+void Creeper::addAdditonalSaveData(CompoundTag* tag) {super::addAdditonalSaveData(tag);tag->putBoolean("powered",isPowered());}
+void Creeper::readAdditionalSaveData(CompoundTag* tag) {super::readAdditionalSaveData(tag);setPowered(tag->getBoolean("powered"));}

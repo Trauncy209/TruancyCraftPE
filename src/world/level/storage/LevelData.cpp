@@ -115,6 +115,7 @@ LevelData::LevelData( const LevelData& rhs )
 		keepInventory(rhs.keepInventory)
 {
 	//LOGI("c-ctor: %p (%p)\n", this, &rhs);
+	weather = rhs.weather;
 	setPlayerTag(rhs.loadedPlayerTag);
 	//PlayerData playerData;
 }
@@ -149,7 +150,8 @@ LevelData& LevelData::operator=( const LevelData& rhs )
 			modernTerrainGeneration = rhs.modernTerrainGeneration;
 			experimentalGameplayFeatures = rhs.experimentalGameplayFeatures;
 			keepInventory = rhs.keepInventory;
-		setPlayerTag(rhs.loadedPlayerTag);
+		weather = rhs.weather;
+	setPlayerTag(rhs.loadedPlayerTag);
 	}
 
 	return *this;
@@ -244,6 +246,10 @@ void LevelData::setTagData( CompoundTag* tag, CompoundTag* playerTag )
 		tag->putByte("ExtremeTerrainGeneration", modernTerrainGeneration ? 1 : 0);
 		tag->putByte("ExperimentalGameplayFeatures", experimentalGameplayFeatures ? 1 : 0);
 	tag->putByte("KeepInventory", keepInventory ? 1 : 0);
+    tag->putInt("rainTime", weather.rainTicks);
+    tag->putInt("thunderTime", weather.thunderTicks);
+    tag->putByte("raining", weather.raining?1:0);
+    tag->putByte("thundering", weather.thundering?1:0);
 	tag->putInt("Platform", 2);
 
 	if (playerTag != NULL) {
@@ -254,6 +260,12 @@ void LevelData::setTagData( CompoundTag* tag, CompoundTag* playerTag )
 void LevelData::getTagData( const CompoundTag* tag )
 {
 	if (!tag) return;
+    weather=WeatherState();
+    if(tag->contains("rainTime",Tag::TAG_Int))weather.rainTicks=tag->getInt("rainTime");
+    if(tag->contains("thunderTime",Tag::TAG_Int))weather.thunderTicks=tag->getInt("thunderTime");
+    if(tag->contains("raining",Tag::TAG_Byte))weather.raining=tag->getByte("raining")!=0;
+    if(tag->contains("thundering",Tag::TAG_Byte))weather.thundering=tag->getByte("thundering")!=0;
+    weather.restoreIntensity();
 	seed = (long)tag->getLong("RandomSeed");
 	gameType = tag->getInt("GameType");
 	xSpawn = tag->getInt("SpawnX");

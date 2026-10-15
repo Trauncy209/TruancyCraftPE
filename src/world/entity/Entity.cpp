@@ -967,3 +967,9 @@ void Entity::playStepSound( int xt, int yt, int zt, int t ) {
         level->playSound(this, soundType->getStepSound(), soundType->getVolume() * 0.25f, soundType->getPitch());
     }
 }
+
+void Entity::thunderHit() {
+    if(!level || level->isClientSide)return;
+    burn(5);
+    if(++onFire==0)onFire=160;
+}

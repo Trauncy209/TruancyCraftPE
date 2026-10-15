@@ -3,6 +3,7 @@
 void tcpeQaWorldAtlasPass(int layer,int atlas);
 #endif
 #include "LevelRenderer.h"
+#include "WeatherCelestialPolicy.h"
 #include "Chunk.h"
 #include "DistanceChunkSorter.h"
 #include "DirtyChunkSorter.h"
@@ -190,7 +191,9 @@ void LevelRenderer::generateSky() {
 	// Render precomputed star VBO
 	void LevelRenderer::_renderStars(float alpha) {
 		if (level == NULL) return;
-		float brightness = level->getStarBrightness(alpha);
+		const auto weatherStars = WeatherCelestialPolicy::stars(level->getStarBrightness(alpha),
+            level->getLevelData()->weather.rainAt(alpha),level->isJavaServerLevel());
+        float brightness = weatherStars.brightness;
 		if (brightness <= 0.0f) return;
 
 		float angleRad = level->getSunAngle(alpha);
@@ -203,7 +206,8 @@ void LevelRenderer::generateSky() {
 		glDisable2(GL_FOG);
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-		glColor4f(brightness, brightness, brightness, 1.0f);
+        glDisableClientState2(GL_COLOR_ARRAY);
+		glColor4f(brightness, brightness, brightness, weatherStars.alpha);
 
 	#ifdef OPENGL_ES
 		if (starVertexCount > 0) {
@@ -259,6 +263,7 @@ void LevelRenderer::generateSky() {
 		t.endOverrideAndDraw();
 	#endif
 
+        glColor4f(1.f,1.f,1.f,1.f);
 		glDisable(GL_BLEND);
 		glEnable2(GL_CULL_FACE);
 		glPopMatrix();
@@ -267,6 +272,9 @@ void LevelRenderer::generateSky() {
 // Render sun or moon. moon==true -> moon, else sun
 void LevelRenderer::_renderSunOrMoon(float alpha, bool moon) {
 	if (level == NULL) return;
+    const float weatherVisibility=WeatherCelestialPolicy::visibility(
+        level->getLevelData()->weather.rainAt(alpha),level->isJavaServerLevel());
+    if(weatherVisibility<=0.f) return;
 
 	float angleRad = level->getSunAngle(alpha);
 	float angleDeg = angleRad * 180.0f / (float)Mth::PI;
@@ -299,7 +307,7 @@ void LevelRenderer::_renderSunOrMoon(float alpha, bool moon) {
 	// Prevent stale per-vertex color arrays from tinting the moon/sun quad.
 	glDisableClientState2(GL_COLOR_ARRAY);
 
-	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+	glColor4f(1.0f, 1.0f, 1.0f, weatherVisibility);
 	glRotatef2(angleDeg, 1.0f, 0.0f, 0.0f);
 
 	Tesselator& t = Tesselator::instance;
@@ -324,6 +332,7 @@ void LevelRenderer::_renderSunOrMoon(float alpha, bool moon) {
 	}
 
 	t.endOverrideAndDraw();
+    glColor4f(1.f,1.f,1.f,1.f);
 
 	glDisable(GL_BLEND);
 	// Restore default blend mode for subsequent world/gui passes.
@@ -1401,7 +1410,10 @@ void LevelRenderer::playSound(const std::string& name, float x, float y, float z
 
     if (volume > 1) dd *= volume;
     if (mc->cameraTargetPlayer->distanceToSqr(x, y, z) < dd * dd) {
-        mc->soundEngine->play(name, x, y, z, volume, pitch);
+        if(name=="ambient.weather.thunder") {
+            mc->soundEngine->playServerSound("minecraft:entity.lightning_bolt.thunder",x,y,z,volume,pitch,
+                uint64_t(level->random.nextInt()));
+        } else mc->soundEngine->play(name, x, y, z, volume, pitch);
     }
 }
 

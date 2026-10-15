@@ -4,6 +4,7 @@ final class TcpeAudio {
     private final android.app.Activity activity;
     private final java.util.LinkedHashMap<android.media.MediaPlayer,Request> longVoices=new java.util.LinkedHashMap<android.media.MediaPlayer,Request>();
     private android.media.SoundPool pool;
+    private int rainVoiceLimit=48;
     private java.io.File cacheDirectory;
     private boolean paused;
     private final java.util.HashSet<android.media.MediaPlayer> pausedLong=new java.util.HashSet<android.media.MediaPlayer>();
@@ -22,8 +23,25 @@ final class TcpeAudio {
     }
     private boolean file(String p){return p!=null&&p.matches("sounds/java/[0-9a-f]{24}\\.wav");}
     private boolean name(String n){return n!=null&&(n.isEmpty()||n.length()<=256&&n.matches("[a-z0-9_.-]+:[a-z0-9_./-]+"));}
-    private void init(){if(pool!=null)return;pool=new android.media.SoundPool(24,android.media.AudioManager.STREAM_MUSIC,0);pool.setOnLoadCompleteListener(new android.media.SoundPool.OnLoadCompleteListener(){public void onLoadComplete(android.media.SoundPool p,int id,int status){if(p!=pool)return;java.util.ArrayList<Request> list=pending.remove(id);if(status!=0)return;ready.add(id);if(list!=null)for(Request request:list)start(id,request);}});}
-    private void start(int sample,Request request){int stream=pool.play(sample,request.gain,request.gain,1,0,request.pitch);if(stream==0)return;voices.remove(stream);voices.put(stream,request);if(paused){pool.pause(stream);pausedShort.add(stream);}while(voices.size()>128){Integer old=voices.keySet().iterator().next();pool.stop(old);pausedShort.remove(old);voices.remove(old);}}
+    private void init(){if(pool!=null)return;try{pool=new android.media.SoundPool(64,android.media.AudioManager.STREAM_MUSIC,0);rainVoiceLimit=48;}catch(RuntimeException unavailable){pool=new android.media.SoundPool(24,android.media.AudioManager.STREAM_MUSIC,0);rainVoiceLimit=12;}pool.setOnLoadCompleteListener(new android.media.SoundPool.OnLoadCompleteListener(){public void onLoadComplete(android.media.SoundPool p,int id,int status){if(p!=pool)return;java.util.ArrayList<Request> list=pending.remove(id);if(status!=0)return;ready.add(id);if(list!=null)for(Request request:list)start(id,request);}});}
+    private static boolean rain(Request request){return request.event.equals("minecraft:weather.rain")||request.event.equals("minecraft:weather.rain.above");}
+    private void start(int sample,Request request){
+        final boolean ambience=rain(request);
+        if(ambience){
+            int count=0;Integer oldest=null;
+            for(java.util.Map.Entry<Integer,Request> entry:voices.entrySet())if(rain(entry.getValue())){++count;if(oldest==null)oldest=entry.getKey();}
+            // Same bounded ambience policy as OpenAL: retain at least twelve voices for
+            // effects, recycle oldest rain tails without reducing event cadence.
+            if(count>=rainVoiceLimit&&oldest!=null){pool.stop(oldest);voices.remove(oldest);pausedShort.remove(oldest);}
+        }
+        // SoundPool may reclaim lower-priority rain for gameplay, never the
+        // reverse. Legacy audio has its own pool; a 24-stream fallback remains available.
+        int stream=pool.play(sample,request.gain,request.gain,ambience?0:1,0,request.pitch);
+        if(stream==0)return;
+        voices.remove(stream);voices.put(stream,request);
+        if(paused){pool.pause(stream);pausedShort.add(stream);}
+        while(voices.size()>128){Integer old=voices.keySet().iterator().next();pool.stop(old);pausedShort.remove(old);voices.remove(old);}
+    }
     private void stop(int category,String event){java.util.Iterator<java.util.Map.Entry<android.media.MediaPlayer,Request>> longs=longVoices.entrySet().iterator();while(longs.hasNext()){java.util.Map.Entry<android.media.MediaPlayer,Request> entry=longs.next();Request r=entry.getValue();if(r.category>=0&&(category==255||r.category==category)&&(event.isEmpty()||event.equals(r.event))){pausedLong.remove(entry.getKey());entry.getKey().release();longs.remove();}}if(pool==null)return;java.util.Iterator<java.util.Map.Entry<Integer,Request>> it=voices.entrySet().iterator();while(it.hasNext()){java.util.Map.Entry<Integer,Request> entry=it.next();Request r=entry.getValue();if(r.category>=0&&(category==255||r.category==category)&&(event.isEmpty()||event.equals(r.event))){pool.stop(entry.getKey());pausedShort.remove(entry.getKey());it.remove();}}for(java.util.ArrayList<Request> list:pending.values()){java.util.Iterator<Request> requests=list.iterator();while(requests.hasNext()){Request r=requests.next();if(r.category>=0&&(category==255||r.category==category)&&(event.isEmpty()||event.equals(r.event)))requests.remove();}}}
     private void play(String path,Request request)throws java.io.IOException{init();Integer sample=samples.get(path);if(sample==null){java.io.File directory=soundDirectory();directory.mkdirs();java.io.File cached=new java.io.File(directory,path.substring(path.lastIndexOf('/')+1));if(!cached.exists()){java.io.InputStream input=activity.getAssets().open(path);java.io.FileOutputStream output=new java.io.FileOutputStream(cached);try{byte[] b=new byte[16384];int n;while((n=input.read(b))!=-1)output.write(b,0,n);}finally{input.close();output.close();}}if(cached.length()>1000000){playLong(cached,request);return;}sample=pool.load(cached.getAbsolutePath(),1);if(sample==0)return;samples.put(path,sample);while(samples.size()>128){String old=samples.keySet().iterator().next();int id=samples.remove(old);pool.unload(id);ready.remove(id);pending.remove(id);}}
         if(ready.contains(sample))start(sample,request);else{java.util.ArrayList<Request> list=pending.get(sample);if(list==null){list=new java.util.ArrayList<Request>();pending.put(sample,list);}if(list.size()<32)list.add(request);}}

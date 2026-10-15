@@ -267,6 +267,12 @@ LOCAL_SRC_FILES := ../../../src/main.cpp \
 ../../../src/world/level/tile/entity/FurnaceTileEntity.cpp \
 ../../../src/world/phys/HitResult.cpp
 
+# Native weather simulation and GLES3 effects; shared by both Android ABIs.
+LOCAL_SRC_FILES += ../../../src/world/level/WeatherEcology.cpp \
+                   ../../../src/world/level/WeatherLightningRuntime.cpp \
+                   ../../../src/client/renderer/WeatherEffects.cpp \
+                   ../../../src/client/renderer/WeatherLightningRenderer.cpp
+
 # Java connection, authoritative world, lighting, entities and model rendering.
 LOCAL_SRC_FILES += ../../../src/network/JavaServerConnection.cpp
 LOCAL_SRC_FILES += $(patsubst $(LOCAL_PATH)/%,%,$(wildcard $(LOCAL_PATH)/../../../src/network/java/*.cpp))

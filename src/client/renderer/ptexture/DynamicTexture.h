@@ -16,7 +16,23 @@ public:
 	virtual ~DynamicTexture() {}
 
 	virtual void tick() = 0;
+    virtual bool nativeWorldOnly() const {return false;}
     virtual void bindTexture(Textures* tex);
+};
+
+// Independent playback of the observed reference fire cycles. Supplied art is
+// recorded in docs/weather/FIRE.md; no reference source code is included.
+class FireTexture: public DynamicTexture {
+    std::vector<unsigned char> frames;
+    int layer, phase;
+public:
+    FireTexture(int layer,const unsigned char* rgba,int width,int height);
+    bool valid() const {return frames.size()==16*16*4*32;}
+    bool nativeWorldOnly() const override {return true;}
+    void tick() override;
+    static int frameAt(int layer,unsigned tick) {
+        return layer==0?int((tick+8u)&15u):int(tick&31u);
+    }
 };
 
 class WaterTexture: public DynamicTexture

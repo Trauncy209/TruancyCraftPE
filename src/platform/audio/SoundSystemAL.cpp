@@ -53,7 +53,7 @@ SoundSystemAL::SoundSystemAL()
 SoundSystemAL::~SoundSystemAL()
 {
     javaVoices.erase(this);
-    alDeleteSources(MaxNumSources, _sources);
+    if(_sourceCount) alDeleteSources(_sourceCount, _sources);
 
     for (int i = 0; i < (int)_buffers.size(); ++i)
         if (_buffers[i].inited) alDeleteBuffers(1, &_buffers[i].bufferID);
@@ -74,8 +74,18 @@ void SoundSystemAL::init()
         
         alDistanceModel(AL_LINEAR_DISTANCE_CLAMPED);
         
-        alGenSources(MaxNumSources, _sources);
-		for(int index = 0; index < MaxNumSources; index++) {
+        // Generate individually so devices exposing fewer than the requested
+        // voices retain a working pool instead of failing an all-or-none call.
+        _sourceCount=0;
+        for(int i=0;i<MaxNumSources;++i) {
+            ALuint source=0;
+            alGenSources(1,&source);
+            if(alGetError()!=AL_NO_ERROR) break;
+            _sources[_sourceCount++]=source;
+        }
+        if(_sourceCount<MaxNumSources)
+            LOGI("Audio voice fallback: %d/%d sources; gameplay reserve %d\n",_sourceCount,MaxNumSources,SoundVoiceBudget::GameplayReserve);
+		for(int index = 0; index < _sourceCount; index++) {
             ALuint sourceID = _sources[index];
             
             alSourcef(sourceID, AL_REFERENCE_DISTANCE, 5.0f);
@@ -111,7 +121,8 @@ void SoundSystemAL::enable(bool status) {
 
 void SoundSystemAL::destroy() {
  if(!context)return;
- for(int i=0;i<MaxNumSources;++i){alSourceStop(_sources[i]);alSourcei(_sources[i],AL_BUFFER,0);}
+ for(int i=0;i<_sourceCount;++i){alSourceStop(_sources[i]);alSourcei(_sources[i],AL_BUFFER,0);_voiceBudget[i]=SoundVoiceBudget::Voice();}
+ _voiceSequence=0;
  for(auto& b:_buffers)if(b.inited)alDeleteBuffers(1,&b.bufferID);
  _buffers.clear();javaVoices.erase(this);
 }
@@ -167,8 +178,9 @@ void SoundSystemAL::playAt( const SoundDesc& sound, float x, float y, float z, f
 
     int sourceIndex;
     errIdString = "Get free index";
-    if (!getFreeSourceIndex(&sourceIndex)) {
-        LOGI("No free sound sources left @ SoundSystemAL::playAt\n");
+    const bool rain=SoundVoiceBudget::rainTag(sound.name);
+    if (!getFreeSourceIndex(&sourceIndex,rain)) {
+        if(!rain) LOGI("No free sound sources left @ SoundSystemAL::playAt\n");
         return;
     }
 
@@ -214,16 +226,22 @@ void SoundSystemAL::removeStoppedSounds()
 {
 }
 
-bool SoundSystemAL::getFreeSourceIndex(int* sourceIndex) {
-    for (int i = 0; i < MaxNumSources; ++i) {
-        ALint state;
-        alGetSourcei(_sources[i], AL_SOURCE_STATE, &state);
-        if(state != AL_PLAYING) {
-            *sourceIndex = i;
-            return true;
-        }
+bool SoundSystemAL::getFreeSourceIndex(int* sourceIndex,bool rain) {
+    for (int i=0;i<_sourceCount;++i) {
+        ALint state=AL_STOPPED;
+        alGetSourcei(_sources[i],AL_SOURCE_STATE,&state);
+        _voiceBudget[i].playing=state==AL_PLAYING;
     }
-    return false;
+    const int selected=SoundVoiceBudget::choose(_voiceBudget,_sourceCount,rain);
+    if(selected<0) return false;
+    // A playing source can only be selected when it belongs to rain ambience.
+    // Stop it before rebinding the buffer; ordinary effects keep their voices.
+    if(_voiceBudget[selected].playing) alSourceStop(_sources[selected]);
+    _voiceBudget[selected].playing=true;
+    _voiceBudget[selected].rain=rain;
+    _voiceBudget[selected].serial=++_voiceSequence;
+    *sourceIndex=selected;
+    return true;
 }
 
 bool SoundSystemAL::getBufferId(const SoundDesc& sound, ALuint* buf) {

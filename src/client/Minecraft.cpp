@@ -377,6 +377,9 @@ void Minecraft::leaveGame(bool renameLevel /*=false*/)
 
 	raknetInstance->disconnect();
 	if (saveLevel) {
+        // Native metadata/entities must be written before level destruction;
+        // saving chunks alone loses the remaining weather timers on shutdown.
+        if (!level->isJavaServerLevel()) level->saveGame();
 		// If server or wanting to save level as client, save all unsaved chunks!
 		level->getChunkSource()->saveAll(true);
 	}
@@ -644,10 +647,10 @@ void Minecraft::tick(int nTick, int maxTick) {
 			if (isSuperFast())
 			#endif
 			{
-			if (nTick == maxTick) {
-				TIMER_POP_PUSH("textures");
-				textures->tick(true);
-			}
+			TIMER_POP_PUSH("textures");
+            // Advance fire every simulation tick, even when catch-up skips the
+            // GPU upload; leave the existing water catch-up behavior unchanged.
+            textures->tick(nTick==maxTick,!level || !level->isJavaServerLevel(),nTick!=maxTick);
 			}
 		#endif
 	}
@@ -1235,6 +1238,15 @@ void Minecraft::init()
 	initializeBiomeColorTables(this);
 	textures->addDynamicTexture(new WaterTexture());
 	textures->addDynamicTexture(new WaterSideTexture());
+    for(int layer=0;layer<2;++layer) {
+        const std::string path=std::string("environment/fire_")+char('0'+layer)+".png";
+        const TextureId id=textures->loadTexture(path);
+        const TextureData* image=textures->getTemporaryTextureData(id);
+        if(image && image->format==TEXF_UNCOMPRESSED_8888) {
+            FireTexture* animation=new FireTexture(layer,image->data,image->w,image->h);
+            if(animation->valid())textures->addDynamicTexture(animation);else delete animation;
+        }
+    }
 	gui.texturesLoaded(textures);
 
 	levelRenderer = new LevelRenderer(this);

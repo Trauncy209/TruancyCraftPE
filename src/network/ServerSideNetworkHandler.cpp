@@ -150,11 +150,17 @@ void ServerSideNetworkHandler::handle(const RakNet::RakNetGUID& source, ChatPack
         std::istringstream input(text);std::string command;input>>command;
         if(command=="/op"||command=="/deop"){reply("Operator grants are console-only.");return;}
         if(!NativeOperators::allowed(sender->name)){reply("You do not have permission to change world settings.");return;}
+        if(command=="/weather") {
+            std::string kind,duration,extra;input>>kind;int seconds=300;
+            if(input>>duration){try{size_t used=0;long parsed=std::stol(duration,&used);if(used!=duration.size()||parsed<1||parsed>50000)throw 0;seconds=int(parsed);}catch(...){reply("Usage: /weather clear|rain|thunder [seconds: 1-50000]");return;}}
+            if((input>>extra)||!level->getLevelData()->weather.command(kind.c_str(),seconds*20)){reply("Usage: /weather clear|rain|thunder [seconds: 1-50000]");return;}
+            WeatherPacket update(level->getLevelData()->weather);raknetInstance->send(update);level->saveLevelData();reply("World weather updated.");return;
+        }
         if(command=="/time"){std::string action,value,extra;input>>action>>value;long time=-1;try{size_t used=0;time=std::stol(value,&used);if(used!=value.size())time=-1;}catch(...){if(value=="day")time=0;else if(value=="night")time=9600;}
             if(action!="set"||time<0||time>2147483647L||(input>>extra)){reply("Usage: /time set day|night|NUMBER");return;}level->setTime(time);SetTimePacket update(time);raknetInstance->send(update);reply("World time updated.");return;}
         if(command=="/gamerule"){std::string rule,value,extra;input>>rule>>value;if((value!="true"&&value!="false")||(input>>extra)){reply("Usage: /gamerule keepInventory|doDaylightCycle true|false");return;}bool enabled=value=="true";
             if(rule=="keepInventory")level->getLevelData()->setKeepInventory(enabled);else if(rule=="doDaylightCycle"){level->adventureSettings.doTickTime=enabled;AdventureSettingsPacket update(level->adventureSettings);raknetInstance->send(update);}else{reply("Unsupported game rule.");return;}level->saveLevelData();reply("World rule updated.");return;}
-        reply("Unsupported command. Available: /time, /gamerule. Creative and weather controls are not enabled.");return;
+        reply("Unsupported command. Available: /time, /gamerule, /weather. Creative controls are not enabled.");return;
     }
     displayGameMessage("<"+sender->name+"> "+text);
 #else
@@ -281,6 +287,8 @@ void ServerSideNetworkHandler::onReady_ClientGeneration(const RakNet::RakNetGUID
 	RakNet::BitStream bitStream;
 
 	// send level info
+    WeatherPacket weather(level->getLevelData()->weather);
+    raknetInstance->send(source,weather);
 	SetTimePacket(level->getTime()).write(&bitStream);
 	rakPeer->Send(&bitStream, HIGH_PRIORITY, RELIABLE_ORDERED, 0, source, false);
 

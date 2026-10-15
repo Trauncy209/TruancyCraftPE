@@ -50,6 +50,8 @@ class ContainerSetDataPacket;
 class ContainerSetContentPacket;
 class ChatPacket;
 class SignUpdatePacket;
+class WeatherPacket;
+class WeatherLightningPacket;
 class Minecraft;
 class Level;
 
@@ -71,6 +73,8 @@ public:
 	virtual void onNewClient(const RakNet::RakNetGUID& clientGuid) {};
 	virtual void onDisconnect(const RakNet::RakNetGUID& guid) {};
 
+	virtual void handle(const RakNet::RakNetGUID& source, WeatherPacket* packet) {}
+    virtual void handle(const RakNet::RakNetGUID& source, WeatherLightningPacket* packet) {}
 	virtual void handle(const RakNet::RakNetGUID& source, LoginPacket* packet) {}
 	virtual void handle(const RakNet::RakNetGUID& source, ReadyPacket* packet) {}
 	virtual void handle(const RakNet::RakNetGUID& source, LoginStatusPacket* packet) {}

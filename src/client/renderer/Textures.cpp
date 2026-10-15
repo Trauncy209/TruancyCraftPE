@@ -160,10 +160,11 @@ const TextureData* Textures::getTemporaryTextureData( TextureId id )
 	return &it->second;
 }
 
-void Textures::tick(bool uploadToGraphicsCard)
+void Textures::tick(bool uploadToGraphicsCard,bool nativeWorld,bool nativeFireOnly)
 {
 	for (unsigned int i = 0; i < dynamicTextures.size(); ++i ) {
 		DynamicTexture* tex = dynamicTextures[i];
+        if((tex->nativeWorldOnly() && !nativeWorld) || (nativeFireOnly && !tex->nativeWorldOnly()))continue;
 		tex->tick();
 
         if (uploadToGraphicsCard) {

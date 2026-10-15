@@ -19,6 +19,20 @@ void DynamicTexture::bindTexture(Textures* tex) {
 	tex->loadAndBindTexture("terrain.png");
 }
 
+// Native fire uses the two existing terrain atlas locations, not the Java
+// resource-pack atlas. Copy the decoded strip so context reloads are harmless.
+FireTexture::FireTexture(int layer_,const unsigned char* rgba,int width,int height)
+:DynamicTexture(((Tile*)Tile::fire)->tex+layer_*16),layer(layer_),phase(-1) {
+    if(layer>=0 && layer<2 && rgba && width==16 && height==512)
+        frames.assign(rgba,rgba+16*512*4);
+}
+void FireTexture::tick() {
+    if(!valid())return;
+    phase=(phase+1)&31;
+    const int selected=frameAt(layer,unsigned(phase));
+    std::memcpy(pixels,frames.data()+selected*sizeof(pixels),sizeof(pixels));
+}
+
 //
 // WaterTexture
 // I was thinking of adding something simple (a simple frame copy from a

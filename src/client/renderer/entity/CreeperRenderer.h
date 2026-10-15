@@ -15,7 +15,7 @@ class CreeperRenderer: public MobRenderer
 	typedef MobRenderer super;
 public:
     CreeperRenderer()
-	:	super(new CreeperModel(), 0.5f)
+	:	super(new CreeperModel(), 0.5f), powerArmor(2.f)
 	{
     }
 
@@ -53,42 +53,27 @@ protected:
         return (_a << 24) | (r << 16) | (g << 8) | b;
     }
 
-  //  int prepareArmor(Mob* mob, int layer, float a) {
-		//Creeper* creeper = (Creeper*) mob;
-  //      if (creeper->isPowered()) {
-  //          if (layer == 1) {
-  //              float time = mob->tickCount + a;
-  //              bindTexture("/armor/power.png");
-  //              glMatrixMode(GL_TEXTURE);
-  //              glLoadIdentity();
-  //              float uo = time * 0.01f;
-  //              float vo = time * 0.01f;
-  //              glTranslatef(uo, vo, 0);
-  //              setArmor(armorModel);
-  //              glMatrixMode(GL_MODELVIEW);
-  //              glEnable(GL_BLEND);
-  //              float br = 0.5f;
-  //              glColor4f2(br, br, br, 1);
-  //              glDisable(GL_LIGHTING);
-  //              glBlendFunc2(GL_ONE, GL_ONE);
-  //              return 1;
-  //          }
-  //          if (layer == 2) {
-  //              glMatrixMode(GL_TEXTURE);
-  //              glLoadIdentity();
-  //              glMatrixMode(GL_MODELVIEW);
-  //              glEnable(GL_LIGHTING);
-  //              glDisable(GL_BLEND);
-  //          }
-  //      }
-  //      return -1;
-  //  }
-
-  //  int prepareArmorOverlay(Mob* mob, int layer, float a) {
-  //      return -1;
-  //  }
-//private:
-    //Model* armorModel = /*new*/ CreeperModel(2);
+    int prepareArmor(Mob* mob,int layer,float fraction) override {
+        Creeper* creeper=static_cast<Creeper*>(mob);
+        if(!creeper->isPowered())return -1;
+        if(layer==1) {
+            bindTexture("armor/power.png");
+            glMatrixMode(GL_TEXTURE);glPushMatrix();glLoadIdentity();
+            const float shift=(mob->tickCount+fraction)*.01f;
+            glTranslatef(shift,shift,0);glMatrixMode(GL_MODELVIEW);
+            glEnable2(GL_BLEND);glBlendFunc(GL_ONE,GL_ONE);
+            glDisable2(GL_LIGHTING);glColor4f(.5f,.5f,.5f,1.f);
+            return 1;
+        }
+        if(layer==2) {
+            glMatrixMode(GL_TEXTURE);glPopMatrix();glMatrixMode(GL_MODELVIEW);
+            glEnable2(GL_LIGHTING);glDisable2(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glColor4f(1,1,1,1);
+        }
+        return -1;
+    }
+private:
+    CreeperModel powerArmor;
 };
 
 #endif /*NET_MINECRAFT_CLIENT_RENDERER_ENTITY__CreeperRenderer_H__*/

@@ -83,6 +83,9 @@ public:
 	virtual MobList& getMobs(const MobCategory& category);
 	virtual float getCreatureProbability();
 
+	bool snowCovered=false;
+	bool hasSnow() const {return snowCovered;}
+	bool hasRain() const {return !snowCovered && this!=desert;}
 	std::string name;
 	int color;
 	char topMaterial;

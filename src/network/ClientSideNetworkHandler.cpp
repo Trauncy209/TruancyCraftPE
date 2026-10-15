@@ -1,3 +1,6 @@
+#include "packet/WeatherLightningPacket.h"
+#include "../world/level/WeatherLightningRuntime.h"
+#include "packet/WeatherPacket.h"
 
 #include "ClientSideNetworkHandler.h"
 #include "packet/PacketInclude.h"
@@ -976,4 +979,15 @@ void ClientSideNetworkHandler::clearChunksLoaded()
 		requestNextChunkIndexList[i].y = i % CHUNK_CACHE_WIDTH;
 		chunksLoaded[i] = false;
 	}
+}
+
+void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, WeatherPacket* packet){
+    if(source!=serverGuid)return;
+    if(!level||!packet->valid||!level->isClientSide)return;
+    level->getLevelData()->weather=packet->state;
+}
+
+void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, WeatherLightningPacket* packet) {
+    if(source!=serverGuid || !level || !packet->valid || !level->isClientSide || level->isJavaServerLevel())return;
+    WeatherLightningRuntime::receive(*level,packet->bolt,packet->phase);
 }

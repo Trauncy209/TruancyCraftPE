@@ -607,6 +607,17 @@ void ItemInHandRenderer::renderWater( float a )
 
 void ItemInHandRenderer::renderFire( float a )
 {
+    const GLboolean oldAlpha=glIsEnabled(GL_ALPHA_TEST),oldBlend=glIsEnabled(GL_BLEND);
+    GLint oldAlphaFunction=GL_GREATER,oldSource=0,oldDestination=0;
+    GLfloat oldReference=0,oldColor[4];
+    glGetIntegerv(GL_ALPHA_TEST_FUNC,&oldAlphaFunction);glGetFloatv(GL_ALPHA_TEST_REF,&oldReference);
+    glGetIntegerv(GL_BLEND_SRC,&oldSource);glGetIntegerv(GL_BLEND_DST,&oldDestination);
+    glGetFloatv(GL_CURRENT_COLOR,oldColor);
+#if defined(TCPE_GLES3)
+    GLint oldSourceAlpha=0,oldDestinationAlpha=0;
+    glGetIntegerv(GL_BLEND_SRC_ALPHA,&oldSourceAlpha);glGetIntegerv(GL_BLEND_DST_ALPHA,&oldDestinationAlpha);
+#endif
+    glEnable2(GL_ALPHA_TEST);glAlphaFunc(GL_GREATER,.1f);
 	Tesselator& t = Tesselator::instance;
 	glColor4f2(1, 1, 1, 0.9f);
 	glEnable2(GL_BLEND);
@@ -641,8 +652,15 @@ void ItemInHandRenderer::renderFire( float a )
 		t.draw();
 		glPopMatrix2();
 	}
-	glColor4f2(1, 1, 1, 1);
-	glDisable2(GL_BLEND);
+    glColor4f2(oldColor[0],oldColor[1],oldColor[2],oldColor[3]);
+    glAlphaFunc(oldAlphaFunction,oldReference);
+    if(oldAlpha)glEnable2(GL_ALPHA_TEST);else glDisable2(GL_ALPHA_TEST);
+#if defined(TCPE_GLES3)
+    glBlendFuncSeparate(oldSource,oldDestination,oldSourceAlpha,oldDestinationAlpha);
+#else
+    glBlendFunc(oldSource,oldDestination);
+#endif
+    if(oldBlend)glEnable2(GL_BLEND);else glDisable2(GL_BLEND);
 }
 
 void ItemInHandRenderer::onGraphicsReset()

@@ -357,8 +357,8 @@ bool TileRenderer::tesselateFireInWorld( Tile* tt, int x, int y, int z )
 
 		u0 = (xt) / 256.0f;
 		u1 = (xt + 15.99f) / 256.0f;
-		v0 = (yt) / 256.0f;
-		v1 = (yt + 15.99f) / 256.0f;
+		v0 = (yt + (fixedTexture<0?16:0)) / 256.0f;
+		v1 = (yt + (fixedTexture<0?16:0) + 15.99f) / 256.0f;
 
 		t.vertexUV( ( float )( x + 1 ), ( float )( y + h ), ( float )( z1_ ), ( float )( u1 ), ( float )( v0 ) );
 		t.vertexUV( ( float )( x + 1 ), ( float )( y + 0 ), ( float )( z1 ), ( float )( u1 ), ( float )( v1 ) );
@@ -414,8 +414,8 @@ bool TileRenderer::tesselateFireInWorld( Tile* tt, int x, int y, int z )
 		{
 			u0 = (xt) / 256.0f;
 			u1 = (xt + 15.99f) / 256.0f;
-			v0 = (yt) / 256.0f;
-			v1 = (yt + 15.99f) / 256.0f;
+			v0 = (yt + (fixedTexture<0?16:0)) / 256.0f;
+			v1 = (yt + (fixedTexture<0?16:0) + 15.99f) / 256.0f;
 		}
 		if ( ( ( x / 2 + y / 2 + z / 2 ) & 1 ) == 1 )
 		{
@@ -536,8 +536,8 @@ bool TileRenderer::tesselateFireInWorld( Tile* tt, int x, int y, int z )
 
 				u0 = (xt) / 256.0f;
 				u1 = (xt + 15.99f) / 256.0f;
-				v0 = (yt) / 256.0f;
-				v1 = (yt + 15.99f) / 256.0f;
+				v0 = (yt + (fixedTexture<0?16:0)) / 256.0f;
+				v1 = (yt + (fixedTexture<0?16:0) + 15.99f) / 256.0f;
 
 				t.vertexUV( ( float )( x1_ ), ( float )( y + h ), ( float )( z +
 					1.0f ), ( float )( u1 ), ( float )( v0 ) );
@@ -561,8 +561,8 @@ bool TileRenderer::tesselateFireInWorld( Tile* tt, int x, int y, int z )
 
 				u0 = (xt) / 256.0f;
 				u1 = (xt + 15.99f) / 256.0f;
-				v0 = (yt) / 256.0f;
-				v1 = (yt + 15.99f) / 256.0f;
+				v0 = (yt + (fixedTexture<0?16:0)) / 256.0f;
+				v1 = (yt + (fixedTexture<0?16:0) + 15.99f) / 256.0f;
 
 				t.vertexUV( ( float )( x + 1.0f ), ( float )( y +
 					h ), ( float )( z0_ ), ( float )( u1 ), ( float )( v0 ) );

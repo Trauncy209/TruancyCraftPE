@@ -83,6 +83,7 @@ Biome* Biome::setColor( int color )
 
 Biome* Biome::setSnowCovered()
 {
+    snowCovered=true;
 	return this;
 }
 

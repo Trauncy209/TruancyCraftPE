@@ -1,3 +1,6 @@
+#include "WeatherEcology.h"
+#include "WeatherLightningRuntime.h"
+#include "../../network/packet/WeatherPacket.h"
 #include "Level.h"
 #include "LevelListener.h"
 #include "tile/entity/TileEntity.h"
@@ -187,7 +190,17 @@ Player* Level::getNearestPlayer(float x, float y, float z, float maxDist) {
 }
 
 /*public*/
+void Level::tickWeather(){
+    if(isJavaServerLevel())return;
+    WeatherLightningRuntime::tick(*this);
+    WeatherState& state=levelData.weather;
+    const bool oldRain=state.raining,oldThunder=state.thundering;
+    state.tick(!isClientSide,dimension->hasCeiling,[&](int n){return random.nextInt(n);});
+    if(!isClientSide&&raknetInstance&&((++weatherTicks%20)==0||oldRain!=state.raining||oldThunder!=state.thundering)){WeatherPacket packet(state);raknetInstance->send(packet);}
+}
+
 void Level::tick() {
+    tickWeather();
 	if (!isClientSide && levelData.getSpawnMobs()) {
 		static int _mobSpawnTick = 0;
 		const int MobSpawnInterval = 2;
@@ -299,6 +312,9 @@ void Level::tickTiles() {
         int xo = cp.x * 16;
         int zo = cp.z * 16;
         // LevelSource region = new Region(this, xo, 0, zo, xo + 16, 128, zo + 16);
+		if(!hasChunkNow(cp.x,cp.z))continue;
+        WeatherEcology::tickChunk(*this,cp.x,cp.z);
+        WeatherLightningRuntime::tickChunk(*this,cp.x,cp.z);
 		TIMER_PUSH("getChunk");
         LevelChunk* lc = this->getChunk(cp.x, cp.z);
 		TIMER_POP_PUSH("tickChunk");
@@ -345,6 +361,21 @@ void Level::tickTiles() {
 	//w.printEvery(30, "ticktiles");
 }
 
+namespace {
+// Finite worlds have no chunks outside their perimeter. Use the same clipped
+// neighborhood when enqueueing and dispatching, without relaxing infinite or
+// Java-world loading requirements.
+bool hasScheduledTickNeighborhood(Level& level,int x,int y,int z,int radius) {
+    int x0=x-radius,z0=z-radius,x1=x+radius,z1=z+radius;
+    if (!level.isJavaServerLevel() && level.getLevelData()->getGeneratorVersion()!=LGV_INFINITE) {
+        if (x<0 || x>=LEVEL_WIDTH || z<0 || z>=LEVEL_DEPTH) return false;
+        x0=std::max(0,x0);z0=std::max(0,z0);
+        x1=std::min(LEVEL_WIDTH-1,x1);z1=std::min(LEVEL_DEPTH-1,z1);
+    }
+    return level.hasChunksAt(x0,y-radius,z0,x1,y+radius,z1);
+}
+}
+
 bool Level::tickPendingTicks(bool force) {
     int count = _tickNextTickSet.size();
     if (count > MAX_TICK_TILES_PER_TICK) count = MAX_TICK_TILES_PER_TICK;
@@ -355,7 +386,7 @@ bool Level::tickPendingTicks(bool force) {
         }
 
 		int r = 8;
-        if (hasChunksAt(td->x - r, td->y - r, td->z - r, td->x + r, td->y + r, td->z + r)) {
+        if (hasScheduledTickNeighborhood(*this,td->x,td->y,td->z,r)) {
             int id = getTile(td->x, td->y, td->z) & 0xff;
             if (id == td->tileId && id > 0 && id < Tile::NUM_BLOCK_TYPES && Tile::tiles[id]) {
                 Tile::tiles[id]->tick(this, td->x, td->y, td->z, &random);
@@ -830,6 +861,16 @@ bool Level::isSkyLit(int x, int y, int z) {
 	return c->isSkyLit(x, y, z);
 }
 
+int Level::getTopRainBlock(int x,int z) {
+    if(!hasChunkAtNow(x,LEVEL_HEIGHT/2,z))return LEVEL_HEIGHT;
+    LevelChunk* chunk=getChunkAt(x,z);
+    for(int y=LEVEL_HEIGHT-1;y>=0;--y){
+        Tile* tile=Tile::tiles[chunk->getTile(x&15,y,z&15)];
+        if(tile && (tile->material->blocksMotion() || tile->material->isLiquid()))return y+1;
+    }
+    return 0;
+}
+
 int Level::getHeightmap(int x, int z) {
     //if (x < -MAX_LEVEL_SIZE || z < -MAX_LEVEL_SIZE || x >= MAX_LEVEL_SIZE || z > MAX_LEVEL_SIZE) {
     //    return 0;
@@ -1243,6 +1284,7 @@ int Level::getSkyDarken(float a) {
     float br = 1 - (Mth::cos(td * Mth::PI * 2) * 2 + 0.5f);
     if (br < 0.0f) br = 0.0f;
     if (br > 0.80f) br = 0.80f; //@note; was 1.0f
+    if(!isJavaServerLevel())br=1.f-(1.f-br)*(1.f-levelData.weather.rainAt(a)*.3125f)*(1.f-levelData.weather.thunderAt(a)*.3125f);
     return ((int) (br * 11));
 }
 
@@ -1275,6 +1317,20 @@ Vec3 Level::getSkyColor(Entity* source, float a) {
     float g = nightG * (1.0f - mix) + dayG * mix;
     float b = nightB * (1.0f - mix) + dayB * mix;
 
+    if (!isJavaServerLevel()) {
+        const float rain=levelData.weather.rainAt(a),storm=levelData.weather.thunderAt(a);
+        // Reference weather desaturates and darkens the existing biome/day sky.
+        // Retain TCPE's clear-sky palette when both intensities are zero.
+        float gray=(r*.30f+g*.59f+b*.11f)*.6f;
+        float blend=rain*.75f;
+        r+=(gray-r)*blend;g+=(gray-g)*blend;b+=(gray-b)*blend;
+        gray=(r*.30f+g*.59f+b*.11f)*.2f;blend=storm*.75f;
+        r+=(gray-r)*blend;g+=(gray-g)*blend;b+=(gray-b)*blend;
+    }
+    if(!isJavaServerLevel() && lightningBoltTime>0) {
+        const float flash=std::max(0.f,std::min(1.f,lightningBoltTime-a))*.45f;
+        r+=(.8f-r)*flash;g+=(.8f-g)*flash;b+=(1.f-b)*flash;
+    }
     return Vec3(r, g, b);
 }
 
@@ -1289,7 +1345,7 @@ Vec3 Level::getCloudColor( float a ) {
 	float g = ((cloudColor >> 8) & 0xff) / 255.0f;
 	float b = ((cloudColor) & 0xff) / 255.0f;
 
-	float rainLevel = 0;//getRainLevel(a);
+	float rainLevel = isJavaServerLevel()?0.f:levelData.weather.rainAt(a);
 	if (rainLevel > 0) {
 		float mid = (r * 0.30f + g * 0.59f + b * 0.11f) * 0.6f;
 
@@ -1303,7 +1359,7 @@ Vec3 Level::getCloudColor( float a ) {
 	g *= br * 0.80f + 0.20f;
 	b *= br * 0.82f + 0.18f;
 
-	float thunderLevel = 0; //getThunderLevel(a);
+	float thunderLevel = isJavaServerLevel()?0.f:levelData.weather.thunderAt(a);
 	if (thunderLevel > 0) {
 		float mid = (r * 0.30f + g * 0.59f + b * 0.11f) * 0.2f;
 
@@ -1395,7 +1451,7 @@ void Level::addToTickNextTick(int x, int y, int z, int tileId, int tickDelay) {
 	TickNextTickData td(x, y, z, tileId);
     int r = 8;
     if (instaTick) {
-        if (hasChunksAt(td.x - r, td.y - r, td.z - r, td.x + r, td.y + r, td.z + r)) {
+        if (hasScheduledTickNeighborhood(*this,td.x,td.y,td.z,r)) {
             int id = getTile(td.x, td.y, td.z) & 0xff;
             if (id == td.tileId && id > 0 && id < Tile::NUM_BLOCK_TYPES && Tile::tiles[id]) {
                 Tile::tiles[id]->tick(this, td.x, td.y, td.z, &random);
@@ -1404,7 +1460,7 @@ void Level::addToTickNextTick(int x, int y, int z, int tileId, int tickDelay) {
         return;
     }
 
-    if (hasChunksAt(x - r, y - r, z - r, x + r, y + r, z + r)) {
+    if (hasScheduledTickNeighborhood(*this,x,y,z,r)) {
         if (tileId > 0) {
             td.setDelay(tickDelay + levelData.getTime());
         }

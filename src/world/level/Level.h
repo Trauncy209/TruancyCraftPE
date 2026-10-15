@@ -9,6 +9,8 @@
 //#include "world/Difficulty.h"
 
 #include "LevelSettings.h"
+#include "WeatherLightning.h"
+#include <deque>
 #include "LevelConstants.h"
 #include "ChunkPos.h"
 #include "TickNextTickData.h"
@@ -135,6 +137,7 @@ public:
     void updateNeighborsAt(int x, int y, int z, int tile);
 
     int getHeightmap(int x, int z);
+    int getTopRainBlock(int x, int z);
 	BiomeSource* getBiomeSource();
 	Biome* getBiome(int x, int z);
 
@@ -315,6 +318,8 @@ public:
 	Dimension* dimension;
 	IRakNetInstance* raknetInstance;
 	Random random;
+    unsigned int weatherTicks=0;
+    void tickWeather();
 protected:
 	bool isFindingSpawn;
 
@@ -346,6 +351,12 @@ private:
 
 	float _lastSavedPlayerTime;
 	PendingList _pendingPlayerRemovals;
+public:
+    std::vector<WeatherLightning> weatherLightning;
+    std::deque<uint64_t> weatherLightningSeen;
+    uint64_t nextWeatherLightningId=1;
+    int lightningBoltTime=0;
+
 };
 
 #endif /*NET_MINECRAFT_WORLD_LEVEL__Level_H__*/

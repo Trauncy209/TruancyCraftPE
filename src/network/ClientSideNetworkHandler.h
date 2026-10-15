@@ -38,6 +38,8 @@ public:
 	virtual void onUnableToConnect();
 	virtual void onDisconnect(const RakNet::RakNetGUID& guid);
 
+	virtual void handle(const RakNet::RakNetGUID& source, WeatherPacket* packet);
+    virtual void handle(const RakNet::RakNetGUID& source, WeatherLightningPacket* packet);
 	virtual void handle(const RakNet::RakNetGUID& source, LoginStatusPacket* packet);
 	virtual void handle(const RakNet::RakNetGUID& source, StartGamePacket* packet);
 	virtual void handle(const RakNet::RakNetGUID& source, MessagePacket* packet);
