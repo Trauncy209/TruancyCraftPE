@@ -1,0 +1,38 @@
+[
+  {
+    "artifact": "TruancyCraftPE-0.5.25-Android-arm64-v8a.apk",
+    "scope": "complete signed APK",
+    "sha256": "a2084f5b0c2010d3b51b24e56c7db7af222d5bc978be0795aa3dcd4ec7bb458a",
+    "malicious": 0,
+    "engines": 65,
+    "completed": true,
+    "url": "https://www.virustotal.com/gui/file/a2084f5b0c2010d3b51b24e56c7db7af222d5bc978be0795aa3dcd4ec7bb458a"
+  },
+  {
+    "artifact": "TruancyCraftPE-0.5.25-Android-armeabi-v7a.apk",
+    "scope": "complete signed APK",
+    "sha256": "26b4aaeef0cbb1993230fcc3a4dc9f716b077360448007b044fbc306c08542b9",
+    "malicious": 0,
+    "engines": 63,
+    "completed": true,
+    "url": "https://www.virustotal.com/gui/file/26b4aaeef0cbb1993230fcc3a4dc9f716b077360448007b044fbc306c08542b9"
+  },
+  {
+    "artifact": "MinecraftPE",
+    "scope": "packaged executable, not entire archive",
+    "sha256": "c0319c5fbb93071907dce5b351c54dfe242f7551a4be7702414a8fc37683f71f",
+    "malicious": 0,
+    "engines": 64,
+    "completed": true,
+    "url": "https://www.virustotal.com/gui/file/c0319c5fbb93071907dce5b351c54dfe242f7551a4be7702414a8fc37683f71f"
+  },
+  {
+    "artifact": "tcpe-server",
+    "scope": "packaged executable, not entire archive",
+    "sha256": "a7cbc859aa66c61d55d74400d09dc918c4d5eeabd8f5d7edf025ae2679b902ab",
+    "malicious": 0,
+    "engines": 64,
+    "completed": true,
+    "url": "https://www.virustotal.com/gui/file/a7cbc859aa66c61d55d74400d09dc918c4d5eeabd8f5d7edf025ae2679b902ab"
+  }
+]
