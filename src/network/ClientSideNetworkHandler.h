@@ -8,6 +8,7 @@
 
 #include <vector>
 #include <map>
+#include <set>
 #include <utility>
 
 class Minecraft;
@@ -109,6 +110,9 @@ private:
     IntPair requestNextChunkIndexList[NumRequestChunks];
 	bool chunksLoaded[NumRequestChunks];
 	std::map<std::pair<int, int>, LevelChunk*> receivedChunks;
+	// Bound memory/processing bursts while hiding per-chunk network latency.
+	static const int MaxPendingChunkRequests = 4;
+	std::set<std::pair<int, int>> pendingChunkRequests;
 	bool requestedChunksReadySent = false;
 	void finishChunkRequests();
 };
