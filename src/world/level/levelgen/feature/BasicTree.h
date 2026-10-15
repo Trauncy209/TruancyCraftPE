@@ -32,6 +32,10 @@ private:
 	float foliageDensity;
 	int trunkWidth;
 	int heightVariance;
+	int minimumHeight;
+	int baseHeightVariance;
+	float baseWidthScale;
+	float baseFoliageDensity;
 	int foliageHeight;
 	int **foliageCoords;
 	int foliageCoordsLength;
@@ -206,7 +210,7 @@ private:
 		if (delta[primidx] == 0) return;
 		unsigned char secidx1 = axisConversionArray[primidx];
 		unsigned char secidx2 = axisConversionArray[primidx + 3];
-		char primsign;
+		int primsign;
 		if (delta[primidx] > 0) primsign = 1;
 		else primsign = -1;
 		float secfac1 = ((float) delta[secidx1]) / ((float) delta[primidx]);
@@ -311,7 +315,7 @@ private:
 		if (delta[primidx] == 0) return -1;
 		unsigned char secidx1 = axisConversionArray[primidx];
 		unsigned char secidx2 = axisConversionArray[primidx + 3];
-		char primsign; 
+		int primsign;
 		if (delta[primidx] > 0) primsign = 1;
 		else primsign = -1;
 		float secfac1 = ((float) delta[secidx1]) / ((float) delta[primidx]);
@@ -361,7 +365,7 @@ private:
 			return true;
 		}
 
-		else if (allowedHeight < 6)
+		else if (allowedHeight < (std::max)(6, minimumHeight))
 		{
 			return false;
 		}
@@ -373,7 +377,11 @@ private:
 	}
 
 public:
-	BasicTree(bool doUpdate){
+	BasicTree(bool doUpdate, int minHeight = 5, int heightRange = 12, float canopyWidth = 1.0f, float canopyDensity = 1.0f) : Feature(doUpdate){
+		minimumHeight = (std::max)(5, minHeight);
+		baseHeightVariance = (std::max)(1, heightRange);
+		baseWidthScale = canopyWidth;
+		baseFoliageDensity = canopyDensity;
 		axisConversionArray[0] = 2;
 		axisConversionArray[1] = 0;
 		axisConversionArray[2] = 0;
@@ -389,10 +397,10 @@ public:
 		trunkHeightScale = 0.618;
 		branchDensity = 1.0;
 		branchSlope = 0.381;
-		widthScale = 1.0;
-		foliageDensity = 1.0;
+		widthScale = baseWidthScale;
+		foliageDensity = baseFoliageDensity;
 		trunkWidth = 1;
-		heightVariance = 12;
+		heightVariance = baseHeightVariance;
 		foliageHeight = 4;
 		foliageCoords = NULL;
 		foliageCoordsLength = 0;
@@ -409,10 +417,10 @@ public:
 
 	virtual void init(float heightInit, float widthInit, float foliageDensityInit){
 
-		heightVariance = (int) (heightInit * 12);
+		heightVariance = (std::max)(1, (int) (heightInit * baseHeightVariance));
 		if (heightInit > 0.5) foliageHeight = 5;
-		widthScale = widthInit;
-		foliageDensity = foliageDensityInit;
+		widthScale = widthInit * baseWidthScale;
+		foliageDensity = foliageDensityInit * baseFoliageDensity;
 	}
 	virtual bool place(Level *level, Random *random, int x, int y, int z){
 
@@ -422,10 +430,14 @@ public:
 		origin[0] = x;
 		origin[1] = y;
 		origin[2] = z;
-		if (height == 0)
-		{
-			height = 5 + rnd->nextInt(heightVariance);
-		}
+		// Feature instances may be reused by sapling callers. Release the previous
+		// canopy and choose a fresh height before checking the new location.
+		for (int i = 0; i < foliageCoordsLength; ++i) delete [] foliageCoords[i];
+		delete [] foliageCoords;
+		foliageCoords = NULL;
+		foliageCoordsLength = 0;
+		height = minimumHeight + rnd->nextInt(heightVariance);
+		if (y < 1 || y + height >= Level::DEPTH) return false;
 		if (!(checkLocation()))
 		{
 

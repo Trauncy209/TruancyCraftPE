@@ -10,7 +10,7 @@ public:
     std::string name;
     int key;
     
-	KeyMapping() {}
+	KeyMapping() : key(0) {}
 
     KeyMapping(const std::string& name_, int key_)
 	:	name(name_),

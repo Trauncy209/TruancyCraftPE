@@ -25,7 +25,7 @@ public:
 	void tick();
 
 	void render(float a);
-    void renderItem(Mob* player, ItemInstance* item);
+    void renderItem(Mob* player, ItemInstance* item,bool offHand=false);
     void renderScreenEffect(float a);
 
 	void itemPlaced();

@@ -7,7 +7,11 @@
 #include <errno.h>
 
 #include <EGL/egl.h>
+#ifdef TCPE_GLES3
+#include "client/renderer/GLES3Compat.h"
+#else
 #include <GLES/gl.h>
+#endif
 
 #include <android/log.h>
 
@@ -20,6 +24,7 @@
 
 #include "platform/log.h"
 #include "platform/input/Keyboard.h"
+#include "platform/input/AndroidKeyAdapter.h"
 #include "platform/input/Mouse.h"
 #include "platform/input/Controller.h"
 
@@ -142,8 +147,19 @@ engine_handle_input( struct android_app* app, AInputEvent* event )
            //unsigned char msg[2] = {(unsigned char)(keyCode), (unsigned char)(isDown)};
            //broadcastData(BroadcastPort, msg, 2);
 
-		   if (!pressedBack)
-			   Keyboard::feed(keyCode, isDown);
+		   if (!pressedBack) {
+               static AndroidKeyState keyState;
+               auto* game=static_cast<Minecraft*>(engine->userApp);
+               AndroidControllerBindings bindings;
+               if(game&&game->isInited())bindings=androidControllerBindings(game->options);
+               int source=AInputEvent_getSource(event);
+               int key=keyState.translate(keyCode,source,game&&game->screen,bindings,isDown);
+               if(key)Keyboard::feed(key,isDown);
+               if(isDown&&!androidControllerEvent(keyCode,source)&&AInputEvent_getDeviceId(event)!=0&&engine->appContext.platform) {
+                   int text=engine->appContext.platform->getKeyFromKeyCode(keyCode,AKeyEvent_getMetaState(event),AInputEvent_getDeviceId(event));
+                   if(text>=32)Keyboard::feedCodepoint(static_cast<uint32_t>(text));
+               }
+           }
        }
        if (keyCode == 4)
        {

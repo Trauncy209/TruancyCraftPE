@@ -3,6 +3,7 @@
 
 #include "../Screen.h"
 class Button;
+bool javaDeathMayReplaceMenu(Screen* screen);
 
 class DeathScreen: public Screen
 {

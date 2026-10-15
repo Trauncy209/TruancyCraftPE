@@ -5,6 +5,7 @@
 #include "../../player/LocalPlayer.h"
 #include "../../../AppPlatform.h"
 #include "../../../network/RakNetInstance.h"
+#include "../../../network/java/JavaGameSession.h"
 #include "../../../network/ServerSideNetworkHandler.h"
 #include "../../../network/packet/ChatPacket.h"
 
@@ -26,7 +27,9 @@ void ChatScreen::render(int xm, int ym, float a)
         std::vector<std::string> v = minecraft->platform()->getUserInput();
         if (!v.empty() && !v[0].empty()) {
             std::string msg = std::string("<") + minecraft->player->name + "> " + v[0];
-            if (minecraft->netCallback && minecraft->raknetInstance->isServer()) {
+            if (minecraft->javaSession) {
+                minecraft->javaSession->connection.chat(v[0]);
+            } else if (minecraft->netCallback && minecraft->raknetInstance->isServer()) {
                 static_cast<ServerSideNetworkHandler*>(minecraft->netCallback)->displayGameMessage(msg);
             } else if (minecraft->netCallback) {
                 ChatPacket chatPkt(msg);

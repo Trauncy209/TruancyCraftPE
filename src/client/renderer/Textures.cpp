@@ -43,6 +43,14 @@ void Textures::clear()
 	lastBoundTexture = Textures::InvalidId;
 }
 
+void Textures::removeTexture(const std::string& name){
+ auto entry=idMap.find(name);if(entry==idMap.end())return;
+ const TextureId id=entry->second;idMap.erase(entry);
+ if(id==InvalidId)return;
+ auto image=loadedImages.find(id);if(image!=loadedImages.end()){if(!image->second.memoryHandledExternally)delete[] image->second.data;loadedImages.erase(image);}
+ glDeleteTextures(1,&id);if(lastBoundTexture==id)lastBoundTexture=InvalidId;
+}
+
 TextureId Textures::loadAndBindTexture( const std::string& resourceName )
 {
 	//static Stopwatch t;

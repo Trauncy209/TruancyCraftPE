@@ -1,10 +1,11 @@
 #include "SharedConstants.h"
+#include "AppConstants.h"
 
 namespace Common {
 
 std::string getGameVersionString(const std::string& versionSuffix /* = "" */)
 {
-	std::string result = std::string("v0.6.1") + versionSuffix;
+	std::string result = std::string("v" APP_VERSION_STRING) + versionSuffix;
 	// append 64-bit port marker only on Android 64‑bit targets
 	#if defined(ANDROID) && (defined(__aarch64__) || defined(__x86_64__))
 		result += " (64-bit port)";

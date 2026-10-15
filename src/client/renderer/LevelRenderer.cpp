@@ -1,3 +1,7 @@
+#include "network/java/JavaGameSession.h"
+#if defined(TCPE_GLES3) && defined(PLATFORM_DESKTOP)
+void tcpeQaWorldAtlasPass(int layer,int atlas);
+#endif
 #include "LevelRenderer.h"
 #include "Chunk.h"
 #include "DistanceChunkSorter.h"
@@ -376,9 +380,23 @@ void LevelRenderer::allChanged()
 	* if (Minecraft.FLYBY_MODE) { dist = 512 - CHUNK_SIZE * 2; }
 	*/
 	xChunks = (dist / LevelRenderer::CHUNK_SIZE) + 1;
-	yChunks = (128 /  LevelRenderer::CHUNK_SIZE);
+	yChunks = (level->maxBuildHeight() - level->minBuildHeight() + CHUNK_SIZE - 1) / CHUNK_SIZE;
 	zChunks = (dist / LevelRenderer::CHUNK_SIZE) + 1;
 	chunksLength = xChunks * yChunks * zChunks;
+    const int neededBuffers = chunksLength * 6;
+    if (neededBuffers > numListsOrBuffers) {
+#ifdef OPENGL_ES
+        glDeleteBuffers(numListsOrBuffers, chunkBuffers);
+        delete[] chunkBuffers;
+        chunkBuffers = new GLuint[neededBuffers];
+        glGenBuffers2(neededBuffers, chunkBuffers);
+#else
+        glDeleteLists(chunkLists,numListsOrBuffers);
+        chunkLists = glGenLists(neededBuffers);
+#endif
+        numListsOrBuffers = neededBuffers;
+    }
+
 	LOGI("chunksLength: %d. Distance: %d\n", chunksLength, dist);
 
 	chunks = new Chunk*[chunksLength];
@@ -400,7 +418,7 @@ void LevelRenderer::allChanged()
 		for (int y = 0; y < yChunks; y++) {
 			for (int z = 0; z < zChunks; z++) {
 				const int c = getLinearCoord(x, y, z);
-				Chunk* chunk = new Chunk(level, x * CHUNK_SIZE, y * CHUNK_SIZE, z * CHUNK_SIZE, CHUNK_SIZE, chunkLists + id, &chunkBuffers[id]);
+				Chunk* chunk = new Chunk(level, x * CHUNK_SIZE, level->minBuildHeight() + y * CHUNK_SIZE, z * CHUNK_SIZE, CHUNK_SIZE, chunkLists + id, &chunkBuffers[id]);
 
 				if (occlusionCheck) {
 					chunk->occlusion_id = 0;//occlusionCheckIds.get(count);
@@ -486,7 +504,7 @@ void LevelRenderer::resortChunks( int xc, int yc, int zc )
 			if (zz > zMaxChunk) zMaxChunk = zz;
 
 			for (int y = 0; y < yChunks; y++) {
-				int yy = y * CHUNK_SIZE;
+				int yy = level->minBuildHeight() + y * CHUNK_SIZE;
 				if (yy < yMinChunk) yMinChunk = yy;
 				if (yy > yMaxChunk) yMaxChunk = yy;
 
@@ -798,10 +816,16 @@ int LevelRenderer::renderChunks( int from, int to, int layer, float alpha )
 	// Render main atlas geometry
 	textures->loadAndBindTexture("terrain.png");
 	mainList.render();
+#if defined(TCPE_GLES3) && defined(PLATFORM_DESKTOP)
+ tcpeQaWorldAtlasPass(layer,0);
+#endif
 
 	// Render alternate atlas geometry
-	textures->loadAndBindTexture("terrain2.png");
+	textures->loadAndBindTexture(level->isJavaServerLevel()?"java-terrain.png":"terrain2.png");
 	altList.render();
+#if defined(TCPE_GLES3) && defined(PLATFORM_DESKTOP)
+ tcpeQaWorldAtlasPass(layer,1);
+#endif
 
 	return count;
 }
@@ -860,24 +884,15 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 
 			if (!force) {
 				if (chunk->distanceToSqr(player) > 1024.0f) {
-					int index;
-
-					// is this chunk in the closest <count>?
-					for (index = 0; index < count; index++) {
-						if (toAdd[index] != NULL && dirtyChunkSorter(toAdd[index], chunk) == false) {
-							break;
-						}
-					}
-
-					index--;
-
-					if (index > 0) {
-						int x = index;
-						while (--x != 0) {
-							toAdd[x - 1] = toAdd[x];
-						}
-						toAdd[index] = chunk;
-					}
+                    // Keep the closest job at the highest index. Shift every
+                    // displaced candidate once, without duplicates or omissions.
+                    int index = count - 1;
+                    while (index >= 0 && toAdd[index] != NULL &&
+                           !dirtyChunkSorter(toAdd[index], chunk)) --index;
+                    if (index >= 0) {
+                        for (int j = 0; j < index; ++j) toAdd[j] = toAdd[j + 1];
+                        toAdd[index] = chunk;
+                    }
 
 					continue;
 				}
@@ -917,6 +932,7 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 
 		// render the nearest <count> chunks (farther than 1024 units away)
 		int secondaryRemoved = 0;
+        bool completed[count] = {false};
 
 		for (int i = count - 1; i >= 0; i--) {
 			Chunk* chunk = toAdd[i];
@@ -937,6 +953,7 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 				toAdd[i]->rebuild();
 				toAdd[i]->setClean();
 				secondaryRemoved++;
+                completed[i] = true;
 			}
 		}
 
@@ -949,7 +966,7 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 			if (chunk != NULL) {
 				bool remove = false;
                 for (int i = 0; i < count && !remove; i++)
-                    if (chunk == toAdd[i]) {
+                    if (completed[i] && chunk == toAdd[i]) {
                         remove = true;
                     }
 
@@ -976,6 +993,7 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 
 void LevelRenderer::renderHit( Player* player, const HitResult& h, int mode, /*ItemInstance*/void* inventoryItem, float a )
 {
+    if(level->isJavaServerLevel()){renderHitOutline(player,h,mode,inventoryItem,a);return;}
 	if (mode == 0) {
 		if (destroyProgress > 0) {
 			Tesselator& t = Tesselator::instance;
@@ -1041,6 +1059,24 @@ void LevelRenderer::renderHit( Player* player, const HitResult& h, int mode, /*I
 
 void LevelRenderer::renderHitOutline( Player* player, const HitResult& h, int mode, /*ItemInstance*/void* inventoryItem, float a )
 {
+    if(level->isJavaServerLevel()){
+        if(mode!=0||h.type!=TILE||!mc->javaSession||!mc->javaSession->hasTargeting())return;
+        const JavaGameSession::Targeting& hit=mc->javaSession->targeting;
+        if(hit.kind!="block"||!hit.complete||hit.edges.empty())return;
+        const GLboolean texture=glIsEnabled(GL_TEXTURE_2D),blend=glIsEnabled(GL_BLEND);
+        GLboolean depthMask;glGetBooleanv(GL_DEPTH_WRITEMASK,&depthMask);
+        GLfloat color[4],lineWidth;glGetFloatv(GL_CURRENT_COLOR,color);glGetFloatv(GL_LINE_WIDTH,&lineWidth);
+        GLint src,dst;glGetIntegerv(GL_BLEND_SRC,&src);glGetIntegerv(GL_BLEND_DST,&dst);
+        glEnable2(GL_BLEND);glBlendFunc2(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDisable2(GL_TEXTURE_2D);glDepthMask(false);glLineWidth(1);glColor4f2(0,0,0,.4f);
+        const double x=player->xOld+(player->x-player->xOld)*a,y=player->yOld+(player->y-player->yOld)*a,z=player->zOld+(player->z-player->zOld)*a;
+        Tesselator& t=Tesselator::instance;t.begin(GL_LINES);
+        for(const auto& edge:hit.edges){t.vertex(hit.block[0]+edge[0]-x,hit.block[1]+edge[1]-y,hit.block[2]+edge[2]-z);t.vertex(hit.block[0]+edge[3]-x,hit.block[1]+edge[4]-y,hit.block[2]+edge[5]-z);}t.draw();
+        glDepthMask(depthMask);glLineWidth(lineWidth);glColor4f2(color[0],color[1],color[2],color[3]);glBlendFunc2(src,dst);
+        if(texture)glEnable2(GL_TEXTURE_2D);else glDisable2(GL_TEXTURE_2D);
+        if(blend)glEnable2(GL_BLEND);else glDisable2(GL_BLEND);
+        return;
+    }
+
 	if (mode == 0 && h.type == TILE) {
 		glEnable2(GL_BLEND);
 		glBlendFunc2(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -1067,10 +1103,10 @@ void LevelRenderer::renderHitOutline( Player* player, const HitResult& h, int mo
 void LevelRenderer::setDirty( int x0, int y0, int z0, int x1, int y1, int z1 )
 {
 	int _x0 = Mth::intFloorDiv(x0, CHUNK_SIZE);
-	int _y0 = Mth::intFloorDiv(y0, CHUNK_SIZE);
+	int _y0 = Mth::intFloorDiv(y0 - level->minBuildHeight(), CHUNK_SIZE);
 	int _z0 = Mth::intFloorDiv(z0, CHUNK_SIZE);
 	int _x1 = Mth::intFloorDiv(x1, CHUNK_SIZE);
-	int _y1 = Mth::intFloorDiv(y1, CHUNK_SIZE);
+	int _y1 = Mth::intFloorDiv(y1 - level->minBuildHeight(), CHUNK_SIZE);
 	int _z1 = Mth::intFloorDiv(z1, CHUNK_SIZE);
 
 	for (int x = _x0; x <= _x1; x++) {
@@ -1467,6 +1503,7 @@ void LevelRenderer::addParticle(ParticleType::Id name, float x, float y, float z
 
 void LevelRenderer::renderHitSelect( Player* player, const HitResult& h, int mode, /*ItemInstance*/void* inventoryItem, float a )
 {
+    if(level->isJavaServerLevel())return; // Exact Java union outline is drawn once by renderHit.
 	//if (h.type == TILE) LOGI("type: %s @ (%d, %d, %d)\n", Tile::tiles[level->getTile(h.x, h.y, h.z)]->getDescriptionId().c_str(), h.x, h.y, h.z);
 
 	if (mode == 0) {

@@ -11,7 +11,7 @@ class PolygonQuad
 public:
 	PolygonQuad() {}
     PolygonQuad(VertexPT*,VertexPT*,VertexPT*,VertexPT*);
-    PolygonQuad(VertexPT*,VertexPT*,VertexPT*,VertexPT*, int u0, int v0, int u1, int v1);
+    PolygonQuad(VertexPT*,VertexPT*,VertexPT*,VertexPT*, int u0, int v0, int u1, int v1, float textureWidth=64.f, float textureHeight=32.f);
     PolygonQuad(VertexPT*,VertexPT*,VertexPT*,VertexPT*, float u0, float v0, float u1, float v1);
 
 	void mirror();

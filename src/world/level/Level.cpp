@@ -557,12 +557,12 @@ bool Level::isEmptyTile(int x, int y, int z) {
 }
 
 bool Level::hasChunkAt(int x, int y, int z) {
-    if (y < 0 || y >= Level::DEPTH) return false;
+    if (y < minBuildHeight() || y >= maxBuildHeight()) return false;
     return hasChunk(x >> 4, z >> 4);
 }
 
 bool Level::hasChunkAtNow(int x, int y, int z) {
-    if (y < 0 || y >= Level::DEPTH) return false;
+    if (y < minBuildHeight() || y >= maxBuildHeight()) return false;
     return hasChunkNow(x >> 4, z >> 4);
 }
 
@@ -576,7 +576,7 @@ bool Level::hasChunksAtNow(int x, int y, int z, int r) {
 }
 
 bool Level::hasChunksAt(int x0, int y0, int z0, int x1, int y1, int z1) {
-    if (y1 < 0 || y0 >= Level::DEPTH) return false;
+    if (y1 < minBuildHeight() || y0 >= maxBuildHeight()) return false;
 
     x0 >>= 4;
     z0 >>= 4;
@@ -591,7 +591,7 @@ bool Level::hasChunksAt(int x0, int y0, int z0, int x1, int y1, int z1) {
 }
 
 bool Level::hasChunksAtNow(int x0, int y0, int z0, int x1, int y1, int z1) {
-    if (y1 < 0 || y0 >= Level::DEPTH) return false;
+    if (y1 < minBuildHeight() || y0 >= maxBuildHeight()) return false;
 
     x0 >>= 4;
     z0 >>= 4;
@@ -1584,7 +1584,7 @@ void Level::tick(Entity* e, bool actual) {
     int xc = Mth::floor(e->x);
     int zc = Mth::floor(e->z);
     int r = 32;
-    if (actual && !hasChunksAt(xc - r, 0, zc - r, xc + r, 128, zc + r)) {
+    if (actual && !isJavaServerLevel() && !hasChunksAt(xc - r, 0, zc - r, xc + r, 128, zc + r)) {
         return;
     }
 
@@ -1594,7 +1594,7 @@ void Level::tick(Entity* e, bool actual) {
     e->yRotO = e->yRot;
     e->xRotO = e->xRot;
 
-    if (actual && e->inChunk) {
+    if (actual && (e->inChunk || isJavaServerLevel())) {
         e->tick();
     }
 

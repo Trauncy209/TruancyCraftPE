@@ -52,8 +52,8 @@ int ScrolledSelectionList::getMaxPosition()
 
 int ScrolledSelectionList::getItemAtPosition( int x, int y )
 {
-	int x0 = width / 2 - (92 + 16 + 2);
-	int x1 = width / 2 + (92 + 16 + 2);
+	int x0 = rowLeft();
+	int x1 = rowRight();
 
 	int clickSlotPos = (int)(y - y0 - headerHeight + (int) yo - 4);
 	int slot = clickSlotPos / itemHeight;
@@ -159,8 +159,8 @@ void ScrolledSelectionList::render( int xm, int ym, float a )
 		}
 
 		if (renderSelection && isSelectedItem(i)) {
-			float x0 = width / 2.0f - (92 + 16 + 2);
-			float x1 = width / 2.0f + (92 + 16 + 2);
+			float x0 = rowLeft();
+			float x1 = rowRight();
 			glColor4f2(1, 1, 1, 1);
 			glDisable2(GL_TEXTURE_2D);
 			t.begin();

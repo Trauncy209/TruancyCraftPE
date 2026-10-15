@@ -18,13 +18,13 @@ class BirchFeature: public Feature
 {
 	typedef Feature super;
 public:
-	BirchFeature(bool doUpdate = false)
-	:	super(doUpdate)
+	BirchFeature(bool doUpdate = false, bool tall = false)
+	:	super(doUpdate), tall(tall)
 	{
 	}
 
 	bool place(Level* level, Random* random, int x, int y, int z) {
-        int treeHeight = random->nextInt(3) + 5;
+        int treeHeight = tall ? random->nextInt(5) + 9 : random->nextInt(3) + 5;
 
         bool free = true;
         if (y < 1 || y + treeHeight + 1 > Level::DEPTH) return false;
@@ -70,6 +70,8 @@ public:
         }
         return true;
     }
+private:
+    bool tall;
 };
 
 #endif /*NET_MINECRAFT_WORLD_LEVEL_LEVELGEN_FEATURE__BirchFeature_H__*/

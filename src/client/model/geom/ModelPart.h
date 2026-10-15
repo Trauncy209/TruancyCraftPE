@@ -56,6 +56,7 @@ public:
 
 	std::string id;
 
+	bool useCustomTextureDimensions;
 	float xTexSize;
 	float yTexSize;
 

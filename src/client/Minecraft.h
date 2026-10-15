@@ -47,6 +47,8 @@ struct PingedCompatibleServer;
 class AppPlatform;
 class AppPlatform_android;
 
+class JavaGameSession;
+
 class Minecraft: public App
 {
 protected:
@@ -81,6 +83,12 @@ public:
 	void locateMultiplayer();
 	void cancelLocateMultiplayer();
 	bool joinMultiplayer(const PingedCompatibleServer& server);
+    bool joinJavaServer(const std::string& address,const std::string& identity,bool online=false);
+    void stopJavaServer();
+    void updateJavaServer();
+    JavaGameSession* javaSession;
+    unsigned appliedJavaInventoryRevision=0;
+    unsigned appliedJavaWorldRevision=0;
 	void hostMultiplayer(int port=19132);
 	Player* respawnPlayer(int playerId);
 	void respawnPlayer();
@@ -91,6 +99,7 @@ public:
 
 	void tick(int nTick, int maxTick);
 	void tickInput();
+    unsigned long long getSimulationTick() const { return static_cast<unsigned int>(ticks); }
 
 	bool isOnlineClient();
 	bool isOnline();

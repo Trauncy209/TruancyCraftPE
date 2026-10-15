@@ -41,6 +41,8 @@ public:
 	TextureId loadTexture(const std::string& resourceName, bool inTextureFolder = true);
 	TextureId loadAndBindTexture(const std::string& resourceName);
 
+    void removeTexture(const std::string& resourceName);
+    bool hasTexture(const std::string& name)const{return idMap.find(name)!=idMap.end()&&idMap.find(name)->second!=InvalidId;}
     TextureId assignTexture(const std::string& resourceName, const TextureData& img);
 	const TextureData* getTemporaryTextureData(TextureId id);
 

@@ -1,4 +1,6 @@
 #include "App.h"
+#include "network/java/JavaGameSession.h"
+#include "platform/input/AndroidKeyAdapter.h"
 #include "AppPlatform_android.h"
 
 //#include "main_android_java.h"
@@ -86,25 +88,16 @@ static void setupExternalPath(JNIEnv* env, MAIN_CLASS* app)
         env->ExceptionClear();
     }
 
-    if (writablePath.empty()) {
-        jclass envClass = env->FindClass("android/os/Environment");
-        jmethodID method = env->GetStaticMethodID(envClass, "getExternalStorageDirectory", "()Ljava/io/File;");
-        jobject file = env->CallStaticObjectMethod(envClass, method);
-        writablePath = getPathString(env, file);
-        if (file)
-            env->DeleteLocalRef(file);
-        env->DeleteLocalRef(envClass);
-    }
-
-    if (cachePath.empty())
-        cachePath = writablePath;
-
-
+    // App-owned storage works without broad storage permission. The legacy
+    // shared directory is imported by MainActivity; never use it for new saves.
     if (writablePath.empty())
         writablePath = internalFilesPath;
     if (cachePath.empty())
         cachePath = internalCachePath;
+    if (cachePath.empty())
+        cachePath = writablePath;
 
+    if(!internalFilesPath.empty()){const std::string authPath=internalFilesPath+"/tcpe-accounts";setenv("TCPE_JAVA_AUTH_DIR",authPath.c_str(),1);}
     app->externalStoragePath = writablePath;
     app->externalCacheStoragePath = cachePath;
 
@@ -112,7 +105,8 @@ static void setupExternalPath(JNIEnv* env, MAIN_CLASS* app)
         LOGI("chdir to %s failed: %s", writablePath.c_str(), strerror(errno));
         if (!internalFilesPath.empty() && writablePath != internalFilesPath) {
             writablePath = internalFilesPath;
-            app->externalStoragePath = writablePath;
+            if(!internalFilesPath.empty()){const std::string authPath=internalFilesPath+"/tcpe-accounts";setenv("TCPE_JAVA_AUTH_DIR",authPath.c_str(),1);}
+    app->externalStoragePath = writablePath;
             if (chdir(writablePath.c_str()) != 0) {
                 LOGI("fallback chdir to %s failed: %s", writablePath.c_str(), strerror(errno));
             }
@@ -156,7 +150,8 @@ Java_com_mojang_minecraftpe_MainActivity_nativeRegisterThis(JNIEnv* env, jobject
 JNIEXPORT void JNICALL
 Java_com_mojang_minecraftpe_MainActivity_nativeUnregisterThis(JNIEnv* env, jobject clazz) {
     LOGI("@UnregisterThis\n");
-    env->DeleteGlobalRef( g_pActivity );
+    if(g_pActivity)env->DeleteGlobalRef( g_pActivity );
+    g_pActivity=0;appPlatform.instance=0;
 }
 
 JNIEXPORT void JNICALL
@@ -184,10 +179,22 @@ Java_com_mojang_minecraftpe_MainActivity_nativeOnCreate(JNIEnv* env, jobject thi
     //gApp->init(gContext);
 }
 
+JNIEXPORT jint JNICALL Java_com_mojang_minecraftpe_MainActivity_nativeRendererVersion(JNIEnv*,jclass) {
+#ifdef TCPE_GLES3
+ return 3;
+#else
+ return 1;
+#endif
+}
 static int s_surfaceCreatedCount = 0;
 
 JNIEXPORT void JNICALL
-Java_com_mojang_minecraftpe_GLRenderer_nativeOnSurfaceCreated(JNIEnv* env) {
+Java_com_mojang_minecraftpe_GLRenderer_nativeOnSurfaceCreated(JNIEnv* env,jclass) {
+#ifdef TCPE_GLES3
+    TCPEGL3::resetContext();
+    if(!TCPEGL3::initialize()){LOGE("GLES3 initialization failed");return;}
+    LOGI("Android GLES3 context version=%s renderer=%s",glGetString(GL_VERSION),glGetString(GL_RENDERER));
+#endif
     s_surfaceCreatedCount++;
     if (g_inNativeOnCreate) {
         // Skip re-entrant surface callbacks that fire during nativeOnCreate
@@ -213,6 +220,7 @@ Java_com_mojang_minecraftpe_GLRenderer_nativeOnSurfaceCreated(JNIEnv* env) {
 JNIEXPORT void JNICALL
 Java_com_mojang_minecraftpe_GLRenderer_nativeOnSurfaceChanged(JNIEnv* env, jclass cls, jint w, jint h) {
     LOGI("@nativeOnSurfaceChanged: %p\n", pthread_self());
+    appPlatform.setScreenDimensions(w,h);
 
     if (gApp) {
         gApp->setSize(w, h);
@@ -226,7 +234,7 @@ Java_com_mojang_minecraftpe_GLRenderer_nativeOnSurfaceChanged(JNIEnv* env, jclas
 }
 
 JNIEXPORT void JNICALL
-Java_com_mojang_minecraftpe_MainActivity_nativeOnDestroy(JNIEnv* env) {
+Java_com_mojang_minecraftpe_MainActivity_nativeOnDestroy(JNIEnv* env,jclass) {
     LOGI("@nativeOnDestroy\n");
 
     delete gApp;
@@ -235,7 +243,7 @@ Java_com_mojang_minecraftpe_MainActivity_nativeOnDestroy(JNIEnv* env) {
 }
 
 JNIEXPORT void JNICALL
-Java_com_mojang_minecraftpe_GLRenderer_nativeUpdate(JNIEnv* env) {
+Java_com_mojang_minecraftpe_GLRenderer_nativeUpdate(JNIEnv* env,jclass) {
     //LOGI("@nativeUpdate: %p\n", pthread_self());
     if (gApp) {
         if (!gApp->isInited())
@@ -252,39 +260,62 @@ Java_com_mojang_minecraftpe_GLRenderer_nativeUpdate(JNIEnv* env) {
 // Keyboard events
 //
 namespace {
-int convertAndroidJavaKeyCode(jint keyCode) {
-    switch (keyCode) {
-    case 67:
-        return Keyboard::KEY_BACKSPACE;
-    case 66:
-        return Keyboard::KEY_RETURN;
-    default:
-        return keyCode;
-    }
+int convertAndroidJavaKeyCode(jint keyCode,bool down,jint inputSource=0) {
+    static AndroidKeyState state;
+    auto* game=static_cast<Minecraft*>(gApp);
+    AndroidControllerBindings bindings;
+    if(game&&game->isInited())bindings=androidControllerBindings(game->options);
+    int source=inputSource?inputSource:(keyCode>=96&&keyCode<=110?0x401:0x101);
+    return state.translate(keyCode,source,game&&game->screen,bindings,down);
 }
+}
+
+static bool feedAndroidBack(bool down) {
+    auto* game=static_cast<Minecraft*>(gApp);
+    if(!game||!game->isInited())return false;
+    // Android Back remains available independently of customized keyboard binds.
+    Keyboard::feed(game->screen?Keyboard::KEY_ESCAPE:ControllerKeys::Pause,down);
+    return true;
+}
+
+JNIEXPORT void JNICALL
+Java_com_mojang_minecraftpe_MainActivity_nativeKeyEvent(JNIEnv*,jclass,jint code,jint source,jboolean down,jint unicode) {
+    if(code==4){feedAndroidBack(down==JNI_TRUE);return;} // Android KEYCODE_BACK
+    int translated=convertAndroidJavaKeyCode(code,down==JNI_TRUE,source);
+    if(translated)Keyboard::feed(translated,down==JNI_TRUE);
+    if(down==JNI_TRUE&&unicode>0)Keyboard::feedCodepoint(static_cast<uint32_t>(unicode));
+}
+JNIEXPORT void JNICALL
+Java_com_mojang_minecraftpe_MainActivity_nativeStopThis(JNIEnv*,jclass) {
+    for(int key=0;key<256;++key)if(Keyboard::isKeyDown(key))Keyboard::feed(key,false);
+    mouseUp(1,Mouse::getX(),Mouse::getY());mouseUp(2,Mouse::getX(),Mouse::getY());
+    for(int i=0;i<Multitouch::MAX_POINTERS;++i)if(Multitouch::isPointerDown(i))pointerUp(i,Multitouch::getX(i),Multitouch::getY(i));
+    auto* game=static_cast<Minecraft*>(gApp);
+    if(game&&game->javaSession){game->javaSession->connection.send("{\"type\":\"walk\",\"forward\":0,\"strafe\":0,\"jump\":false,\"sneak\":false}");game->javaSession->connection.send("{\"type\":\"mine\",\"held\":false}");game->javaSession->connection.send("{\"type\":\"flight\",\"flying\":false,\"vertical\":0,\"toggle\":false}");game->javaSession->connection.send("{\"type\":\"release_use\"}");}
 }
 
 JNIEXPORT void JNICALL
 Java_com_mojang_minecraftpe_MainActivity_nativeOnKeyDown(JNIEnv* env, jclass cls, jint keyCode) {
     LOGI("@nativeOnKeyDown: %d\n", keyCode);
-    Keyboard::feed(convertAndroidJavaKeyCode(keyCode), true);
+    int translated=convertAndroidJavaKeyCode(keyCode,true);
+    if(translated)Keyboard::feed(translated, true);
 }
 JNIEXPORT void JNICALL
 Java_com_mojang_minecraftpe_MainActivity_nativeTextChar(JNIEnv* env, jclass cls, jint unicodeChar) {
-    if (unicodeChar > 0 && unicodeChar < 128)
-        Keyboard::feedText((char)unicodeChar);
+    if (unicodeChar > 0)
+        Keyboard::feedCodepoint(static_cast<uint32_t>(unicodeChar));
 }
 JNIEXPORT void JNICALL
 Java_com_mojang_minecraftpe_MainActivity_nativeOnKeyUp(JNIEnv* env, jclass cls, jint keyCode) {
     LOGI("@nativeOnKeyUp: %d\n", (int)keyCode);
-    Keyboard::feed(convertAndroidJavaKeyCode(keyCode), false);
+    int translated=convertAndroidJavaKeyCode(keyCode,false);
+    if(translated)Keyboard::feed(translated, false);
 }
 
 JNIEXPORT jboolean JNICALL
 Java_com_mojang_minecraftpe_MainActivity_nativeHandleBack(JNIEnv* env, jclass cls, jboolean isDown) {
     LOGI("@nativeHandleBack: %d\n", isDown);
-    if (gApp) return gApp->handleBack(isDown)? JNI_TRUE : JNI_FALSE;
-    return JNI_FALSE;
+    return feedAndroidBack(isDown==JNI_TRUE)?JNI_TRUE:JNI_FALSE;
 }
 
 //

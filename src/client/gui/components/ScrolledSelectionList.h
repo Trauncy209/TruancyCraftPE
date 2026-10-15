@@ -34,6 +34,9 @@ protected:
 	virtual void clickedHeader(int headerMouseX, int headerMouseY) {}
 public:
 	virtual int getItemAtPosition(int x, int y);
+ void setWideRows(bool enabled){wideRows=enabled;}
+ int rowLeft()const{return wideRows?6:width/2-110;}
+ int rowRight()const{return wideRows?width-6:width/2+110;}
 
 	virtual void capYPosition();
 
@@ -47,6 +50,7 @@ protected:
 	float y1;
 	int itemHeight;
 private:
+ bool wideRows=false;
 	int width;
 	int height;
 	float x1;

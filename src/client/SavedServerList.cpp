@@ -8,7 +8,7 @@
 
 namespace {
 const char* const kSavedServerPrefix = "mp_saved_server_";
-const int kDefaultPort = 19132;
+const int kDefaultPort = 25565;
 
 std::string stripNewlines(const std::string& value) {
     std::string out;

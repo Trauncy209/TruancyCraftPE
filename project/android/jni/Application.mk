@@ -3,4 +3,4 @@ APP_STL := c++_static
 APP_OPTIM        := release
 APP_ABI          := arm64-v8a
 APP_LDFLAGS      += -Wl,-z,max-page-size=16384
-#APP_ABI          := armeabi-v7a x86
+#APP_ABI          := arm64-v8a x86

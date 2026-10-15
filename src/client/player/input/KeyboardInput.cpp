@@ -1,4 +1,5 @@
 #include "KeyboardInput.h"
+#include "../../../platform/input/ControllerActionKeys.h"
 #include "../../Options.h"
 #include "../../../world/entity/player/Player.h"
 
@@ -11,18 +12,16 @@ KeyboardInput::KeyboardInput( Options* options )
 
 void KeyboardInput::setKey( int key, bool state )
 {
-	int id = -1;
-	if (key == options->keyUp.key) id = KEY_UP;
-	if (key == options->keyDown.key) id = KEY_DOWN;
-	if (key == options->keyLeft.key) id = KEY_LEFT;
-	if (key == options->keyRight.key) id = KEY_RIGHT;
-	if (key == options->keyJump.key) id = KEY_JUMP;
-	if (key == options->keySneak.key) id = KEY_SNEAK;
-	if (key == options->keyCraft.key) id = KEY_CRAFT;
-	//printf("key: %d\n", id);
-	if (id >= 0) {
-		keys[id] = state;
-	}
+	if(key>=ControllerKeys::Forward&&key<=ControllerKeys::Craft){keys[key-ControllerKeys::Forward]=state;return;}
+    if (!key) return; // Unbound actions never receive a synthetic key0 event.
+    // A physical key can intentionally drive more than one action.
+    if (key == options->keyUp.key) keys[KEY_UP] = state;
+    if (key == options->keyDown.key) keys[KEY_DOWN] = state;
+    if (key == options->keyLeft.key) keys[KEY_LEFT] = state;
+    if (key == options->keyRight.key) keys[KEY_RIGHT] = state;
+    if (key == options->keyJump.key) keys[KEY_JUMP] = state;
+    if (key == options->keySneak.key) keys[KEY_SNEAK] = state;
+    if (key == options->keyCraft.key) keys[KEY_CRAFT] = state;
 }
 
 void KeyboardInput::releaseAllKeys()

@@ -205,3 +205,18 @@ conan/
 *.keystore
 *.p12
 *.jks
+
+# Native Java networking and private account files
+rust-network/target/
+mobile-libs/
+private-auth/
+**/private-auth/
+*.p12
+*.keystore
+*.jks
+
+__pycache__/
+*.pyc
+
+# Recreated from data/ by the Android packager (existing tracked assets remain).
+project/android/assets/

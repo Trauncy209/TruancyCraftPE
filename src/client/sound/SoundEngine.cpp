@@ -1,4 +1,12 @@
 #include "SoundEngine.h"
+#include "JavaSoundBank.h"
+#include <cmath>
+#include <cstdlib>
+#include <sstream>
+static std::string javaAudioBase64(const std::vector<unsigned char>& bytes){static const char* alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";std::string out;out.reserve((bytes.size()+2)/3*4);for(size_t i=0;i<bytes.size();i+=3){unsigned n=unsigned(bytes[i])<<16;if(i+1<bytes.size())n|=unsigned(bytes[i+1])<<8;if(i+2<bytes.size())n|=bytes[i+2];out+=alphabet[n>>18];out+=alphabet[(n>>12)&63];out+=i+1<bytes.size()?alphabet[(n>>6)&63]:'=';out+=i+2<bytes.size()?alphabet[n&63]:'=';}return out;}
+#if !defined(PRE_ANDROID23) && !defined(__APPLE__) && !defined(RPI)
+void stopJavaSounds(SoundSystemAL*,const std::string&,int);
+#endif
 #include "../Options.h"
 #include "../Minecraft.h"
 #include "../../world/entity/Mob.h"
@@ -18,13 +26,21 @@ SoundEngine::SoundEngine( float maxDistance )
 
 SoundEngine::~SoundEngine()
 {
-
+ JavaSoundPackBridge::uninstall(this);
 }
 
 void SoundEngine::init( Minecraft* mc, Options* options )
 {
 	this->mc = mc;
 	this->options = options;
+ JavaSoundPackBridge::install(this,[](void* owner,const std::vector<const JavaPackSounds*>& packs){
+  auto* engine=static_cast<SoundEngine*>(owner);engine->playServerSound("@reset",0,0,0,0,1,0);
+  if(!engine->javaSoundBank)engine->javaSoundBank.reset(new JavaSoundBank);
+  engine->javaSoundBank->apply(engine->mc->platform(),packs);
+#if defined(PRE_ANDROID23)
+  for(const auto& entry:engine->javaSoundBank->registrations())engine->mc->platform()->playSound("register|"+entry.first+"|"+javaAudioBase64(entry.second),0,1);
+#endif
+ });
 
 	if (/*!loaded && */(options == NULL || (options->sound != 0 || options->music != 0))) {
 		loadLibrary();
@@ -188,19 +204,8 @@ float SoundEngine::_getVolumeMult( float x, float y, float z )
 }
 
 #if defined(PRE_ANDROID23)
-void SoundEngine::play(const std::string& name, float x, float y, float z, float volume, float pitch) {
-	//volume *= (2.0f * _getVolumeMult(x, y, z))
-	if ((volume *= options->sound) <= 0) return;
-
-	volume *= _getVolumeMult(x, y, z);
-	mc->platform()->playSound(name, volume, pitch);
-}
-void SoundEngine::playUI(const std::string& name, float volume, float pitch) {
-	if ((volume *= options->sound) <= 0) return;
-
-	//volume *= 2.0f;
-	mc->platform()->playSound(name, volume, pitch);
-}
+void SoundEngine::play(const std::string& name,float x,float y,float z,float volume,float pitch){playServerSound("tcpe:"+name,x,y,z,volume,pitch,uint64_t(random.nextInt()));}
+void SoundEngine::playUI(const std::string& name,float volume,float pitch){playServerSound("tcpe:"+name,_x,_y,_z,volume,pitch,uint64_t(random.nextInt()));}
 #elif defined(__APPLE__)
 void SoundEngine::play(const std::string& name, float x, float y, float z, float volume, float pitch) {
 	if ((volume *= options->sound) <= 0) return;
@@ -252,3 +257,43 @@ void SoundEngine::playUI(const std::string& name, float volume, float pitch) {
 	}
 }
 #endif
+
+// Java server sounds use canonical assets, packet identity, position, gain and pitch.
+bool SoundEngine::playServerSound(const std::string& command,float x,float y,float z,float volume,float pitch,uint64_t seed,float fixedRange){
+ if(!mc||!options)return false;
+ if(command=="@reset"){
+#if defined(PRE_ANDROID23)
+ mc->platform()->playSound("reset",0,1);
+#elif !defined(__APPLE__) && !defined(RPI)
+ soundSystem.destroy();
+#endif
+ if(javaSoundBank)javaSoundBank->clear();return true;
+ }
+ std::string name=command;int category=-1;
+ if(command.compare(0,6,"@stop|")==0){auto end=command.find('|',6);if(end==std::string::npos)return false;category=std::atoi(command.substr(6,end-6).c_str());name=command.substr(end+1);
+#if defined(PRE_ANDROID23)
+ mc->platform()->playSound("stop|"+std::to_string(category)+"|"+name,0,1);
+#elif !defined(__APPLE__) && !defined(RPI)
+ stopJavaSounds(&soundSystem,name,category);
+#endif
+ return true;
+ }
+ if(command.compare(0,6,"@play|")==0){auto end=command.find('|',6);if(end==std::string::npos)return false;category=std::atoi(command.substr(6,end-6).c_str());name=command.substr(end+1);}
+ if(options->sound<=0||!std::isfinite(volume)||!std::isfinite(pitch)||volume<=0||pitch<=0)return false;
+ if(!javaSoundBank)javaSoundBank.reset(new JavaSoundBank);JavaSoundBank::Variant variant;SoundDesc sample;
+#if defined(PRE_ANDROID23)
+ const bool pcm=false;
+#else
+ const bool pcm=true;
+#endif
+ if(!javaSoundBank->select(mc->platform(),name,seed,variant,sample,pcm))return false;
+ float range=variant.distance*std::max(1.f,volume*variant.volume);float dx=x-_x,dy=y-_y,dz=z-_z;
+ float gain=Mth::clamp(volume*variant.volume*options->sound*(category==1?options->music:1.f),0.f,1.f);float speed=Mth::clamp(pitch*variant.pitch,.5f,2.f);if(gain<=0||range<=0)return false;
+#if defined(PRE_ANDROID23)
+ float distance=std::sqrt(dx*dx+dy*dy+dz*dz);if(sample.channels==1)gain*=std::max(0.f,1-distance/range);if(gain<=0)return false;
+ mc->platform()->playSound("play|"+std::to_string(category)+"|"+name+"|sounds/java/"+variant.file,gain,speed);
+#elif !defined(RPI)
+ sample.name="@java|"+std::to_string(category)+"|"+name+"|"+std::to_string(range);soundSystem.playAt(sample,dx,dy,dz,gain,speed);
+#endif
+ return true;
+}

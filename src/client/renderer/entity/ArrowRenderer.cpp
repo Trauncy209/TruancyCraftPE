@@ -1,4 +1,5 @@
 #include "ArrowRenderer.h"
+#include "network/java/JavaEntityAdapter.h"
 
 #include "../Tesselator.h"
 #include "../Textures.h"
@@ -7,7 +8,8 @@
 #include "../../../world/entity/projectile/Arrow.h"
 
 void ArrowRenderer::render(Entity* entity, float x, float y, float z, float rot, float a) {
-	bindTexture("item/arrows.png");
+	const auto* javaArrow=javaPresentationSnapshot(entity);
+	bindTexture(javaArrow?(javaArrow->kind=="SpectralArrow"?"item/java_spectral_arrow.png":"item/java_arrow.png"):"item/arrows.png");
 	Arrow* arrow = (Arrow*) entity;
 	glPushMatrix2();
 	glTranslatef(x, y, z);

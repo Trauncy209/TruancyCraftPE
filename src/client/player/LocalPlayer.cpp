@@ -1,4 +1,6 @@
 #include "LocalPlayer.h"
+#include "../../platform/input/Keyboard.h"
+#include "../../network/java/JavaGameSession.h"
 #include "../Minecraft.h"
 #include "../../ErrorCodes.h"
 #include "../../world/entity/EntityEvent.h"
@@ -25,6 +27,7 @@
 #ifndef STANDALONE_SERVER
 #include "../gui/Screen.h"
 #include "../gui/screens/FurnaceScreen.h"
+#include "../gui/screens/JavaInventoryScreen.h"
 #include "../gui/screens/ChestScreen.h"
 #include "../gui/screens/crafting/WorkbenchScreen.h"
 #include "../gui/screens/crafting/StonecutterScreen.h"
@@ -111,7 +114,9 @@ void LocalPlayer::tick() {
 				spawnEatParticles(item, 5);
 			}
 			if(--useItemDuration == 0) {
-				if(!level->isClientSide) {
+				if (minecraft->javaSession) {
+					// Java server owns completion and inventory consumption.
+				} else if(!level->isClientSide) {
 					completeUsingItem();
 				} else {
 					EntityEventPacket p(entityId, EntityEvent::USE_ITEM_COMPLETE);
@@ -123,7 +128,7 @@ void LocalPlayer::tick() {
 			stopUsingItem();
 		}
 	}
-	if (minecraft->isOnline())
+	if (minecraft->isOnline() && !minecraft->javaSession)
 	{
 		if (std::abs(x - sentX) > .1f || std::abs(y - sentY) > .01f || std::abs(z - sentZ) > .1f || std::abs(sentRotX - xRot) > 1 || std::abs(sentRotY - yRot) > 1)
 		{
@@ -195,8 +200,10 @@ void LocalPlayer::aiStep() {
 			else
 				sprintDoubleTapTimer = 7;
 		}
-		if (!forwardHeld) {
-			sprinting = false;
+		if (!screenCovering && forwardHeld && minecraft->options.keySprint.key && Keyboard::isKeyDown(minecraft->options.keySprint.key))
+            sprinting = true;
+        if (!forwardHeld || screenCovering) {
+            sprinting = false;
 		}
 		if (sprintDoubleTapTimer > 0) sprintDoubleTapTimer--;
 		prevForwardHeld = forwardHeld;
@@ -246,6 +253,11 @@ void LocalPlayer::aiStep() {
 
 /*public*/
 void LocalPlayer::closeContainer() {
+	if (minecraft->javaSession) {
+		minecraft->javaSession->connection.send("{\"type\":\"close_container\",\"window_id\":" + std::to_string(minecraft->javaSession->inventory.windowId) + "}");
+		minecraft->setScreen(NULL);
+		return;
+	}
 	if (level->isClientSide) {
 		ContainerClosePacket packet(containerMenu->containerId);
 		minecraft->raknetInstance->send(packet);
@@ -413,11 +425,20 @@ void LocalPlayer::actuallyHurt( int dmg )
 
 void LocalPlayer::respawn()
 {
+	if (minecraft->javaSession) {
+		minecraft->javaSession->connection.send("{\"type\":\"respawn\"}");
+		return;
+	}
 	minecraft->respawnPlayer();
 }
 
 void LocalPlayer::die(Entity* source)
 {
+	if (minecraft->javaSession) {
+		// Preserve server-owned slots; the server decides drops and respawn.
+		super::die(source);
+		return;
+	}
 	bool keepInventory = level && level->getLevelData() && level->getLevelData()->getKeepInventory();
 	// If we're an online client, send the inventory to be dropped
 	// If we're the server, drop the inventory immediately
@@ -441,7 +462,7 @@ void LocalPlayer::die(Entity* source)
 void LocalPlayer::swing() {
     super::swing();
 
-    if (swingTime == -1) {
+    if (swingTime == -1 && !minecraft->javaSession) {
         AnimatePacket packet(AnimatePacket::Swing, this);
         packet.reliability = UNRELIABLE;
         packet.priority = MEDIUM_PRIORITY;
@@ -469,6 +490,13 @@ void LocalPlayer::_init() {
 
 void LocalPlayer::startCrafting(int x, int y, int z, int tableSize) {
 #ifndef STANDALONE_SERVER
+	if (minecraft->javaSession) {
+  auto* session=minecraft->javaSession;
+  if(session->dead||session->dialog.pending)return;
+  if(session->inventory.windowId==0||session->inventory.menuKind=="crafting")minecraft->setScreen(new JavaCraftingScreen(session->inventory.windowId));
+  else showJavaInventory(minecraft,true);
+  return;
+ }
 	if (!minecraft->isCreativeMode())
 		minecraft->setScreen( new WorkbenchScreen(tableSize) );
 #endif
@@ -514,6 +542,8 @@ void LocalPlayer::drop( ItemInstance* item, bool randomly )
 
 void LocalPlayer::causeFallDamage( float distance )
 {
+	if (minecraft->javaSession) return; // Authoritative Java health.
+
 	int dmg = (int) ceil((distance - 3));
 	if (dmg > 0) {
 		if (level->isClientSide) {
@@ -559,6 +589,7 @@ void LocalPlayer::openTextEdit( TileEntity* tileEntity ) {
 }
 
 void LocalPlayer::updateArmorTypeHash() {
+	if (minecraft->javaSession) return;
     int hash = getArmorTypeHash();
     if (hash != armorTypeHash) {
         PlayerArmorEquipmentPacket p(this);

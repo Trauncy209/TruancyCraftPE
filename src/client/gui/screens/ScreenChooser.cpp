@@ -6,6 +6,7 @@
 #include "PauseScreen.h"
 #include "RenameMPLevelScreen.h"
 #include "IngameBlockSelectionScreen.h"
+#include "JavaInventoryScreen.h"
 #include "touch/TouchStartMenuScreen.h"
 #include "touch/TouchSelectWorldScreen.h"
 #include "touch/TouchJoinGameScreen.h"
@@ -15,9 +16,21 @@
 
 Screen* ScreenChooser::createScreen( ScreenId id )
 {
+ if(id==SCREEN_BLOCKSELECTION&&_mc->javaSession){
+  const auto& inventory=_mc->javaSession->inventory;
+  if(inventory.windowId==0)return new JavaPlayerInventoryScreen();
+  if(inventory.menuKind=="crafting")return new JavaCraftingScreen(inventory.windowId);
+  return new JavaInventoryScreen(inventory.windowId);
+ }
 	Screen* screen = NULL;
 
-	if (_mc->useTouchscreen()) {
+#ifdef PLATFORM_DESKTOP
+	// Keep TCPE's native menus when selecting desktop gameplay controls.
+	const bool useNativeTouchScreens = true;
+#else
+	const bool useNativeTouchScreens = _mc->useTouchscreen();
+#endif
+	if (useNativeTouchScreens) {
 		switch (id) {
 		case SCREEN_STARTMENU:	screen = new Touch::StartMenuScreen();	break;
 		case SCREEN_SELECTWORLD:screen = new Touch::SelectWorldScreen();break;

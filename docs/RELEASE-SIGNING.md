@@ -5,8 +5,8 @@ Truancy209 release certificate. The private key stays outside the repository.
 The public certificate, APK SHA-256 hashes and scan links are published with
 the release.
 
-This release changes signing only. The 32-bit and 64-bit game files match
-v0.5.22 byte for byte. The Android package name remains compatible with the
+v0.5.22.1 changed signing only: its 32-bit and 64-bit game files matched
+v0.5.22 byte for byte. v0.5.23 adds game changes and uses the same release key. The Android package name remains compatible with the
 game's existing native code; a package name is not a signing certificate.
 
 Android will not install an APK over another APK signed by a different key.

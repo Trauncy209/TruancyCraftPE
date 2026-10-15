@@ -25,6 +25,13 @@ public:
 	void createProgressSlider(Minecraft* minecraft, unsigned int group, std::string label, const Options::Option* option, float progressMin=1.0f, float progressMax=1.0f );
 	void createStepSlider(Minecraft* minecraft, unsigned int group, std::string label, const Options::Option* option, const std::vector<int>& stepVec );
 	void setupPositions();
+    void render(Minecraft*, int, int);
+    void mouseClicked(Minecraft*, int, int, int);
+    void mouseReleased(Minecraft*, int, int, int);
+    void scrollPage(int direction);
+    bool canScroll(int direction) const;
+private:
+    int scrollOffset, contentHeight;
 };
 
 #endif /*ITEMPANE_H__*/

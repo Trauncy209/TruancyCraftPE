@@ -2,6 +2,7 @@
 #define KEYBOARD_H__
 
 #include <vector>
+#include "Utf8KeyText.h"
 
 /** A keyboard action; key-down or key-up */
 class KeyboardAction
@@ -91,7 +92,11 @@ public:
 
 		_states[keyCode] = state;
 	}
-	static void feedText(char character) {
+	static bool feedCodepoint(uint32_t codepoint) {
+        char bytes[4];unsigned size=Utf8KeyText::encode(codepoint,bytes);
+        for(unsigned i=0;i<size;++i)feedText(bytes[i]);return size!=0;
+    }
+    static void feedText(char character) {
 		_inputText.push_back(character);
 	}
 

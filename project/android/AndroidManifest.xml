@@ -1,17 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
       package="com.mojang.minecraftpe"
-      android:versionCode="6001"
-      android:versionName="0.5.22"
+      android:versionCode="6002"
+      android:versionName="0.5.23"
       android:installLocation="preferExternal">
 
-    <!-- This is the platform API where NativeActivity was introduced. -->
+    <!-- Keep legacy world import available while supporting normal modern sideload installation. -->
     <uses-sdk   android:minSdkVersion="21"
-                android:targetSdkVersion="21" />
+                android:targetSdkVersion="28" />
                 
     <!-- uses-feature android:name="android.hardware.touchscreen.multitouch" android:required="true"/ -->
 
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
 
@@ -21,13 +22,11 @@
 
         <activity   android:name="com.mojang.minecraftpe.MainActivity"
                     android:label="@string/app_name_short"
-                    android:configChanges="orientation|keyboardHidden"
+                    android:configChanges="orientation|keyboardHidden|screenSize|smallestScreenSize|screenLayout|density|uiMode"
                     android:screenOrientation="landscape"
+                    android:windowSoftInputMode="adjustResize"
                     android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
                     android:launchMode="singleTop">
-
-            <meta-data  android:name="android.app.lib_name"
-                        android:value="minecraftpe" />
 
             <intent-filter>
                 <action   android:name="android.intent.action.MAIN" />

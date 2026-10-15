@@ -1,0 +1,62 @@
+[package]
+name = "tcpe-java-network"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+azalea-crypto = { version = "=0.15.1", features = ["signing"] }
+parking_lot = "0.12"
+uuid = { version = "1", features = ["serde"] }
+reqwest = { version = "=0.13.5", default-features = false, features = ["rustls"] }
+rustls = "=0.23.45"
+webpki-roots = "=1.0.9"
+png = "=0.18.1"
+base64 = "=0.22.1"
+url = "=2.5.8"
+azalea-block = "=0.15.1"
+bevy_ecs = { version = "0.18", default-features = false }
+azalea-registry = "=0.15.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", optional = true }
+azalea-chat = { version = "=0.15.1", optional = true }
+azalea-auth = { version = "=0.15.1", features = ["online-mode"] }
+azalea-client = { version = "=0.15.1", optional = true, features = ["packet-event"] }
+azalea-core = { version = "=0.15.1", optional = true }
+azalea-protocol = { version = "=0.15.1", optional = true }
+azalea-entity = { version = "=0.15.1", optional = true }
+azalea-inventory = { version = "=0.15.1", optional = true }
+azalea-physics = { version = "=0.15.1", optional = true }
+azalea-world = { version = "=0.15.1", optional = true }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"], optional = true }
+zip = { version = "=2.4.2", default-features = false, features = ["deflate"] }
+sha1 = "=0.11.0"
+lewton = {version="=0.10.2",optional=true}
+
+[features]
+default = ["java-network"]
+java-network = ["dep:azalea-client", "dep:serde_json", "dep:azalea-chat", "dep:azalea-core", "dep:azalea-world", "dep:azalea-protocol", "dep:azalea-entity", "dep:azalea-inventory", "dep:tokio", "dep:azalea-physics", "dep:lewton"]
+
+[patch.crates-io]
+simdnbt = { path = "vendor/simdnbt" }
+azalea-inventory = { path = "vendor/azalea-inventory" }
+azalea-crypto = { path = "vendor/azalea-crypto" }
+azalea-auth = { path = "vendor/azalea-auth" }
+azalea-protocol = { path = "vendor/azalea-protocol" }
+azalea-chat = { path = "vendor/azalea-chat" }
+azalea-client = { path = "vendor/azalea-client" }
+
+azalea-physics = { path = "vendor/azalea-physics" }
+azalea-entity = { path = "vendor/azalea-entity" }
+
+[workspace]
+members = ["vendor/azalea-physics"]
+default-members = ["."]
+
+[dev-dependencies]
+simdnbt = "=0.9.0"
+azalea-crypto = "=0.15.1"
+azalea-buf = "=0.15.1"

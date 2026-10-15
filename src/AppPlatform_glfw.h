@@ -76,6 +76,17 @@ public:
 			png_set_read_fn(pngPtr,(void*)&source, png_funcReadFile);
 
 			png_read_info(pngPtr, infoPtr);
+			// Java's supplied entity/equipment PNGs may be indexed, grayscale or RGB.
+			// Normalize losslessly to the RGBA layout required by the native uploader.
+			const int colorType=png_get_color_type(pngPtr,infoPtr),bitDepth=png_get_bit_depth(pngPtr,infoPtr);
+			if(bitDepth==16)png_set_strip_16(pngPtr);
+			if(colorType==PNG_COLOR_TYPE_PALETTE)png_set_palette_to_rgb(pngPtr);
+			if(colorType==PNG_COLOR_TYPE_GRAY&&bitDepth<8)png_set_expand_gray_1_2_4_to_8(pngPtr);
+			const bool transparency=png_get_valid(pngPtr,infoPtr,PNG_INFO_tRNS)!=0;
+			if(transparency)png_set_tRNS_to_alpha(pngPtr);
+			if(colorType==PNG_COLOR_TYPE_GRAY||colorType==PNG_COLOR_TYPE_GRAY_ALPHA)png_set_gray_to_rgb(pngPtr);
+			if(!(colorType&PNG_COLOR_MASK_ALPHA)&&!transparency)png_set_add_alpha(pngPtr,255,PNG_FILLER_AFTER);
+			png_read_update_info(pngPtr,infoPtr);
 
 			// Set up the texdata properties
 			out.w = png_get_image_width(pngPtr, infoPtr);

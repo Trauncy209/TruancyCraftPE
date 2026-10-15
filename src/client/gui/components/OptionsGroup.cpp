@@ -19,7 +19,7 @@ void OptionsGroup::setupPositions() {
 		(*it)->setupPositions();
 		curY += (*it)->height + 3;
 	}
-	height = curY;
+	height = curY - y;
 }
 
 void OptionsGroup::render( Minecraft* minecraft, int xm, int ym ) {

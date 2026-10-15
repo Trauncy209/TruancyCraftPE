@@ -1,6 +1,9 @@
 #include "Chunk.h"
 #include "Tesselator.h"
 #include "TileRenderer.h"
+#include "network/java/JavaLevel.h"
+#include "network/java/JavaBlockModels.h"
+#include "network/java/JavaEmptySection.h"
 #include "culling/Culler.h"
 #include "../../world/entity/Entity.h"
 #include "../../world/level/tile/Tile.h"
@@ -52,7 +55,8 @@ void Chunk::setPos( int x, int y, int z )
 
 	const float xzg = 1.0f;
 	const float yp = 2.0f;
-	const float yn = 0.0f;
+	// Modern rotated block models can extend below their owning block.
+	const float yn = level->isJavaServerLevel() ? 1.0f : 0.0f;
 	bb.set(x-xzg, y-yn, z-xzg, x + xs+xzg, y + ys+yp, z + zs+xzg);
 
 	//glNewList(lists + 2, GL_COMPILE);
@@ -96,6 +100,17 @@ void Chunk::rebuild()
 
 	LevelChunk::touchedSky = false;
 
+ JavaLevel* javaLevel=level->isJavaServerLevel()?static_cast<JavaLevel*>(level):nullptr;
+ if(javaLevel&&javaSectionIsCanonicalAir(javaLevel->serverChunks(),x,y,z,xs,ys,zs)) {
+  for(int layer=0;layer<NumLayers;++layer) {
+   renderChunk[layer].vertexCount=renderChunkAlt[layer].vertexCount=0;
+   renderChunk[layer].pos.x=renderChunkAlt[layer].pos.x=float(x);
+   renderChunk[layer].pos.y=renderChunkAlt[layer].pos.y=float(y);
+   renderChunk[layer].pos.z=renderChunkAlt[layer].pos.z=float(z);
+  }
+  skyLit=false;compiled=true;return;
+ }
+
 	int r = 1;
 	Region region(level, x0 - r, y0 - r, z0 - r, x1 + r, y1 + r, z1 + r);
 	TileRenderer tileRenderer(&region);
@@ -132,7 +147,11 @@ void Chunk::rebuild()
 					for (int xx = x0; xx < x1; xx++) {
 						++cindex;
 						int tileId = region.getTile(xx, yy, zz);
-						if (tileId > 0) {
+      uint16_t javaState=0;
+      int javaLayer=-1;
+      if(javaLevel && javaLevel->serverChunks().state(xx,yy,zz,javaState))javaLayer=JavaBlockModels::layer(javaState);
+      if(javaLevel && ((javaLayer>=0 && atlas!=1)||(javaLayer<0 && atlas!=0)))continue;
+						if (tileId > 0 || javaLayer>=0) {
 							if (!started) {
 								started = true;
 
@@ -149,7 +168,18 @@ void Chunk::rebuild()
 								t.offset((float)(-this->x), (float)(-this->y), (float)(-this->z));
 							}
 
-							Tile* tile = Tile::tiles[tileId];
+							if(javaLayer>=0){
+        if(javaLayer>l){renderNextLayer=true;doRenderLayer[javaLayer]=true;}
+        else if(javaLayer==l)renderedAlt|=JavaBlockModels::tesselate(*javaLevel,t,xx,yy,zz,javaState);
+        continue;
+       }
+       Tile* tile = Tile::tiles[tileId];
+       if(!tile)continue;
+       if(javaLevel){
+        // Unavailable modern models use the existing TCPE equivalent.
+        // Alternate legacy atlas textures cannot occupy the modern atlas pass.
+        for(int face=0;face<6;++face)if(tile->getTexture(&region,xx,yy,zz,face)&Tile::TEXTURE_ALT_FLAG){tile=Tile::tiles[1];break;}
+       }
 							int renderLayer = tile->getRenderLayer();
 
 							if (renderLayer > l) {

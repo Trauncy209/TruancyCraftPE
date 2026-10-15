@@ -6,6 +6,10 @@
 #include "../renderer/Tesselator.h"
 #include "../../util/Mth.h"
 #include <cstring>
+#include "../../network/java/JavaRichText.h"
+#include <algorithm>
+#include <cmath>
+#include <chrono>
 
 Font::Font( Options* options, const std::string& name, Textures* textures )
 :	options(options),
@@ -152,6 +156,7 @@ void Font::draw( const char* str, float x, float y, int color )
 
 void Font::draw( const char* str, float x, float y, int color, bool darken )
 {
+ if(javaTextEnabled){drawJava(str?str:"",x,y,color,darken);return;}
 #ifdef USE_VBO
 	drawSlow(str, x, y, color, darken);
 #endif
@@ -159,6 +164,7 @@ void Font::draw( const char* str, float x, float y, int color, bool darken )
 
 void Font::draw( const std::string& str, float x, float y, int color, bool darken )
 {
+ if(javaTextEnabled){drawJava(str,x,y,color,darken);return;}
 #ifdef USE_VBO
 	drawSlow(str, x, y, color, darken);
 	return;
@@ -231,6 +237,7 @@ void Font::draw( const std::string& str, float x, float y, int color, bool darke
 
 int Font::width( const std::string& str )
 {
+ if(javaTextEnabled)return widthJava(str);
 	int maxLen = 0;
 	int len = 0;
 
@@ -370,3 +377,73 @@ void Font::buildChar( unsigned char i, float x /*= 0*/, float y /*=0*/ )
 	t.vertexUV(x, y, 0, ix / 128.0f + uo, iy / 128.0f + vo);
 }
 
+
+namespace {
+struct JavaBaseFontGlyph {uint32_t cp;int atlas,x,y,width,height,imageWidth,imageHeight;float scale,ascent,advance;};
+const JavaBaseFontGlyph javaBaseFontGlyphs[]={
+#include "JavaBaseFontGlyphs.inc"
+};
+const JavaBaseFontGlyph* baseJavaGlyph(uint32_t cp){const auto* begin=javaBaseFontGlyphs;const auto* end=begin+sizeof(javaBaseFontGlyphs)/sizeof(*begin);const auto* result=std::lower_bound(begin,end,cp,[](const JavaBaseFontGlyph& glyph,uint32_t code){return glyph.cp<code;});return result!=end&&result->cp==cp?result:NULL;}
+struct JavaUnicodeGlyph {uint32_t cp,index;uint8_t width,advance;};
+const JavaUnicodeGlyph javaUnicodeGlyphs[]={
+#include "JavaUnicodeGlyphs.inc"
+};
+const JavaUnicodeGlyph* unicodeGlyph(uint32_t cp){const auto* begin=javaUnicodeGlyphs;const auto* end=begin+sizeof(javaUnicodeGlyphs)/sizeof(*begin);const auto* result=std::lower_bound(begin,end,cp,[](const JavaUnicodeGlyph& glyph,uint32_t code){return glyph.cp<code;});if(result!=end&&result->cp==cp)return result;if(cp!=0xfffd)return unicodeGlyph(0xfffd);return NULL;}
+}
+const Font::PackGlyph* Font::packGlyph(uint32_t cp,const std::string& font)const{auto table=packGlyphs.find(font.empty()?"minecraft:default":font);if(table==packGlyphs.end())return NULL;auto glyph=table->second.find(cp);return glyph==table->second.end()?NULL:&glyph->second;}
+float Font::javaGlyphAdvance(uint32_t cp,bool bold,const std::string& font){auto packed=packGlyph(cp,font);float advance=0;if(packed)advance=packed->advance;else if(const auto* base=baseJavaGlyph(cp))advance=base->advance;else if(cp<128)advance=fcharWidths[cp];else{const auto* entry=unicodeGlyph(cp);advance=entry?entry->advance*0.5f+1:8;}return advance+(bold?1.f:0.f);}
+int Font::widthJava(const std::string& text){float width=0,maxWidth=0;for(const auto& glyph:JavaRichText::parse(text)){if(glyph.codepoint=='\n'){maxWidth=std::max(maxWidth,width);width=0;continue;}width+=javaGlyphAdvance(glyph.codepoint,glyph.bold,glyph.font);}return static_cast<int>(std::ceil(std::max(width,maxWidth)));}
+void Font::drawJava(const std::string& text,float x,float y,int baseColor,bool darken){
+ Tesselator& t=Tesselator::instance;float ox=x,oy=y;bool drawing=false;TextureId activeTexture=Textures::InvalidId;
+ std::map<int,TextureId> pageTextures,baseTextures;
+ auto flush=[&](){if(drawing){t.draw();drawing=false;}};
+ auto textureFor=[&](const std::string& resource){
+  // Loading a missing texture binds it. Flush before that side effect, so the
+  // queued glyphs keep their original atlas even on the first frame.
+  if(!_textures->hasTexture(resource)){flush();activeTexture=Textures::InvalidId;}
+  return _textures->loadTexture(resource);
+ };
+ auto bindTexture=[&](TextureId next){if(drawing&&next==activeTexture)return;flush();_textures->bind(next);activeTexture=next;t.begin();drawing=true;};
+ auto bindPage=[&](int next){auto found=pageTextures.find(next);TextureId id;if(found==pageTextures.end()){id=textureFor(next<0?fontName:"java-font/page-"+std::to_string(next)+".png");pageTextures[next]=id;}else id=found->second;bindTexture(id);};
+ auto quad=[&](float px,float py,float w,float h,float u,float v,float uw,float vh,bool italic){const float skew=italic?1.0f:0.0f;t.vertexUV(px-skew,py+h,0,u,v+vh);t.vertexUV(px+w-skew,py+h,0,u+uw,v+vh);t.vertexUV(px+w+skew,py,0,u+uw,v);t.vertexUV(px+skew,py,0,u,v);};
+ for(auto glyph:JavaRichText::parse(text,static_cast<uint32_t>(baseColor))){
+  if(glyph.codepoint=='\n'){ox=x;oy+=lineHeight;continue;}
+  if(glyph.obfuscated&&glyph.codepoint!=' '){const uint64_t frame=std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count()/50;uint32_t seed=static_cast<uint32_t>(frame*1664525u+glyph.codepoint*1013904223u+static_cast<unsigned>(ox*2));
+   if(glyph.codepoint<128){const float target=fcharWidths[glyph.codepoint];for(unsigned k=0;k<95;k++){const uint32_t candidate=33+(seed+k)%94;if(fcharWidths[candidate]==target){glyph.codepoint=candidate;break;}}}
+   else {const JavaUnicodeGlyph* original=unicodeGlyph(glyph.codepoint);const size_t count=sizeof(javaUnicodeGlyphs)/sizeof(*javaUnicodeGlyphs);if(original)for(unsigned k=0;k<128;k++){const auto& candidate=javaUnicodeGlyphs[(seed+k*37u)%count];if(candidate.advance==original->advance&&candidate.width==original->width){glyph.codepoint=candidate.cp;break;}}}
+  }
+  uint32_t color=glyph.color;if(darken)color=(color&0xff000000)|((color&0xfcfcfc)>>2);
+  auto colorize=[&](){t.color(int((color>>16)&255),int((color>>8)&255),int(color&255),int((color>>24)&255));};
+  auto packed=packGlyph(glyph.codepoint,glyph.font);
+  Font::PackGlyph baseGlyph;
+  if(!packed){if(const auto* base=baseJavaGlyph(glyph.codepoint)){
+   baseGlyph.advance=base->advance;baseGlyph.ascent=base->ascent;
+   if(base->atlas>=0){auto found=baseTextures.find(base->atlas);TextureId id;if(found==baseTextures.end()){id=textureFor("java-font/base-"+std::to_string(base->atlas)+".png");baseTextures[base->atlas]=id;}else id=found->second;baseGlyph.texture=id;baseGlyph.u=float(base->x)/base->imageWidth;baseGlyph.v=float(base->y)/base->imageHeight;baseGlyph.uw=float(base->width)/base->imageWidth;baseGlyph.vh=float(base->height)/base->imageHeight;baseGlyph.width=base->width*base->scale;baseGlyph.height=base->height*base->scale;}
+   packed=&baseGlyph;
+  }}
+  if(packed){
+   const auto& g=*packed;
+   if(g.texture&&g.width>0&&g.height>0){bindTexture(g.texture);colorize();quad(ox,oy+8-g.ascent,g.width,g.height,g.u,g.v,g.uw,g.vh,glyph.italic);if(glyph.bold)quad(ox+1.f,oy+8-g.ascent,g.width,g.height,g.u,g.v,g.uw,g.vh,glyph.italic);}
+   const float advance=javaGlyphAdvance(glyph.codepoint,glyph.bold,glyph.font);
+   // Bitmap and spacing providers retain the same text decorations as base glyphs.
+   // Rebind through Textures so the following glyph cannot reuse a stale atlas.
+   if(glyph.underlined||glyph.struck){bindPage(0);colorize();if(glyph.underlined)quad(ox,oy+8,advance,0.5f,511.5f/512,511.5f/512,0,0,false);if(glyph.struck)quad(ox,oy+4,advance,0.5f,511.5f/512,511.5f/512,0,0,false);}
+   ox+=advance;continue;
+  }
+  float advance=0,w=8,u=0,v=0,uw=0,vh=0;int glyphPage=-1;
+  if(glyph.codepoint<128){advance=fcharWidths[glyph.codepoint];u=(glyph.codepoint%16)*8.0f/128;v=(glyph.codepoint/16)*8.0f/128;uw=7.99f/128;vh=7.99f/128;}
+  else {const JavaUnicodeGlyph* entry=unicodeGlyph(glyph.codepoint);if(!entry)continue;glyphPage=entry->index/961;const unsigned cell=entry->index%961;u=(cell%31)*16.0f/512;v=(cell/31)*16.0f/512;w=entry->width*0.5f;uw=(entry->width-0.01f)/512;vh=15.99f/512;advance=entry->advance*0.5f+1;}
+  bindPage(glyphPage);colorize();quad(ox,oy,w,7.99f,u,v,uw,vh,glyph.italic);if(glyph.bold){quad(ox+1.f,oy,w,7.99f,u,v,uw,vh,glyph.italic);advance+=1.f;}
+  if(glyph.underlined||glyph.struck){bindPage(0);colorize();if(glyph.underlined)quad(ox,oy+8,advance,0.5f,511.5f/512,511.5f/512,0,0,false);if(glyph.struck)quad(ox,oy+4,advance,0.5f,511.5f/512,511.5f/512,0,0,false);}
+  ox+=advance;
+ }
+ if(drawing)t.draw();
+}
+
+std::vector<std::string> Font::wrapJava(const std::string& text,int maxWidth){std::vector<std::string> lines;std::string line;int width=0;for(const auto& glyph:JavaRichText::parse(text)){if(glyph.codepoint=='\n'){lines.push_back(line);line.clear();width=0;continue;}const std::string encoded=JavaRichText::encode(glyph);const int advance=static_cast<int>(std::ceil(javaGlyphAdvance(glyph.codepoint,glyph.bold,glyph.font)));if(!line.empty()&&width+advance>std::max(1,maxWidth)){lines.push_back(line);line.clear();width=0;}line+=encoded;width+=advance;}if(!line.empty()||lines.empty())lines.push_back(line);return lines;}
+
+std::string Font::fitJava(const std::string& text,int maxWidth){
+ if(maxWidth<=0)return "";if(widthJava(text)<=maxWidth)return text;
+ const std::string ellipsis="§r...";const int reserve=widthJava(ellipsis);if(reserve>maxWidth)return "";
+ std::string result;int used=0;for(const auto& glyph:JavaRichText::parse(text)){if(glyph.codepoint=='\n')break;const auto encoded=JavaRichText::encode(glyph);const int advance=static_cast<int>(std::ceil(javaGlyphAdvance(glyph.codepoint,glyph.bold,glyph.font)));if(used+advance+reserve>maxWidth)break;result+=encoded;used+=advance;}return result+ellipsis;
+}

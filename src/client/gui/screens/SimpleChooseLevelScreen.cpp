@@ -29,6 +29,8 @@ SimpleChooseLevelScreen::SimpleChooseLevelScreen(const std::string& levelName)
     bWorldType(0),
     bWorldOptions(0),
     bOptionsBack(0),
+    bOptionsPrevious(0),
+    bOptionsNext(0),
     bOptionCaves(0),
     bOptionRavines(0),
     bOptionWaterLakes(0),
@@ -72,6 +74,8 @@ SimpleChooseLevelScreen::~SimpleChooseLevelScreen()
     delete bWorldType;
     delete bWorldOptions;
     delete bOptionsBack;
+    delete bOptionsPrevious;
+    delete bOptionsNext;
     delete bOptionCaves;
     delete bOptionRavines;
     delete bOptionWaterLakes;
@@ -116,6 +120,13 @@ void SimpleChooseLevelScreen::refreshWorldOptionLabels()
     bOptionBetaWorldGeneration->msg = std::string("Beta World Generation: ") + (optBetaWorldGeneration ? "ON" : "OFF");
     bOptionModernTerrainGeneration->msg = std::string("Extreme Terrain: ") + (optModernTerrainGeneration ? "ON" : "OFF");
     bOptionExperimentalFeatures->msg = std::string("Experimental Features: ") + (optExperimentalFeatures ? "ON" : "OFF");
+    if(height<240){
+      bOptionBiomeGrassTint->msg=std::string("Biome grass: ")+(optBiomeGrassTint?"ON":"OFF");
+      bOptionTallGrass->msg=std::string("Tall grass: ")+(optTallGrass?"ON":"OFF");
+      bOptionBetaWorldGeneration->msg=std::string("Beta terrain: ")+(optBetaWorldGeneration?"ON":"OFF");
+      bOptionExperimentalFeatures->msg=std::string("Experimental: ")+(optExperimentalFeatures?"ON":"OFF");
+    }
+
 }
 
 void SimpleChooseLevelScreen::setWorldOptionsVisible(bool visible)
@@ -125,6 +136,8 @@ void SimpleChooseLevelScreen::setWorldOptionsVisible(bool visible)
     if (bWorldOptions) { bWorldOptions->visible = !visible; bWorldOptions->active = !visible; }
     if (bCreate) { bCreate->visible = !visible; bCreate->active = !visible; }
 
+    if(bOptionsPrevious){bOptionsPrevious->visible=visible&&height<240;bOptionsPrevious->active=visible&&worldOptionsPage>0;}
+    if(bOptionsNext){bOptionsNext->visible=visible&&height<240;bOptionsNext->active=visible&&worldOptionsPage<1;}
     Button* optionButtons[] = { bOptionsBack, bOptionCaves, bOptionRavines, bOptionWaterLakes, bOptionLavaLakes, bOptionWaterSprings, bOptionLavaSprings, bOptionBiomeGrassTint, bOptionTallGrass, bOptionBetaWorldGeneration, bOptionModernTerrainGeneration, bOptionExperimentalFeatures };
     for (int i = 0; i < 12; ++i) {
         if (optionButtons[i]) {
@@ -184,8 +197,11 @@ void SimpleChooseLevelScreen::init()
         bOptionExperimentalFeatures = new Button(16, "");
         bCreate  = new Button(3, "Create");
     }
+    bOptionsPrevious=minecraft->useTouchscreen()?static_cast<Button*>(new Touch::TButton(18,"Previous")):new Button(18,"Previous");
+    bOptionsNext=minecraft->useTouchscreen()?static_cast<Button*>(new Touch::TButton(19,"Next")):new Button(19,"Next");
     refreshWorldOptionLabels();
 
+    buttons.push_back(bOptionsPrevious);buttons.push_back(bOptionsNext);tabButtons.push_back(bOptionsPrevious);tabButtons.push_back(bOptionsNext);
     buttons.push_back(bHeader);
     buttons.push_back(bBack);
     buttons.push_back(bGamemode);
@@ -230,6 +246,7 @@ void SimpleChooseLevelScreen::init()
 
 void SimpleChooseLevelScreen::setupPositions()
 {
+    refreshWorldOptionLabels();
     int buttonHeight = bBack->height;
     bBack->x = width - bBack->width;
     bBack->y = 0;
@@ -292,6 +309,26 @@ void SimpleChooseLevelScreen::setupPositions()
     bCreate->x = centerX - bCreate->width / 2;
     int bottomPadding = 20;
     bCreate->y = height - bottomPadding - bCreate->height;
+    bOptionsPrevious->visible=bOptionsNext->visible=inWorldOptions&&height<240;
+    bOptionsPrevious->active=bOptionsPrevious->visible&&worldOptionsPage>0;bOptionsNext->active=bOptionsNext->visible&&worldOptionsPage<1;
+    const int normalOptionHeight=minecraft->useTouchscreen()?26:20;
+    for(int i=0;i<11;++i){optionButtons[i]->height=normalOptionHeight;optionButtons[i]->visible=optionButtons[i]->active=inWorldOptions;}
+    if(height<240){
+        const int footerY=height-8-bOptionsBack->height;
+        const int rowHeight=std::max(12,std::min(normalOptionHeight,(footerY-optionsStartY-16)/3));
+        for(int i=0;i<11;++i){const int local=i-worldOptionsPage*6;optionButtons[i]->height=rowHeight;optionButtons[i]->y=optionsStartY+(local/2)*(rowHeight+4);optionButtons[i]->visible=optionButtons[i]->active=inWorldOptions&&local>=0&&local<6;}
+        const int footerWidth=(width-32)/3;Button* footer[]={bOptionsPrevious,bOptionsNext,bOptionsBack};for(int i=0;i<3;++i){footer[i]->width=footerWidth;footer[i]->x=8+i*(footerWidth+8);footer[i]->y=footerY;}
+    }
+
+    if(height<240){
+        const int margin=12,gap=8,column=(width-margin*2-gap)/2;
+        tLevelName.width=tSeed.width=column;tLevelName.x=margin;tSeed.x=margin+column+gap;tLevelName.y=tSeed.y=buttonHeight+20;
+        bGamemode->width=bWorldType->width=bWorldOptions->width=bCreate->width=column;
+        bGamemode->x=bWorldOptions->x=margin;bWorldType->x=bCreate->x=margin+column+gap;
+        bGamemode->y=bWorldType->y=tLevelName.y+tLevelName.height+10;
+        bWorldOptions->y=bCreate->y=height-8-bCreate->height;
+    }
+
 }
 
 void SimpleChooseLevelScreen::tick()
@@ -333,7 +370,7 @@ void SimpleChooseLevelScreen::render( int xm, int ym, float a )
         const char* worldTypeDesc = generatorVersion == LGV_INFINITE
             ? "Infinite terrain with chunk streaming"
             : "Original finite 256x256 world";
-        drawCenteredString(minecraft->font, worldTypeDesc, width/2, bWorldType->y + bWorldType->height + 4, 0xffcccccc);
+        drawCenteredString(minecraft->font, worldTypeDesc, width/2, bWorldType->y + bWorldType->height + (height<240?14:4), 0xffcccccc);
 
         drawString(minecraft->font, "World name:", tLevelName.x, tLevelName.y - Font::DefaultLineHeight - 2, 0xffcccccc);
         drawString(minecraft->font, "World seed:", tSeed.x, tSeed.y - Font::DefaultLineHeight - 2, 0xffcccccc);
@@ -341,7 +378,7 @@ void SimpleChooseLevelScreen::render( int xm, int ym, float a )
             drawCenteredString(minecraft->font, "A world with this name already exists", width/2, bCreate->y - Font::DefaultLineHeight - 4, 0xffff5555);
     } else {
         drawCenteredString(minecraft->font, "World Options", width/2, bHeader->height + 14, 0xffffffff);
-        drawCenteredString(minecraft->font, generatorVersion == LGV_INFINITE ? "Infinite tuning + extras" : "Classic options default off", width/2, bHeader->height + 25, 0xffcccccc);
+        drawCenteredString(minecraft->font, generatorVersion == LGV_INFINITE ? "Infinite terrain settings" : "Classic terrain settings", width/2, bHeader->height + 25, 0xffcccccc);
     }
 
     for (unsigned int i = 0; i < buttons.size(); i++)
@@ -415,6 +452,8 @@ void SimpleChooseLevelScreen::buttonClicked( Button* button )
         setupPositions();
         return;
     }
+    if(button==bOptionsPrevious){worldOptionsPage=std::max(0,worldOptionsPage-1);setupPositions();return;}
+    if(button==bOptionsNext){worldOptionsPage=std::min(1,worldOptionsPage+1);setupPositions();return;}
     if (button == bOptionsBack) { inWorldOptions = false; worldOptionsScroll = 0; setWorldOptionsVisible(false); setupPositions(); return; }
     if (button == bOptionCaves) { optCaves = !optCaves; refreshWorldOptionLabels(); return; }
     if (button == bOptionRavines) { optRavines = !optRavines; refreshWorldOptionLabels(); return; }

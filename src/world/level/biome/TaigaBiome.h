@@ -12,6 +12,7 @@ class TaigaBiome: public Biome
 {
 public:
     Feature* getTreeFeature(Random* random) {
+        if (random->nextInt(6) == 0) return new SpruceFeature(false, true);
         if (random->nextInt(3) == 0) {
             return new PineFeature();
         }

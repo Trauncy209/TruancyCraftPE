@@ -1,3 +1,6 @@
+#include "network/java/JavaWeaponAnimation.h"
+#include "network/java/JavaCrossbowAnimation.h"
+#include "../../network/java/JavaEntityAdapter.h"
 #include "ItemInHandRenderer.h"
 
 #include "gles.h"
@@ -21,6 +24,10 @@
 #include "../../world/item/BowItem.h"
 #include "../../world/level/tile/LeafTile.h"
 #include "entity/HumanoidMobRenderer.h"
+#include "../../network/java/JavaGameSession.h"
+#include "../../network/java/JavaItemIcons.h"
+#include "../../network/java/JavaShieldModel.h"
+#include "../../network/java/JavaPackItemModels.h"
 
 //static StopwatchHandler handler;
 
@@ -57,6 +64,14 @@ void ItemInHandRenderer::tick()
 		item.setAuxValue(itemInHand->getAuxValue());
 	}
 
+ // Retain the native equip/swing transforms for items absent from the old ID table.
+ if(mc->javaSession){const auto& held=mc->javaSession->inventory.held;
+  const std::string model=held.itemModel.empty()?held.resourceId:held.itemModel;
+  const bool modernVisual=JavaPackItemModels::has(model)||JavaItemIcons::has(held.resourceId);
+  if(held.count<=0||(!modernVisual&&held.originalId<0))item.id=0;
+  else if(modernVisual&&(item.id<=0||item.id>=Item::MAX_ITEMS||!item.getItem())){item.id=Item::stick->id;item.setAuxValue(0);}
+ }
+
 	float max = 0.4f;
 	float tHeight = 1;//matches ? 1 : 0;
 	float dd = tHeight - height;
@@ -66,8 +81,43 @@ void ItemInHandRenderer::tick()
 	height += dd;
 }
 
-void ItemInHandRenderer::renderItem(Mob* mob,  ItemInstance* item )
+void ItemInHandRenderer::renderItem(Mob* mob,  ItemInstance* item,bool offHand )
 {
+ const bool firstPerson=mc->javaSession&&mob==mc->player&&(offHand||item==&this->item);
+ const auto* javaHeld=firstPerson?(offHand?&mc->javaSession->inventory.offHand:&mc->javaSession->inventory.held):javaCarriedItem(mob,offHand);
+ if(javaHeld){
+  const auto& held=*javaHeld;const std::string model=held.itemModel.empty()?held.resourceId:held.itemModel;
+  if(held.count>0&&(JavaPackItemModels::has(model)||JavaItemIcons::has(held.resourceId))){
+   const float brightness=mc->level->getBrightness(Mth::floor(mob->x),Mth::floor(mob->y),Mth::floor(mob->z));
+   std::string icon=mc->javaSession?JavaItemIcons::animatedResource(*mc->javaSession,held,mob->x,mob->z,mob->yRot,mc->getSimulationTick(),mob->entityId,mob==mc->player):held.resourceId;
+   if(held.resourceId.size()>=6&&held.resourceId.compare(held.resourceId.size()-6,6,"_spear")==0&&JavaItemIcons::has(held.resourceId+"_in_hand"))icon=held.resourceId+"_in_hand";
+   if(firstPerson&&mc->javaSession->itemUseActive&&mc->javaSession->itemUseOffHand==offHand&&held.resourceId=="minecraft:bow"){
+    const double pull=mc->javaSession->itemUseTicks*.05;
+    icon=pull>=.9?"minecraft:bow_pulling_2":pull>=.65?"minecraft:bow_pulling_1":"minecraft:bow_pulling_0";
+   }
+   if(!firstPerson&&held.resourceId=="minecraft:bow"){
+    const auto* use=javaPresentationSnapshot(mob);
+    if(use&&use->usingItem&&use->usingOffhand==offHand){const double pull=use->useTicks*.05;icon=pull>=.9?"minecraft:bow_pulling_2":pull>=.65?"minecraft:bow_pulling_1":"minecraft:bow_pulling_0";}
+   }
+   if(held.resourceId=="minecraft:crossbow"){
+    const auto* use=firstPerson?nullptr:javaPresentationSnapshot(mob);
+    const bool active=firstPerson?(mc->javaSession->itemUseActive&&mc->javaSession->itemUseOffHand==offHand):(use&&use->usingItem&&use->usingOffhand==offHand);
+    icon=JavaCrossbowAnimation::resource(active,firstPerson?float(mc->javaSession->itemUseTicks):use?float(use->useTicks):0,firstPerson?float(mc->javaSession->itemUseChargeDuration):use?float(use->useChargeDuration):0,held.chargedProjectile);
+   }
+   glPushMatrix2();bool drawn=false;
+   if(JavaPackItemModels::has(model))drawn=JavaPackItemModels::renderContext(mc->textures,model,firstPerson?(offHand?"firstperson_lefthand":"firstperson_righthand"):(offHand?"thirdperson_lefthand":"thirdperson_righthand"),brightness,&held);
+   else if(held.resourceId=="minecraft:shield"){
+    const auto* use=firstPerson?nullptr:javaPresentationSnapshot(mob);
+    const bool blocking=firstPerson?(mc->javaSession->itemUseActive&&mc->javaSession->itemUseOffHand==offHand):(use&&use->usingItem&&use->usingOffhand==offHand);
+    drawn=JavaShieldModel::renderHeld(mc->textures,firstPerson,offHand,blocking,brightness,&held);
+   }
+   else if(JavaItemIcons::isBlock(held.resourceId))drawn=JavaItemIcons::renderWorld(mc->textures,icon,2.f,brightness,&held);
+   else {glTranslatef2(0,-.3f,0);glScalef2(1.5f,1.5f,1.5f);glRotatef2(50,0,1,0);glRotatef2(335,0,0,1);glTranslatef2(-.4375f,-.0625f,0);drawn=JavaItemIcons::renderWorld(mc->textures,icon,1.f,brightness,&held);}
+   glPopMatrix2();if(drawn||(held.hasProfile&&held.resourceId=="minecraft:player_head"))return;
+  }
+  if(held.count<=0||held.originalId<0)return; // Never display a stale surrogate after pack removal.
+ }
+
 	if (item == NULL || item->count <= 0 || item->id <= 0 || item->id >= Item::MAX_ITEMS || item->getItem() == NULL) {
 		return;
 	}
@@ -274,9 +324,15 @@ void ItemInHandRenderer::render( float a )
 
 	if (item != NULL) {
 		glColor4f2(br, br, br, 1);
-		bool isUsing = player->getUseItemDuration() > 0;
+		const auto* javaUse=mc->javaSession;
+        bool isUsing = javaUse ? (javaUse->itemUseActive&&!javaUse->itemUseOffHand) : player->getUseItemDuration()>0;
+        UseAnim::UseAnimation useAnimation=item->getUseAnimation();
+        if(javaUse){useAnimation=UseAnim::none;if(javaUse->itemUseAnimation=="eat")useAnimation=UseAnim::eat;else if(javaUse->itemUseAnimation=="drink")useAnimation=UseAnim::drink;else if(javaUse->itemUseAnimation=="bow")useAnimation=UseAnim::bow;else if(javaUse->itemUseAnimation=="block_kind")useAnimation=UseAnim::block;}
+        const float useDuration=javaUse?float(javaUse->itemUseDuration):float(item->getUseDuration());
+        const float useRemaining=javaUse?std::max(0.f,useDuration-float(javaUse->itemUseTicks)):float(player->getUseItemDuration());
 		bool isBow = item->id == Item::bow->id;
-		bool noSwingAnimation = isUsing && (isBow || (item->getUseAnimation() != UseAnim::none));
+		const bool javaSpear=mc->javaSession&&mc->javaSession->inventory.held.resourceId.size()>=6&&mc->javaSession->inventory.held.resourceId.compare(mc->javaSession->inventory.held.resourceId.size()-6,6,"_spear")==0;
+		bool noSwingAnimation = javaSpear || (isUsing && (isBow || (javaUse&&javaUse->itemUseAnimation=="crossbow") || (useAnimation != UseAnim::none)));
 		const float swing = noSwingAnimation ? 0 : player->getAttackAnim(a);
 		const float sqrtSwing = Mth::sqrt(swing);
 		const float swing3 = Mth::sin(swing * swing * Mth::PI);
@@ -286,10 +342,10 @@ void ItemInHandRenderer::render( float a )
 		glPushMatrix2();
 
 		if (isUsing) {
-			UseAnim::UseAnimation anim = item->getUseAnimation();
+			UseAnim::UseAnimation anim = useAnimation;
 			if (anim == UseAnim::eat || anim == UseAnim::drink) {
-				float t = (player->getUseItemDuration() - a + 1);
-				float useProgress = 1 - (t / item->getUseDuration());
+				float t = (useRemaining - a + 1);
+				float useProgress = 1 - (t / std::max(1.f,useDuration));
 
 				float swing = useProgress;
 				float is = 1 - swing;
@@ -310,20 +366,35 @@ void ItemInHandRenderer::render( float a )
 		glTranslatef2(0.7f * d, -0.65f * d - (1 - h) * 0.6f, -0.9f * d);
 
 		glRotatef2(45, 0, 1, 0);
+        if(javaSpear&&!isUsing){const auto jab=JavaWeaponAnimation::jab(player->getAttackAnim(a));glTranslatef2(jab.x,jab.y,jab.z);glRotatef2(jab.pitch,1,0,0);glTranslatef2(0,0,jab.tailZ);}
+        if(javaSpear&&isUsing&&javaUse){
+            const auto pose=JavaWeaponAnimation::charge(float(javaUse->itemUseTicks)+a,float(javaUse->itemUseKineticDelay),float(javaUse->itemUseKineticDismount),float(javaUse->itemUseKineticKnockback),float(javaUse->itemUseKineticDamage));
+            glTranslatef2(pose.x,pose.y,pose.z);
+            glTranslatef2(0,.1f,0);glRotatef2(pose.pitch,1,0,0);glTranslatef2(0,-.1f,0);
+            glTranslatef2(.15f,0,0);glRotatef2(pose.yaw,0,-1,0);glTranslatef2(-.15f,0,0);
+        }
 		//glEnable2(GL_RESCALE_NORMAL);
 		glRotatef2(-swing3 * 20, 0, 1, 0);
 		glRotatef2(-swing2 * 20, 0, 0, 1);
 		glRotatef2(-swing2 * 80, 1, 0, 0);
 		float ss = 0.4f;
 		glScalef2(ss, ss, ss);
-		if (player->getUseItemDuration() > 0) {
-			UseAnim::UseAnimation anim = item->getUseAnimation();
-			if(anim == UseAnim::bow) {
+		if (isUsing) {
+			UseAnim::UseAnimation anim = useAnimation;
+			if(anim == UseAnim::block) {
+                glTranslatef2(-.35f,.18f,.12f);glRotatef2(-35,0,1,0);glRotatef2(-20,1,0,0);
+            }
+            if(javaUse&&javaUse->itemUseAnimation=="crossbow"&&javaUse->itemUseChargeDuration>0){
+                const auto pose=JavaCrossbowAnimation::charge(float(javaUse->itemUseTicks),a,float(javaUse->itemUseChargeDuration));
+                glTranslatef2(pose.x,pose.y,pose.z);glRotatef2(pose.pitch,1,0,0);glRotatef2(pose.yaw,0,1,0);glRotatef2(pose.roll,0,0,1);
+                glTranslatef2(0,pose.shakeY,0);glTranslatef2(0,0,pose.drawZ);glScalef2(1,1,pose.scaleZ);glRotatef2(pose.tailYaw,0,1,0);
+            }
+            if(anim == UseAnim::bow) {
 				glRotatef(-18, 0, 0, 1);
 				glRotatef(-12, 0, 1, 0);
 				glRotatef(-8, 1, 0, 0);
 				glTranslatef(-0.9f, 0.2f, 0.0f);
-				float timeHeld = (item->getUseDuration() - (player->getUseItemDuration() - a + 1));
+				float timeHeld = std::max(0.f,useDuration - (useRemaining - a + 1));
 				float pow = timeHeld / (float) (BowItem::MAX_DRAW_DURATION);
 				pow = ((pow * pow) + pow * 2) / 3;
 				if (pow > 1) pow = 1;
@@ -342,6 +413,9 @@ void ItemInHandRenderer::render( float a )
 				glRotatef(45 + 290, 0, 0, 1);
 			}
 		}
+        if(!isUsing&&javaUse&&javaUse->inventory.held.resourceId=="minecraft:crossbow"&&!javaUse->inventory.held.chargedProjectile.empty()&&swing<.001f){
+            glTranslatef2(-.641864f,0,0);glRotatef2(10,0,1,0);
+        }
 		Item* renderItemType = item->getItem();
 		if (renderItemType == NULL) {
 			glPopMatrix2();
@@ -392,6 +466,33 @@ void ItemInHandRenderer::render( float a )
 		playerRenderer->renderHand();
 		glPopMatrix2();
 	}
+ if(mc->javaSession&&mc->javaSession->inventory.offHand.count>0){
+  const auto& off=mc->javaSession->inventory.offHand;ItemInstance legacy;
+  if(off.originalId>0&&off.originalId<Item::MAX_ITEMS&&Item::items[off.originalId])legacy=ItemInstance(off.originalId,off.count,off.originalData);
+  glPushMatrix2();glTranslatef2(-.64f,-.6f-(1-h)*.6f,-.72f);glRotatef2(-45,0,1,0);
+  const auto& use=*mc->javaSession;
+  if(use.itemUseActive&&use.itemUseOffHand){
+   if(use.itemUseAnimation=="block_kind"){
+    glTranslatef2(.22f,.12f,.12f);glRotatef2(35,0,1,0);glRotatef2(-20,1,0,0);
+   }else if(use.itemUseAnimation=="crossbow"&&use.itemUseChargeDuration>0){
+    const auto pose=JavaCrossbowAnimation::charge(float(use.itemUseTicks),a,float(use.itemUseChargeDuration),-1);
+    glTranslatef2(pose.x,pose.y,pose.z);glRotatef2(pose.pitch,1,0,0);glRotatef2(pose.yaw,0,1,0);glRotatef2(pose.roll,0,0,1);
+    glTranslatef2(0,pose.shakeY,0);glTranslatef2(0,0,pose.drawZ);glScalef2(1,1,pose.scaleZ);glRotatef2(pose.tailYaw,0,1,0);
+   }else if(use.itemUseAnimation=="spear"){
+    const auto pose=JavaWeaponAnimation::charge(float(use.itemUseTicks)+a,float(use.itemUseKineticDelay),float(use.itemUseKineticDismount),float(use.itemUseKineticKnockback),float(use.itemUseKineticDamage),0,-1);
+    glTranslatef2(pose.x,pose.y,pose.z);glTranslatef2(0,.1f,0);glRotatef2(pose.pitch,1,0,0);glTranslatef2(0,-.1f,0);
+    glTranslatef2(-.15f,0,0);glRotatef2(pose.yaw,0,-1,0);glTranslatef2(.15f,0,0);
+   }else if(use.itemUseAnimation=="eat"||use.itemUseAnimation=="drink"){
+    const float remaining=std::max(0.f,float(use.itemUseDuration-use.itemUseTicks)-a+1);
+    const float progress=std::max(0.f,std::min(1.f,1-remaining/std::max(1.f,float(use.itemUseDuration))));
+    const float amount=1-std::pow(1-progress,27.f);
+    glTranslatef2(-amount*.6f,-amount*.5f+std::abs(std::cos(remaining/4*Mth::PI)*.1f)*(progress>.2f?1:0),0);
+    glRotatef2(-amount*90,0,1,0);glRotatef2(amount*10,1,0,0);glRotatef2(-amount*30,0,0,1);
+   }
+  }
+  glScalef2(.4f,.4f,.4f);
+  renderItem(player,legacy.isNull()?nullptr:&legacy,true);glPopMatrix2();
+ }
 	//glDisable2(GL_RESCALE_NORMAL);
 	//Lighting.turnOff();
 	//w.stop();

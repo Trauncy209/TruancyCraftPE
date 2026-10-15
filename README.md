@@ -16,7 +16,19 @@ We want to preserve what made early Pocket Edition special, fix what was broken,
 [![Issues](https://img.shields.io/github/issues/Trauncy209/TruancyCraftPE?style=for-the-badge)](https://github.com/Trauncy209/TruancyCraftPE/issues)
 [![Last Commit](https://img.shields.io/github/last-commit/Trauncy209/TruancyCraftPE?style=for-the-badge)](https://github.com/Trauncy209/TruancyCraftPE/commits/main)
 
-**Current release: [v0.5.22.1](https://github.com/Trauncy209/TruancyCraftPE/releases/tag/v0.5.22.1)** · [32-bit and 64-bit APKs](https://github.com/Trauncy209/TruancyCraftPE/releases/tag/v0.5.22.1) · [Checksums & scans](verification/README.md)
+**v0.5.23 · Java servers alpha** · [Previous release: v0.5.22.1](https://github.com/Trauncy209/TruancyCraftPE/releases/tag/v0.5.22.1) · [Checksums & signing details](verification/README.md)
+
+Pick the build for your device:
+
+| Your device | Download |
+| :--- | :--- |
+| Android 64-bit — recommended for most newer phones | [Android 64-bit APK](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.23/TruancyCraftPE-0.5.23-Android-arm64-v8a.apk) |
+| Android 32-bit — older ARM phones | [Android 32-bit APK](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.23/TruancyCraftPE-0.5.23-Android-armeabi-v7a.apk) |
+| Linux 64-bit — x86_64 desktop/laptop | [Linux archive](https://github.com/Trauncy209/TruancyCraftPE/releases/download/v0.5.23/TruancyCraftPE-0.5.23-Linux-x86_64.tar.gz) |
+
+On Linux, extract the archive and run `launch.sh`. Keep the included `data` and `lib` folders beside the game.
+
+Both Android APKs and Linux require **GLES3-capable graphics**. The GLES3 shader backend supports TCPE's existing drawing calls; the game is still native TCPE with Rust handling Java networking.
 
 **Join the community:** https://discord.gg/zeuspvp
 
@@ -33,11 +45,13 @@ I'm also really busy running our cracked Java network, **[ZeusPvP.net](https://w
 
 Official APKs now use our own **Truancy209 release certificate**. v0.5.22.1 keeps the v0.5.22 game files unchanged and replaces debug signing. [Hashes, the public certificate, and VirusTotal links](verification/README.md) are published with the downloads.
 
+v0.5.23 brings game changes again. Its Android APKs use the same release key, and the Linux archive has a detached release signature. Checksums and verification notes accompany the downloads. Classic/infinite worlds, terrain options and touch controls carry forward from previous builds.
+
 Coming from an older build? [Read the signing update notes](docs/RELEASE-SIGNING.md) before replacing an installation so your worlds stay safe.
 
 ## Screenshots
 
-Here is what TruancyCraftPE looks like right now on-device.
+A look at TruancyCraftPE on mobile. These screenshots are from earlier builds; newer v0.5.23 screens will be added as the game keeps improving.
 
 ### Main menu and player setup
 
@@ -124,12 +138,28 @@ Current work in this repository includes:
   - render distance option
   - more menu and settings work than stock 0.6.1
   - mobile-oriented tuning options like pixels-per-millimeter
-- **Multiplayer and LAN work**
-  - LAN discovery
+  - custom keyboard bindings without losing the touch-first layout
+  - native Java-server inventory and crafting screens, with the hotbar first and item rearrangement
+- **Multiplayer and earlier LAN work**
+  - earlier LAN discovery code remains in the source; this release's Join Game screen uses the Java server list
   - saved server list support
   - Add Server flow
   - touch Join Game improvements
-- **Modern Android build support**
+- **Modern Android build support** — 32-bit and 64-bit ARM
+- **Linux desktop support** — x86_64, keyboard/mouse controls and a packaged launcher
+- **GLES3 shader rendering on Android and Linux**
+- **Java Edition 1.21.11 networking in Rust**
+  - native server menus, readable top-left chat, colored MOTDs and server icons
+  - a native PE Storage/Menu toggle that remembers your choice
+  - one-second server-list refreshes, including offscreen rows
+  - native 2x2/3x3 crafting, hotbar-first inventory and whole/half/quick transfers
+  - account sign-in settings and player-profile skins
+  - work on resource packs, custom models, holograms and modern items
+  - Elytra and firework support, with compatibility still being tested
+- **Singleplayer fixes and trees**
+  - corrected see-through faces along infinite-world chunk boundaries
+  - fixed red backgrounds behind Creative inventory item icons
+  - large/broad oaks, tall birches and tall spruce, mixed with the smaller trees
 - **Touch/UI cleanup for newer phones**
 - **Sprinting**
 - **Debug/F3-style information improvements**
@@ -151,6 +181,8 @@ The codebase includes support for modernized infinite-world generation pieces su
 If you want the old feel, you can still make a **Classic world**.
 If you want expanded terrain, you can make an **Infinite world** and tune the worldgen options.
 
+Chunk rebuilds have been improved, including a fix for see-through chunk edges in infinite worlds. Large branched oaks, broad oaks, tall birch and tall spruce add more variety to new terrain and newly grown trees; existing trees stay as they were.
+
 ---
 
 ## Multiplayer status
@@ -164,7 +196,9 @@ TruancyCraftPE already includes multiplayer restoration work such as:
 - server MOTD ping display for saved/discovered servers
 - touch multiplayer UX improvements
 
-This is still an active area of development, especially around compatibility and protocol cleanup.
+v0.5.23 adds **Java Edition 1.21.11 server networking in Rust**, while keeping the native TCPE game and touch controls. Server menus, inventory, crafting and chat are being made to feel at home here too.
+
+This is still an alpha and an active area of development. Rust handles the Java networking; the game and renderer are still native TCPE. There is more work to do on server, plugin and resource-pack compatibility, gameplay and performance, especially on phones.
 
 ---
 
@@ -225,47 +259,50 @@ Please include logs, screenshots, device info, or reproduction steps whenever po
 
 ### Android build
 
-The current Android build flow uses `build.sh`.
+The v0.5.23 build uses Rust for Java server networking, then the Android NDK for the native GLES3 game. Build both libraries for the same ABI before packaging the APK.
 
-Example full build:
-
-```bash
-ANDROID_SDK_ROOT=/home/Alkaline/Android/Sdk \
-ANDROID_NDK_PATH=/home/Alkaline/Android/Sdk/ndk/26.1.10909125 \
-ADB=/usr/bin/true \
-bash ./build.sh --abi arm64-v8a
-```
-
-Useful variants:
+You need Rustup, Python 3, JDK 17 or newer, `ripgrep`, Android SDK platform 34, build-tools 36.0.0 and NDK 26.1.10909125. The commands below run from the repository root on Linux.
 
 ```bash
-# skip Java rebuild
-bash ./build.sh --abi arm64-v8a --no-java
+export ANDROID_SDK_ROOT="$HOME/Android/Sdk"
+export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/26.1.10909125"
+rustup toolchain install nightly-2026-02-03 --profile minimal
+rustup target add --toolchain nightly-2026-02-03 \
+  aarch64-linux-android armv7-linux-androideabi
 
-# skip C++ rebuild
-bash ./build.sh --abi arm64-v8a --no-cpp
-
-# package only
-bash ./build.sh --abi arm64-v8a --no-java --no-cpp
+# Use armeabi-v7a here for the 32-bit build.
+ABI=arm64-v8a
+bash tools/build-android-network.sh "$ABI"
+"$ANDROID_NDK_HOME/ndk-build" -C project/android -j2 \
+  APP_ABI="$ABI" TCPE_GLES3=1 \
+  NDK_MODULE_PATH="$PWD/project/lib_projects"
+python3 tools/build-android-apk.py --abi "$ABI" --gles3 \
+  --output "build/TruancyCraftPE-0.5.23-Android-$ABI-development.apk"
 ```
+
+To build Android 32-bit, set `ABI=armeabi-v7a` and repeat the networking, NDK and packaging steps. Keep each ABI's networking library in `mobile-libs/<ABI>/`.
 
 ### Important packaging note
 
-On this project, the Android `d8` / `r8` step can crash on:
+Without a release keystore, the packager makes a **local development build**. It does not have the official Truancy209 signature and cannot update an official installation. Back up your worlds before changing signing keys. The private release key is not included; see [verification and signing details](verification/README.md) for the public certificate and checks.
 
-- `build-apk/classes/com/mojang/minecraftpe/MainActivity$1.class`
+The current packaging flow uses the SDK's `d8`. The old `dx` workaround was for earlier builds and is not needed for the verified v0.5.23 release build.
 
-If that happens, the current working fallback is:
+### Linux
+
+The Linux download includes the game and its matching networking library. Extract it somewhere writable and start `launch.sh`; worlds and settings stay with that copy. The Linux build is tested against Ubuntu 24.04. A GLES3-capable graphics driver and X11 or XWayland are required. Other distributions need glibc 2.38 or newer, a compatible C++ runtime, GLFW 3, OpenAL, libpng and zlib.
+
+For a source build on Ubuntu 24.04, install the native build dependencies and the same pinned Rust toolchain:
 
 ```bash
-/home/Alkaline/Android/Sdk/build-tools/30.0.3/dx \
-  --dex --output=build-apk/classes.dex build-apk/classes
-
-ANDROID_SDK_ROOT=/home/Alkaline/Android/Sdk \
-ANDROID_NDK_PATH=/home/Alkaline/Android/Sdk/ndk/26.1.10909125 \
-ADB=/usr/bin/true \
-bash ./build.sh --abi arm64-v8a --no-java --no-cpp
+sudo apt install clang cmake pkg-config libpng-dev zlib1g-dev \
+  libopenal-dev libglfw3-dev libgles-dev
+rustup toolchain install nightly-2026-02-03 --profile minimal
+CXX=clang++ ./build_linux.sh
+./build/linux/launch.sh
 ```
+
+The script builds the Rust networking library and the native GLES3 game together. Keep the supplied assets and dependency notices with the build.
 
 ---
 

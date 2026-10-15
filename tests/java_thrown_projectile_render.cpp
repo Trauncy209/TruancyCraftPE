@@ -1,0 +1,30 @@
+#include "network/java/JavaWindChargeModel.h"
+#include "network/java/JavaIronGolemModel.h"
+#include "client/renderer/entity/EntityRenderDispatcher.h"
+#include "network/java/JavaEntityAdapter.h"
+#include "network/java/JavaGameSession.h"
+#include "network/java/JavaLevel.h"
+#include "world/entity/player/Player.h"
+#include "world/level/storage/MemoryLevelStorage.h"
+#include "client/renderer/Tesselator.h"
+#include "client/renderer/Textures.h"
+#include "world/level/tile/Tile.h"
+#include "world/level/material/Material.h"
+#include "world/level/biome/Biome.h"
+#include "world/entity/MobCategory.h"
+#include "util/Mth.h"
+#include "AppPlatform_glfw.h"
+#include <cassert>
+#include <png.h>
+#include <iostream>
+extern "C" TcpeJavaSession* tcpe_java_connect(const char*,size_t,const char*,size_t,bool){return nullptr;}
+extern "C" void tcpe_java_close(TcpeJavaSession*){}
+extern "C" bool tcpe_java_command(TcpeJavaSession*,const char*,size_t){return true;}
+int main(){
+ assert(glfwInit());glfwWindowHint(GLFW_VISIBLE,GLFW_TRUE);glfwWindowHint(GLFW_FOCUS_ON_SHOW,GLFW_FALSE);glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR,2);glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR,1);auto* window=glfwCreateWindow(400,400,"TCPE thrown projectile verification",nullptr,nullptr);assert(window);glfwMakeContextCurrent(window);assert(gladLoadGLES1Loader((GLADloadproc)winGLLoader));glPatchDesktopCompat();Mth::initMth();Material::initMaterials();MobCategory::initMobCategories();Tile::initTiles();Item::initItems();Biome::initBiomes();Tesselator::instance.init();
+ AppPlatform_glfw platform;Options options;Textures textures(&options,&platform);JavaGameSession session;std::vector<uint16_t> air(4096,0);std::vector<uint8_t> sunlight(2048,255);uint8_t flag=1;TcpeJavaEvent chunk{};chunk.kind=TCPE_JAVA_CHUNK;chunk.height=16;chunk.states=air.data();chunk.states_len=air.size();chunk.sky_light=sunlight.data();chunk.sky_light_len=sunlight.size();chunk.light_sections=&flag;chunk.light_sections_len=1;assert(session.chunks.apply(chunk));JavaLevel level(new MemoryLevelStorage(),session.chunks);
+ int id=2001;for(const char* kind:{"Snowball","Egg","EnderPearl","ExperienceBottle","SplashPotion","LingeringPotion"}){JavaGameSession::Entity e{};e.id=id++;e.kind=kind;e.position={{2,10,3}};session.entities[e.id]=e;}synchronizeJavaEntities(&level,session);EntityRenderDispatcher dispatcher;dispatcher.textures=&textures;dispatcher.level=&level;dispatcher.playerRotY=dispatcher.playerRotX=0;
+ glViewport(0,0,400,400);glMatrixMode(GL_PROJECTION);glLoadIdentity();glOrthof(-.5f,.5f,-.5f,.5f,-4,4);glMatrixMode(GL_MODELVIEW);glLoadIdentity();glEnable2(GL_DEPTH_TEST);glClearColor(0,0,0,1);std::vector<std::vector<unsigned char>> frames;
+ for(int entityId=2001;entityId<2007;++entityId){auto* entity=static_cast<Level&>(level).getEntity(entityId);assert(entity&&entity->getEntityTypeId()==125&&!entity->isMob());for(int i=0;i<30;++i)entity->tick();assert(entity->x==2&&entity->y==10&&entity->z==3);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);glColor4f2(.2f,.3f,.4f,.5f);glDisable2(GL_BLEND);glEnable2(GL_ALPHA_TEST);glEnable2(GL_CULL_FACE);assert(renderJavaPresentation(entity,dispatcher,0,0,0,1));assert(!glIsEnabled(GL_BLEND)&&glIsEnabled(GL_ALPHA_TEST)&&glIsEnabled(GL_CULL_FACE));GLfloat color[4];glGetFloatv(GL_CURRENT_COLOR,color);assert(std::abs(color[0]-.2f)<.0001f);glFinish();assert(glGetError()==GL_NO_ERROR);std::vector<unsigned char> pixels(400*400*4);glReadPixels(0,0,400,400,GL_RGBA,GL_UNSIGNED_BYTE,pixels.data());size_t lit=0;for(size_t i=0;i<pixels.size();i+=4)if(pixels[i]+pixels[i+1]+pixels[i+2]>30)++lit;assert(lit>100);frames.push_back(pixels);std::vector<unsigned char> flipped(pixels.size());for(int row=0;row<400;++row)std::copy(pixels.begin()+row*1600,pixels.begin()+(row+1)*1600,flipped.begin()+(399-row)*1600);png_image image{};image.version=PNG_IMAGE_VERSION;image.width=image.height=400;image.format=PNG_FORMAT_RGBA;std::string file="../native-thrown-"+std::to_string(entityId)+".png";assert(png_image_write_to_file(&image,file.c_str(),0,flipped.data(),0,nullptr));glfwSwapBuffers(window);glfwPollEvents();}
+ for(size_t i=0;i<frames.size();++i)for(size_t j=i+1;j<frames.size();++j)assert(frames[i]!=frames[j]);std::cout<<"Thrown projectiles: six actual kinds/non-mob models, stationary server ownership, distinct textured sprites and GL state restoration PASS"<<std::endl;std::_Exit(0);
+}

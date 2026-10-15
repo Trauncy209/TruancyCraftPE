@@ -1,0 +1,8 @@
+#define main retained_dialog_main
+#include "dialog_session.cpp"
+#undef main
+static void message(JavaGameSession& s,const std::string& signature){eventKind=TCPE_JAVA_CHAT;strings={{"text","same visible text"},{"signature",signature}};pending=true;s.tick();}
+static void removeMessage(JavaGameSession& s,const std::string& signature){eventKind=TCPE_JAVA_DELETE_CHAT;strings={{"signature",signature}};pending=true;s.tick();}
+int main(){JavaGameSession s;assert(s.connect("local","QA",false));const std::string a(512,'a'),b(512,'b');message(s,a);message(s,b);message(s,"");assert(s.messages.size()==3&&s.messageSignatures.size()==3);const auto oldScope=s.chatScope;removeMessage(s,a);assert(s.messages.size()==2&&s.messageSignatures[0].find(b)!=std::string::npos&&s.messageSignatures[1].empty());assert(s.pendingChatDeletes.size()==1);message(s,a);assert(s.messages.size()==2);for(auto invalid:{std::string(511,'a'),std::string(513,'a'),std::string(512,'g')}){auto size=s.pendingChatDeletes.size();removeMessage(s,invalid);assert(s.pendingChatDeletes.size()==size);message(s,invalid);assert(s.messages.size()==2);}
+ s.chatActionsPending=true;s.chatActionSignature=s.messageSignatures[0];removeMessage(s,a);assert(s.chatActionsPending);removeMessage(s,b);assert(!s.chatActionsPending);
+ s.disconnect();assert(s.pendingChatDeletes.empty()&&s.messageSignatures.empty()&&s.deletedChatSignatures.empty());assert(s.connect("other","QA",false)&&s.chatScope!=oldScope);message(s,a);assert(s.messages.size()==1&&s.messageSignatures[0].find(std::to_string(s.chatScope)+":")==0);std::cout<<"Native moderated chat metadata: exact signatures, identical-text isolation, pending deletion, anti-resurrection, malformed bounds and connection scope PASS\n";}

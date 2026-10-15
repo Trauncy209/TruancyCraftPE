@@ -5,6 +5,7 @@
 
 #include "Biome.h"
 #include "../levelgen/feature/TreeFeature.h"
+#include "../levelgen/feature/TreeVariants.h"
 #include "../levelgen/feature/BirchFeature.h"
 
 class ForestBiome: public Biome
@@ -12,12 +13,9 @@ class ForestBiome: public Biome
 public:
     Feature* getTreeFeature(Random* random) {
         if (random->nextInt(5) == 0) {
-            return new BirchFeature();
+            return new BirchFeature(false, random->nextInt(5) == 0);
         }
-        if (random->nextInt(3) == 0) {
-            //return new BasicTree();
-        }
-        return new TreeFeature(false);
+        return createOakVariant(random, false, true);
     }
 };
 

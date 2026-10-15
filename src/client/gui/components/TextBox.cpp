@@ -1,4 +1,5 @@
 #include "TextBox.h"
+#include "../../../platform/input/Utf8KeyText.h"
 #include "../Gui.h"
 #include "../../Minecraft.h"
 #include "../../../AppPlatform.h"
@@ -56,19 +57,17 @@ void TextBox::handleChar(char c) {
 
     if (c == '\b' || c == 127) {
         if (!text.empty()) {
-            text.pop_back();
+            Utf8KeyText::eraseLast(text);
         }
         return;
     }
 
-    if (c >= 32 && c < 127 && (int)text.size() < 256) {
-        text.push_back(c);
-    }
+    Utf8KeyText::appendByte(text,c,256);
 }
 
 void TextBox::handleKey(int key) {
     if (focused && key == Keyboard::KEY_BACKSPACE && !text.empty()) {
-        text.pop_back();
+        Utf8KeyText::eraseLast(text);
     }
 }
 
@@ -90,9 +89,9 @@ void TextBox::render(Minecraft* minecraft, int xm, int ym) {
 
     glEnable2(GL_SCISSOR_TEST);
     glScissor(
-        Gui::GuiScale * (x + 2), 
-        minecraft->height - Gui::GuiScale * (y + height - 2), 
-        Gui::GuiScale * (width - 2), 
+        Gui::GuiScale * (x + 2),
+        minecraft->height - Gui::GuiScale * (y + height - 2),
+        Gui::GuiScale * (width - 2),
         Gui::GuiScale * (height - 2)
     );
 

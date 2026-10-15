@@ -20,7 +20,7 @@ Region::Region(Level* level, int x1, int y1, int z1, int x2, int y2, int z2) {
 
     for (int xc = xc1; xc <= xc2; xc++) {
         for (int zc = zc1; zc <= zc2; zc++) {
-            chunks[xc - xc1][zc - zc1] = level->getChunk(xc, zc);
+            chunks[xc - xc1][zc - zc1] = level->isJavaServerLevel() ? NULL : level->getChunk(xc, zc);
         }
     }
 }
@@ -32,6 +32,7 @@ Region::~Region() {
 }
 
 int Region::getTile(int x, int y, int z) {
+    if (level->isJavaServerLevel()) return level->getTile(x,y,z);
     if (y < 0) return 0;
     if (y >= Level::DEPTH) return 0;
 
@@ -62,6 +63,7 @@ bool Region::isEmptyTile( int x, int y, int z )
 //}
 
 float Region::getBrightness(int x, int y, int z) {
+    if (level->isJavaServerLevel()) return level->getBrightness(x,y,z);
     return level->dimension->brightnessRamp[getRawBrightness(x, y, z)];
 }
 
@@ -70,6 +72,7 @@ int Region::getRawBrightness(int x, int y, int z) {
 }
 
 int Region::getRawBrightness(int x, int y, int z, bool propagate) {
+    if(level->isJavaServerLevel())return level->getRawBrightness(x,y,z,propagate);
     if (x < -Level::MAX_LEVEL_SIZE || z < -Level::MAX_LEVEL_SIZE || x >= Level::MAX_LEVEL_SIZE || z > Level::MAX_LEVEL_SIZE) {
         return Level::MAX_BRIGHTNESS;
     }
@@ -104,6 +107,7 @@ int Region::getRawBrightness(int x, int y, int z, bool propagate) {
 }
 
 int Region::getData(int x, int y, int z) {
+    if (level->isJavaServerLevel()) return level->getData(x,y,z);
     if (y < 0) return 0;
     if (y >= Level::DEPTH) return 0;
     int xc = (x >> 4) - xc1;

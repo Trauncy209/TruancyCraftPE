@@ -8,6 +8,7 @@
 #include "../levelgen/feature/SpruceFeature.h"
 #include "../levelgen/feature/BirchFeature.h"
 #include "../levelgen/feature/TreeFeature.h"
+#include "../levelgen/feature/TreeVariants.h"
 
 class Sapling: public Bush
 {
@@ -64,9 +65,9 @@ public:
         bool multiblock = false;
 
         if (data == LeafTile::EVERGREEN_LEAF) {
-            f = new SpruceFeature(true);
+            f = new SpruceFeature(true, random->nextInt(6) == 0);
         } else if (data == LeafTile::BIRCH_LEAF) {
-            f = new BirchFeature(true);
+            f = new BirchFeature(true, random->nextInt(5) == 0);
 //         } else if (data == TYPE_JUNGLE) {
 // 
 //             // check for mega tree
@@ -90,10 +91,7 @@ public:
 //                 f = new TreeFeature(true, 4 + random.nextInt(7), TreeTile::JUNGLE_TRUNK, LeafTile::JUNGLE_LEAF, false);
 //             }
         } else {
-            //if (random->nextInt(10) == 0) {
-            //    f = new BasicTree(true);
-            //} else
-                f = new TreeFeature(true);
+            f = createOakVariant(random, true);
         }
 
         if (multiblock) {

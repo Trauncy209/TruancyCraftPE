@@ -1,6 +1,8 @@
 #include "BiomeInclude.h"
 
 #include "../levelgen/feature/TreeFeature.h"
+#include "../levelgen/feature/BasicTree.h"
+#include "../levelgen/feature/TreeVariants.h"
 #include "../levelgen/feature/TallgrassFeature.h"
 
 #include "../../entity/EntityTypes.h"
@@ -139,10 +141,7 @@ void Biome::teardownBiomes() {
 
 Feature* Biome::getTreeFeature( Random* random )
 {
-	if (random->nextInt(10) == 0) {
-		//return /*new*/ BasicTree();
-	}
-	return new TreeFeature(false);
+	return createOakVariant(random, false);
 }
 Feature* Biome::getGrassFeature( Random* random ) {
 	return new TallgrassFeature(Tile::tallgrass->id, TallGrass::TALL_GRASS);

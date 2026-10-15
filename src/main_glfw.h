@@ -7,6 +7,7 @@
 #include "SharedConstants.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <chrono>
 #include <thread>
 #include "platform/input/Keyboard.h"
@@ -15,9 +16,13 @@
 #include "util/Mth.h"
 #include "AppPlatform_glfw.h"
 
+#ifdef TCPE_GLES3
+namespace TCPEGL3 { void takeFrameStats(unsigned&,double&); }
+#endif
 static App* g_app = 0;
 
 int transformKey(int glfwkey) {
+	if (glfwkey >= GLFW_KEY_KP_0 && glfwkey <= GLFW_KEY_KP_9) return glfwkey - GLFW_KEY_KP_0 + '0';
 	if (glfwkey >= GLFW_KEY_F1 && glfwkey <= GLFW_KEY_F12) {
 		return glfwkey - 178;
 	}
@@ -25,9 +30,25 @@ int transformKey(int glfwkey) {
 	switch (glfwkey) {
 		case GLFW_KEY_ESCAPE: return Keyboard::KEY_ESCAPE;
 		case GLFW_KEY_BACKSPACE: return Keyboard::KEY_BACKSPACE;
-		case GLFW_KEY_LEFT_SHIFT: return Keyboard::KEY_LSHIFT;
+		case GLFW_KEY_LEFT_SHIFT: case GLFW_KEY_RIGHT_SHIFT: return Keyboard::KEY_LSHIFT;
+        case GLFW_KEY_TAB: return 9;
+        case GLFW_KEY_LEFT_CONTROL: case GLFW_KEY_RIGHT_CONTROL: return 17;
+        case GLFW_KEY_LEFT_ALT: case GLFW_KEY_RIGHT_ALT: return 18;
+        case GLFW_KEY_LEFT: return 37;
+        case GLFW_KEY_UP: return 38;
+        case GLFW_KEY_RIGHT: return 39;
+        case GLFW_KEY_DOWN: return 40;
+        case GLFW_KEY_HOME: return 36;
+        case GLFW_KEY_END: return 35;
+        case GLFW_KEY_PAGE_UP: return 33;
+        case GLFW_KEY_PAGE_DOWN: return 34;
+        case GLFW_KEY_DELETE: return 46;
+        case GLFW_KEY_KP_ENTER:return 13;case GLFW_KEY_KP_DIVIDE:return 111;case GLFW_KEY_KP_MULTIPLY:return 106;case GLFW_KEY_KP_SUBTRACT:return 109;case GLFW_KEY_KP_ADD:return 107;case GLFW_KEY_KP_DECIMAL:return 110;case GLFW_KEY_KP_EQUAL:return 187;
+        case GLFW_KEY_COMMA:return 188;case GLFW_KEY_PERIOD:return 190;case GLFW_KEY_GRAVE_ACCENT:return 192;
+        case GLFW_KEY_MINUS:return 189;case GLFW_KEY_EQUAL:return 187;case GLFW_KEY_LEFT_BRACKET:return 219;case GLFW_KEY_RIGHT_BRACKET:return 221;
+        case GLFW_KEY_BACKSLASH:return 220;case GLFW_KEY_SEMICOLON:return 186;case GLFW_KEY_APOSTROPHE:return 222;case GLFW_KEY_SLASH:return 191;
 		case GLFW_KEY_ENTER: return Keyboard::KEY_RETURN;
-		default: return glfwkey;
+		default: return glfwkey >= 0 && glfwkey < 256 ? glfwkey : 0;
 	}
 }
 
@@ -48,21 +69,34 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 		return;
 	}
 
-	Keyboard::feed(transformKey(key), action);
+	int translated = transformKey(key);
+    if (translated) Keyboard::feed(translated, action);
 }
 
 void character_callback(GLFWwindow* window, unsigned int codepoint) {
-	Keyboard::feedText(codepoint);
+	Keyboard::feedCodepoint(codepoint);
 }
 
+static bool resetCursorTracking=true;
+static void window_focus_callback(GLFWwindow*,int){resetCursorTracking=true;Mouse::reset2();}
 static void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
+	// Disabled cursor mode persists while another client has focus. Ignore
+	// background pointer warps and re-anchor on the first focused motion.
+	if (!glfwGetWindowAttrib(window, GLFW_FOCUSED)) {
+		resetCursorTracking = true;
+		Mouse::reset2();
+		return;
+	}
 	static double lastX = 0.0, lastY = 0.0;
-	static bool firstMouse = true;
+	static int lastMode=-1;
+    const int mode=glfwGetInputMode(window,GLFW_CURSOR);
+    const bool firstMouse=resetCursorTracking||mode!=lastMode;
+    resetCursorTracking=false;lastMode=mode;
 
 	if (firstMouse) {
+        Mouse::reset2();
         lastX = xpos;
         lastY = ypos;
-        firstMouse = false;
     }
 
 	double deltaX = xpos - lastX;
@@ -123,10 +157,17 @@ int main(void) {
 		return 1;
 	}
 
+	#ifdef TCPE_GLES3
+    glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+#else
 	glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_NATIVE_CONTEXT_API);
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+#endif
 
 	GLFWwindow* window = glfwCreateWindow(appContext.platform->getScreenWidth(), appContext.platform->getScreenHeight(), "main", NULL, NULL);
 	
@@ -137,12 +178,17 @@ int main(void) {
 	glfwSetKeyCallback(window, key_callback);
 	glfwSetCharCallback(window, character_callback);
 	glfwSetCursorPosCallback(window, cursor_position_callback);
+    glfwSetWindowFocusCallback(window, window_focus_callback);
 	glfwSetMouseButtonCallback(window, mouse_button_callback);
 	glfwSetScrollCallback(window, scroll_callback);
 	glfwSetWindowSizeCallback(window, window_size_callback);
 
 	glfwMakeContextCurrent(window);
+	#ifdef TCPE_GLES3
+    if(!TCPEGL3::initialize()) return 1;
+#else
 	gladLoadGLES1Loader((GLADloadproc)winGLLoader);
+#endif
 	glfwSwapInterval(0);
 	glPatchDesktopCompat();
 #endif
@@ -157,13 +203,23 @@ int main(void) {
 
 	// Main event loop
 	using clock = std::chrono::steady_clock;
+	#ifdef TCPE_GLES3
+    const bool qaStats=std::getenv("TCPE_GLES3_QA_STATS")!=nullptr;
+    auto qaStart=clock::now();unsigned qaFrames=0;double qaAppMs=0,qaGpuMs=0,qaDrawMs=0;unsigned qaDraws=0;const bool qaSync=std::getenv("TCPE_GLES3_QA_SYNC")!=nullptr;unsigned qaSyncWindows=0;
+#endif
 	while(!glfwWindowShouldClose(window) && !app->wantToQuit()) {
 		auto frameStart = clock::now();
 
 		app->update();
+#ifdef TCPE_GLES3
+        if(qaStats){auto after=clock::now();qaAppMs+=std::chrono::duration<double,std::milli>(after-frameStart).count();unsigned n;double ms;TCPEGL3::takeFrameStats(n,ms);qaDraws+=n;qaDrawMs+=ms;if(qaSync&&((MAIN_CLASS*)app)->player&&qaSyncWindows<2){glFinish();qaGpuMs+=std::chrono::duration<double,std::milli>(clock::now()-after).count();}}
+#endif
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
+#ifdef TCPE_GLES3
+        if(qaStats){++qaFrames;auto qaNow=clock::now();double seconds=std::chrono::duration<double>(qaNow-qaStart).count();if(seconds>=5){std::fprintf(stderr,"GLES3 visible frame sample: %.1f fps over %.2fs; app %.2fms, GL submission %.2fms, GPU finish %.2fms, draws %.1f\n",qaFrames/seconds,seconds,qaAppMs/qaFrames,qaDrawMs/qaFrames,qaGpuMs/qaFrames,double(qaDraws)/qaFrames);if(qaSync&&((MAIN_CLASS*)app)->player&&qaSyncWindows<2)++qaSyncWindows;qaFrames=0;qaAppMs=qaGpuMs=qaDrawMs=0;qaDraws=0;qaStart=qaNow;}}
+#endif
 
 		glfwSwapInterval(((MAIN_CLASS*)app)->options.vsync ? 1 : 0);
 		if(((MAIN_CLASS*)app)->options.limitFramerate) {

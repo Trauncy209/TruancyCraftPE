@@ -1,5 +1,6 @@
 #include "MouseHandler.h"
 #include "player/input/ITurnInput.h"
+#include "platform/input/Mouse.h"
 
 #ifdef RPI
 #include <SDL/SDL.h>
@@ -36,6 +37,9 @@ void MouseHandler::grab() {
 
 #ifdef PLATFORM_GLFW
 	glfwSetInputMode(glfwGetCurrentContext(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	if (glfwRawMouseMotionSupported())
+		glfwSetInputMode(glfwGetCurrentContext(), GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+	Mouse::reset2();
 #endif
 }
 
@@ -47,7 +51,10 @@ void MouseHandler::release() {
 #endif
 
 #ifdef PLATFORM_GLFW
+	if (glfwRawMouseMotionSupported())
+		glfwSetInputMode(glfwGetCurrentContext(), GLFW_RAW_MOUSE_MOTION, GLFW_FALSE);
 	glfwSetInputMode(glfwGetCurrentContext(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+	Mouse::reset2();
 #endif
 }
 

@@ -1,0 +1,1 @@
+Derived glyph pages from user-provided 1.21.4 assets(2).zip: minecraft/font/unifont.zip, unifont_all_no_pua-16.0.01.hex. Original glyphs retained without transliteration. GNU Unifont license and font embedding exception in LICENSE.txt.

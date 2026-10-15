@@ -1,5 +1,16 @@
 LOCAL_PATH := $(call my-dir)
 
+# Rust networking is loaded in-process as an APK-packaged shared dependency.
+# Override TCPE_JAVA_LIBRARY_DIR for externally built ABI libraries.
+TCPE_PORT_ROOT ?= $(if $(wildcard $(LOCAL_PATH)/../../../rust-network/Cargo.toml),$(abspath $(LOCAL_PATH)/../../..),$(abspath $(LOCAL_PATH)/../../../..))
+TCPE_JAVA_LIBRARY_DIR ?= $(TCPE_PORT_ROOT)/mobile-libs
+include $(CLEAR_VARS)
+LOCAL_MODULE := tcpe_java_network
+LOCAL_SRC_FILES := $(TCPE_JAVA_LIBRARY_DIR)/$(TARGET_ARCH_ABI)/libtcpe_java_network.so
+LOCAL_EXPORT_C_INCLUDES := $(TCPE_PORT_ROOT)/include
+include $(PREBUILT_SHARED_LIBRARY)
+
+
 include $(CLEAR_VARS)
 
 LOCAL_MODULE    := minecraftpe
@@ -128,6 +139,7 @@ LOCAL_SRC_FILES := ../../../src/main.cpp \
 ../../../src/client/renderer/tileentity/TileEntityRenderer.cpp \
 ../../../src/client/sound/Sound.cpp \
 ../../../src/client/sound/SoundEngine.cpp \
+../../../src/client/sound/JavaSoundBank.cpp \
 ../../../src/locale/I18n.cpp \
 ../../../src/nbt/Tag.cpp \
 ../../../src/network/command/CommandServer.cpp \
@@ -255,9 +267,16 @@ LOCAL_SRC_FILES := ../../../src/main.cpp \
 ../../../src/world/level/tile/entity/FurnaceTileEntity.cpp \
 ../../../src/world/phys/HitResult.cpp
 
-LOCAL_CFLAGS := -DPLATFORM_ANDROID -DPRE_ANDROID23 -Wno-narrowing $(LOCAL_CFLAGS)
-LOCAL_CPPFLAGS := -std=c++11
-LOCAL_C_INCLUDES := $(LOCAL_PATH)/../../../src
+# Java connection, authoritative world, lighting, entities and model rendering.
+LOCAL_SRC_FILES += ../../../src/network/JavaServerConnection.cpp
+LOCAL_SRC_FILES += $(patsubst $(LOCAL_PATH)/%,%,$(wildcard $(LOCAL_PATH)/../../../src/network/java/*.cpp))
+LOCAL_SHARED_LIBRARIES += tcpe_java_network
+LOCAL_C_INCLUDES += $(TCPE_PORT_ROOT)/include
+LOCAL_CPP_FEATURES := exceptions rtti
+
+LOCAL_CFLAGS := -DPLATFORM_ANDROID -DANDROID -DPRE_ANDROID23 -Wno-narrowing $(LOCAL_CFLAGS)
+LOCAL_CPPFLAGS := -std=c++14
+LOCAL_C_INCLUDES += $(LOCAL_PATH)/../../../src
 
 #LOCAL_CFLAGS := -DANDROID_PUBLISH -DDEMO_MODE $(LOCAL_CFLAGS)
 #LOCAL_CFLAGS := -DANDROID_PUBLISH $(LOCAL_CFLAGS)
@@ -265,12 +284,17 @@ LOCAL_C_INCLUDES := $(LOCAL_PATH)/../../../src
 #LOCAL_CFLAGS := -DDEMO_MODE -DGLDEBUG $(LOCAL_CFLAGS)
 #LOCAL_CFLAGS := -DGLDEBUG $(LOCAL_CFLAGS)
 
-LOCAL_LDLIBS    := -llog -landroid -lEGL -lGLESv1_CM -lOpenSLES
+ifeq ($(TCPE_GLES3),1)
+LOCAL_CFLAGS += -DTCPE_GLES3
+LOCAL_SRC_FILES += ../../../src/client/renderer/GLES3Compat.cpp
+LOCAL_LDLIBS := -llog -landroid -lEGL -lGLESv3 -lOpenSLES
+else
+LOCAL_LDLIBS := -llog -landroid -lEGL -lGLESv1_CM -lOpenSLES
+endif
 LOCAL_STATIC_LIBRARIES := RakNet
 
 #LOCAL_CPP_FEATURES := exceptions
 
-TARGET_ARCH_ABI := x86_64
 
 include $(BUILD_SHARED_LIBRARY)
 

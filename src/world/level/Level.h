@@ -94,6 +94,10 @@ public:
 	bool isSolidRenderTile(int x, int y, int z);
 	bool isSolidBlockingTile(int x, int y, int z);
 
+    // Offline worlds retain original bounds. Java worlds override per dimension.
+    virtual bool isJavaServerLevel() const { return false; }
+    virtual int minBuildHeight() const { return 0; }
+    virtual int maxBuildHeight() const { return 128; }
 	int getTile(int x, int y, int z);
     bool setTile(int x, int y, int z, int tile);
 
@@ -134,10 +138,10 @@ public:
 	BiomeSource* getBiomeSource();
 	Biome* getBiome(int x, int z);
 
-	int getRawBrightness(int x, int y, int z);
-	int getRawBrightness(int x, int y, int z, bool propagate);
+	virtual int getRawBrightness(int x, int y, int z);
+	virtual int getRawBrightness(int x, int y, int z, bool propagate);
     float getBrightness(int x, int y, int z);
-    int getBrightness(const LightLayer& layer, int x, int y, int z);
+    virtual int getBrightness(const LightLayer& layer, int x, int y, int z);
     void setBrightness(const LightLayer& layer, int x, int y, int z, int brightness);
     void updateLightIfOtherThan(const LightLayer& layer, int x, int y, int z, int expected);
 
@@ -209,7 +213,7 @@ public:
 	//void addEntities(const EntityList& list);
 	//void removeEntities(const EntityList& list);
 	//void ensureAdded(Entity* entity);
-	EntityList& getEntities(Entity* except, const AABB& bb);
+	virtual EntityList& getEntities(Entity* except, const AABB& bb);
 	const EntityList& getAllEntities();
 
 	TileEntity* getTileEntity(int x, int y, int z);

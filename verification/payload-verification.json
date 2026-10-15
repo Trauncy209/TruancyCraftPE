@@ -1,12 +1,69 @@
 {
-  "32bit": {
-    "game_files_identical": true,
-    "files": 406,
-    "sha256": "551fa7d30012a9c427f83e38ff760a8687001fe2898dd5b38e3df6f2e6dc78c8"
+  "version": "0.5.23",
+  "status": "Signed local test candidates; not published",
+  "scans": "Not uploaded; no previous scan results apply",
+  "live_mining_acceptance": "Pending; native window control unavailable",
+  "game_files_identical_to_0_5_22": false,
+  "artifacts": {
+    "arm64": {
+      "sha256": "2667d64ab61a72f8796f489b5826351df1d26a6eecbfa73190d16f94e6ab08fd",
+      "bytes": 399298842,
+      "abi": "arm64-v8a",
+      "versionCode": 6002,
+      "versionName": "0.5.23",
+      "official_cert_sha256": "e0e241d7c0730e3d2ef1987f6bda63f24bc56b5cb9c4e94713d09235093628df",
+      "native_sha256": "f4e3bea964a50e281e339da6bbefadc11cafb2ef80a6e6b1c35cd4aa00e7b7f5",
+      "rust_sha256": "93faffa4ffa577d023fd72e242358a4993cc3d716654769370e2c11705b43604",
+      "all_assets_verified": 4690,
+      "ffi_exports_verified": 14,
+      "elf_and_zip_alignment_16kb": true,
+      "rust_source_identity_sha256": "e897a3157dcde9a6ad4de1825955dd6a25b112de523596c41b01aa2fdce7b487"
+    },
+    "armv7": {
+      "sha256": "5d555bf087f9eca74642fc41c8b22968e170d374bb3445ba737400bb8cea2aeb",
+      "bytes": 397291806,
+      "abi": "armeabi-v7a",
+      "versionCode": 6002,
+      "versionName": "0.5.23",
+      "official_cert_sha256": "e0e241d7c0730e3d2ef1987f6bda63f24bc56b5cb9c4e94713d09235093628df",
+      "native_sha256": "2bfbe72d458080da5301c087ffd3acb6fc9e330b72b201507e5b599298e54211",
+      "rust_sha256": "55bb9aec809fdde805f358a065c1007f4fe98da5511cd67f5f2c05c234bd9078",
+      "all_assets_verified": 4690,
+      "ffi_exports_verified": 14,
+      "elf_and_zip_alignment_16kb": true,
+      "rust_source_identity_sha256": "e897a3157dcde9a6ad4de1825955dd6a25b112de523596c41b01aa2fdce7b487"
+    }
   },
-  "64bit": {
-    "game_files_identical": true,
-    "files": 406,
-    "sha256": "d5857b6f09cc17e151f854667daf7b267e1a438cb70938871ce4b92d9f739adf"
+  "Linux": {
+    "sha256": "54d33eec733764b192a5b666d8f881c5bdacc0101e56bead03a5f5277764390b",
+    "bytes": 570659785,
+    "native_sha256": "d4181f44397b6557cc34f8d17fc51ce81d292ec71d4871d2da3f2861a0aff220",
+    "rust_sha256": "4d93dea9ef0b679b0ffe168188a7deae2a40a7b66cb2b415c1aa662b8d229da7",
+    "max_GLIBC": "2.38",
+    "final_combined_Ubuntu24_loader": "PASS",
+    "detached_signature": {
+      "format": "Detached CMS/PKCS7 DER SHA256",
+      "file": "TruancyCraftPE-0.5.23-Linux-x86_64.tar.gz.p7s",
+      "sha256": "10db0d8cd47671d6f67db0d7d06cffaedc7f75b906cff20df38e89bbce343b77",
+      "archive_sha256": "54d33eec733764b192a5b666d8f881c5bdacc0101e56bead03a5f5277764390b",
+      "certificate_sha256": "e0e241d7c0730e3d2ef1987f6bda63f24bc56b5cb9c4e94713d09235093628df",
+      "verification": "PASS using exact release public certificate as trust anchor"
+    }
+  },
+  "crafting_gui_fix": {
+    "native_ui_regressions": "PASS on host and Ubuntu24 GLES3, 2x2/3x3 and bone blocks; One auto-bag, All, full bag, rejection, Shift, delayed snapshot and wait/retry",
+    "live_acceptance": "pending next user-controlled game restart",
+    "wait_retry_seconds": 2,
+    "Linux_native_sha256": "d4181f44397b6557cc34f8d17fc51ce81d292ec71d4871d2da3f2861a0aff220",
+    "current_game_closed": false
+  },
+  "native_gui_updates": {
+    "crafting": "Native One auto-bag and response/retry fix; bone-block, full bag, rejected and delayed snapshots PASS",
+    "storage": "GUI default on new installs; explicit native PE Storage/Menu preference persists across windows and restarts; actual disk reload/options preservation and new-generation routing PASS; nine validated slot geometries, empty slots, hotbar/bag and whole/half/quick moves PASS; no server packet on view switch",
+    "server_list": "One-second polling across all saved/featured endpoints, including offscreen; fair four-request bound and no per-row overlap; controlled native timing, slow/offline and duplicate tests PASS",
+    "native_GLES3": "Host and portable Ubuntu24 actual native UI tests PASS; storage layout visually inspected at 400x240 and 200x120 logical sizes",
+    "live_acceptance": "Pending next user-controlled game launch",
+    "Linux_native_sha256": "d4181f44397b6557cc34f8d17fc51ce81d292ec71d4871d2da3f2861a0aff220",
+    "current_game_closed": false
   }
 }

@@ -12,7 +12,13 @@
 #endif
 
 // Other systems might run it, if they #define OPENGL_ES
-#if defined(OPENGL_ES) // || defined(ANDROID)
+#if defined(TCPE_GLES3)
+    #define USE_VBO
+    #ifndef GLFW_INCLUDE_NONE
+    #define GLFW_INCLUDE_NONE
+    #endif
+    #include "GLES3Compat.h"
+#elif defined(OPENGL_ES) // || defined(ANDROID)
 	#define USE_VBO
 	#define GL_QUADS 0x0007
     #if defined(__APPLE__)

@@ -1,4 +1,5 @@
 #include "EntityRenderDispatcher.h"
+#include "network/java/JavaEntityAdapter.h"
 
 #include "../../Options.h"
 #include "../../../world/entity/player/Player.h"
@@ -17,6 +18,7 @@
 #include "PigRenderer.h"
 #include "MobRenderer.h"
 #include "PlayerRenderer.h"
+#include "network/java/JavaPlayerModel.h"
 
 #include "CreeperRenderer.h"
 #include "SpiderRenderer.h"
@@ -36,7 +38,7 @@ float	EntityRenderDispatcher::xOff = 0,
 		EntityRenderDispatcher::zOff = 0;
 
 EntityRenderDispatcher::EntityRenderDispatcher()
-:	itemInHandRenderer(NULL)
+:	itemInHandRenderer(nullptr), textures(nullptr), level(nullptr), minecraft(nullptr), cameraEntity(nullptr), playerRotY(0), playerRotX(0), options(nullptr), xPlayer(0), yPlayer(0), zPlayer(0), _font(nullptr)
 {
 	//@note: The Models (model/armor) will be deleted by resp. MobRenderer
 	assign( ER_ITEM_RENDERER,       new ItemRenderer());
@@ -52,6 +54,8 @@ EntityRenderDispatcher::EntityRenderDispatcher()
 	assign(	ER_TNT_RENDERER,		new TntRenderer());
 	assign(	ER_ARROW_RENDERER,		new ArrowRenderer());
 	assign( ER_PLAYER_RENDERER,		new PlayerRenderer(new HumanoidModel(), 0));
+ assign(ER_JAVA_PLAYER_RENDERER,new PlayerRenderer(new JavaPlayerModel(false),0));
+ assign(ER_JAVA_SLIM_RENDERER,new PlayerRenderer(new JavaPlayerModel(true),0));
 	assign( ER_THROWNEGG_RENDERER,  new ItemSpriteRenderer(Item::egg->getIcon(0)));
 	assign( ER_SNOWBALL_RENDERER,   new ItemSpriteRenderer(Item::snowBall->getIcon(0)));
 	assign( ER_PAINTING_RENDERER,   new PaintingRenderer());
@@ -130,6 +134,7 @@ void EntityRenderDispatcher::render( Entity* entity, float a )
 
 void EntityRenderDispatcher::render( Entity* entity, float x, float y, float z, float rot, float a )
 {
+	if(renderJavaPresentation(entity,*this,x,y,z,a))return;
 	EntityRenderer* renderer = getRenderer(entity);
 	if (renderer != NULL) {
 		renderer->render(entity, x, y, z, rot, a);
@@ -139,6 +144,7 @@ void EntityRenderDispatcher::render( Entity* entity, float x, float y, float z, 
 
 EntityRenderer* EntityRenderDispatcher::getRenderer( Entity* entity )
 {
+	bool slim=false;if(javaPlayerSkinModel(entity,slim))return getRenderer(slim?ER_JAVA_SLIM_RENDERER:ER_JAVA_PLAYER_RENDERER);
 	EntityRendererId rendererId = entity->entityRendererId;
 
 	if (rendererId == ER_QUERY_RENDERER)

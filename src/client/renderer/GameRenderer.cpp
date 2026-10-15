@@ -1,3 +1,4 @@
+#include "network/java/JavaGameSession.h"
 #include "GameRenderer.h"
 #include "gles.h"
 
@@ -27,6 +28,40 @@
 #include "Textures.h"
 #include "../gui/components/ImageButton.h"
 #include "Tesselator.h"
+
+#if defined(TCPE_GLES3) && defined(PLATFORM_DESKTOP)
+#include <cstdio>
+#include <cstdlib>
+#include <vector>
+namespace {
+unsigned qaWorldFrame=0;
+bool qaWorldEnabled(){static const bool enabled=std::getenv("TCPE_GLES3_QA_STATE")!=nullptr;return enabled;}
+void qaWorldBeforeClear(){
+ if(!qaWorldEnabled())return;++qaWorldFrame;
+ if(qaWorldFrame>8&&qaWorldFrame!=300)return;
+ GLboolean mask=0,color[4]{};GLfloat clear=0;GLint scissor[4]{},fbo=0,depth=0;
+ glGetBooleanv(GL_DEPTH_WRITEMASK,&mask);glGetBooleanv(GL_COLOR_WRITEMASK,color);glGetFloatv(GL_DEPTH_CLEAR_VALUE,&clear);glGetIntegerv(GL_SCISSOR_BOX,scissor);glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&fbo);glGetIntegerv(GL_DEPTH_FUNC,&depth);
+ std::fprintf(stderr,"GLES3_QA preclear frame=%u depthwrite=%d clear=%g depthtest=%d depthfunc=%x scissor=%d box=%d,%d,%d,%d color=%d,%d,%d,%d fbo=%d\n",qaWorldFrame,mask,clear,glIsEnabled(GL_DEPTH_TEST),depth,glIsEnabled(GL_SCISSOR_TEST),scissor[0],scissor[1],scissor[2],scissor[3],color[0],color[1],color[2],color[3],fbo);
+}
+void qaWorldPass(const char* name){
+ if(!qaWorldEnabled()||qaWorldFrame!=300)return;
+ GLint viewport[4]{},buffer=0,alignment=0,row=0,skipRows=0,skipPixels=0;glGetIntegerv(GL_VIEWPORT,viewport);
+ const int width=viewport[2],height=viewport[3];if(width<=0||height<=0||width>4096||height>4096)return;
+ glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING,&buffer);glGetIntegerv(GL_PACK_ALIGNMENT,&alignment);glGetIntegerv(GL_PACK_ROW_LENGTH,&row);glGetIntegerv(GL_PACK_SKIP_ROWS,&skipRows);glGetIntegerv(GL_PACK_SKIP_PIXELS,&skipPixels);
+ glBindBuffer(GL_PIXEL_PACK_BUFFER,0);glPixelStorei(GL_PACK_ALIGNMENT,1);glPixelStorei(GL_PACK_ROW_LENGTH,0);glPixelStorei(GL_PACK_SKIP_ROWS,0);glPixelStorei(GL_PACK_SKIP_PIXELS,0);
+ std::vector<unsigned char> pixels(size_t(width)*height*4);glReadPixels(viewport[0],viewport[1],width,height,GL_RGBA,GL_UNSIGNED_BYTE,pixels.data());
+ char filename[128];std::snprintf(filename,sizeof(filename),"tcpe-gles3-qa-world-%s.rgba",name);if(FILE*f=std::fopen(filename,"wb")){std::fwrite(pixels.data(),1,pixels.size(),f);std::fclose(f);std::fprintf(stderr,"GLES3_QA world frame=%u phase=%s size=%dx%d file=%s\n",qaWorldFrame,name,width,height,filename);}
+ glBindBuffer(GL_PIXEL_PACK_BUFFER,buffer);glPixelStorei(GL_PACK_ALIGNMENT,alignment);glPixelStorei(GL_PACK_ROW_LENGTH,row);glPixelStorei(GL_PACK_SKIP_ROWS,skipRows);glPixelStorei(GL_PACK_SKIP_PIXELS,skipPixels);
+}
+}
+#else
+static void qaWorldBeforeClear(){}
+static void qaWorldPass(const char*){}
+#endif
+
+#if defined(TCPE_GLES3) && defined(PLATFORM_DESKTOP)
+void tcpeQaWorldAtlasPass(int layer,int atlas){char phase[48];std::snprintf(phase,sizeof(phase),"terrain%d-atlas%d",layer,atlas);qaWorldPass(phase);}
+#endif
 
 static int _shTicks = -1;
 
@@ -257,6 +292,7 @@ void GameRenderer::renderLevel(float a) {
 		glViewport(0, 0, mc->width, mc->height);
 		setupClearColor(a);
 
+        qaWorldBeforeClear();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glEnable2(GL_CULL_FACE);
 
@@ -303,7 +339,7 @@ void GameRenderer::renderLevel(float a) {
         frustum.prepare(xOff, yOff, zOff);
 
 		TIMER_POP_PUSH("culling");
-        if (mc->options.fancyGraphics) {
+        if (mc->options.fancyGraphics && !mc->level->isJavaServerLevel()) {
             mc->levelRenderer->setAllVisible();
         } else {
             mc->levelRenderer->cull(&frustum, a);
@@ -324,14 +360,17 @@ void GameRenderer::renderLevel(float a) {
         glEnable2(GL_CULL_FACE);
 		TIMER_POP_PUSH("terrain-0");
         levelRenderer->render(cameraEntity, 0, a);
+        qaWorldPass("terrain0");
 
 		TIMER_POP_PUSH("terrain-1");
         glEnable2(GL_ALPHA_TEST);
         levelRenderer->render(cameraEntity, 1, a);
+        qaWorldPass("terrain1");
         
         glShadeModel2(GL_FLAT);
 		TIMER_POP_PUSH("entities");
 		mc->levelRenderer->renderEntities(cameraEntity->getPos(a), &frustum, a);
+        qaWorldPass("entities");
 //        setupFog(0);
 		TIMER_POP_PUSH("particles");
         particleEngine->render(cameraEntity, a);
@@ -362,6 +401,7 @@ void GameRenderer::renderLevel(float a) {
 			TIMER_POP_PUSH("terrain-water");
 			glEnable2(GL_DEPTH_TEST);
             levelRenderer->render(cameraEntity, 2, a);
+            qaWorldPass("water");
 			//glDepthRangef(0, 1);
 
         }
@@ -394,6 +434,7 @@ void GameRenderer::renderLevel(float a) {
 			TIMER_POP_PUSH("hand");
             glClear(GL_DEPTH_BUFFER_BIT);
             renderItemInHand(a, i);
+            qaWorldPass("hand");
         }
 
         if (!mc->options.anaglyph3d) {
@@ -669,6 +710,35 @@ void GameRenderer::pick(float a) {
     if (mc->cameraTargetPlayer == NULL) return;
 	if (!mc->cameraTargetPlayer->isAlive()) return;
 
+    if(mc->level->isJavaServerLevel()&&mc->javaSession){
+        JavaGameSession& session=*mc->javaSession;
+        Vec3 direction=mc->cameraTargetPlayer->getViewVector(a),offset(0,0,0);
+        bool enabled=true;
+#ifndef PLATFORM_DESKTOP
+        const bool freeform=mc->useTouchscreen()&&!mc->options.isJoyTouchArea;
+#else
+        const bool freeform=false;
+#endif
+        if(freeform){
+            enabled=mc->inputHolder->allowPicking();
+            if(enabled){
+                int vp[4]={0,0,mc->width,mc->height};float nearPoint[3],farPoint[3];
+                const float x=mc->inputHolder->mousex,y=mc->height-mc->inputHolder->mousey;
+                enabled=glhUnProjectf(x,y,0,lastModelMatrix,lastProjMatrix,vp,nearPoint)&&glhUnProjectf(x,y,1,lastModelMatrix,lastProjMatrix,vp,farPoint);
+                if(enabled){offset=Vec3(nearPoint[0],nearPoint[1],nearPoint[2]);direction=(Vec3(farPoint[0],farPoint[1],farPoint[2])-offset).normalized();}
+            }
+        }
+        pickDirection=direction;mc->cameraTargetPlayer->aimDirection=direction;_shTicks=-1;
+        enabled=session.updatePickRay(enabled,{{offset.x,offset.y,offset.z}},{{direction.x,direction.y,direction.z}})&&enabled;
+        mc->hitResult=HitResult();
+        if(enabled&&session.hasTargeting()){
+            const JavaGameSession::Targeting& hit=session.targeting;
+            if(hit.kind=="block")mc->hitResult=HitResult(hit.block[0],hit.block[1],hit.block[2],hit.face,Vec3(float(hit.location[0]),float(hit.location[1]),float(hit.location[2])));
+            else if(hit.kind=="entity")for(Entity* entity:mc->level->entities)if(entity&&entity->entityId==hit.entityId){mc->hitResult=HitResult(entity);break;}
+        }
+        if(enabled&&session.hasAttackTargeting())for(Entity* entity:mc->level->entities)if(entity&&entity->entityId==session.targeting.attackEntityId){mc->hitResult=HitResult(entity);break;}
+        return; // Java geometry never enters PE tile/full-cube or floor-assist picking.
+    }
     float range = mc->gameMode->getPickRange();
     bool isPicking = true;
 #ifndef PLATFORM_DESKTOP
@@ -692,7 +762,8 @@ void GameRenderer::pick(float a) {
 	if (mc->gameMode->isCreativeType()) {
         /*dist =*/ range = 12;
     } else {
-        if (dist > 3) dist = 3;
+        const float entityRange=mc->javaSession?float(mc->javaSession->attackMaxRange+mc->javaSession->attackHitboxMargin):3.f;
+        if (dist > entityRange) dist = entityRange;
         range = dist;
     }
 

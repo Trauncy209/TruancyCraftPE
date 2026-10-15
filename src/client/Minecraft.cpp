@@ -1,4 +1,20 @@
+#include "gui/screens/JavaChatActionsScreen.h"
+#include "gui/screens/JavaConnectScreen.h"
+#include "../network/java/JavaEntityAdapter.h"
+#include "gui/screens/JavaInventoryScreen.h"
+#include "../network/java/JavaGameMode.h"
+#include "gui/screens/JavaDialogScreen.h"
+#include "../network/java/JavaGameSession.h"
+#include "../network/java/JavaLevel.h"
+#include "../network/java/JavaLocalPlayer.h"
+#include "../network/java/JavaHealth.h"
+#include "../network/java/JavaPackFontRuntime.h"
+#ifndef STANDALONE_SERVER
+#include "gui/screens/DisconnectionScreen.h"
+#endif
 #include "Minecraft.h"
+#include "gui/screens/ChatScreen.h"
+#include <cstdlib>
 #include "client/player/input/IBuildInput.h"
 
 #if defined(APPLE_DEMO_PROMOTION)
@@ -20,9 +36,11 @@
 #include "../world/level/tile/Tile.h"
 #include "../world/level/storage/LevelStorageSource.h"
 #include "../world/level/storage/LevelStorage.h"
+#include "../world/level/storage/MemoryLevelStorage.h"
 #include "../world/level/storage/LevelData.h"
 #include "../world/level/LevelSettings.h"
 #include "player/input/KeyboardInput.h"
+#include "../platform/input/ControllerActionKeys.h"
 #ifndef STANDALONE_SERVER
 #include "player/input/touchscreen/TouchInputHolder.h"
 #endif
@@ -32,6 +50,8 @@
 #include "player/LocalPlayer.h"
 #ifndef STANDALONE_SERVER
 #include "particle/ParticleEngine.h"
+#include "particle/JavaGustParticle.h"
+#include "particle/JavaFireworkParticle.h"
 #include "gui/Screen.h"
 #include "gui/Font.h"
 #include "gui/screens/RenameMPLevelScreen.h"
@@ -155,6 +175,7 @@ bool Minecraft::useAmbientOcclusion = false;
 Minecraft::Minecraft()
 :	user(NULL),
 	level(NULL),
+    javaSession(NULL),
 	player(NULL),
 	cameraTargetPlayer(NULL),
 	levelRenderer(NULL),
@@ -229,6 +250,7 @@ Minecraft::Minecraft()
 
 Minecraft::~Minecraft()
 {
+    stopJavaServer();
 	delete netCallback;
 	delete raknetInstance;
 #ifndef STANDALONE_SERVER
@@ -274,6 +296,8 @@ Minecraft::~Minecraft()
 // Only called by server
 void Minecraft::selectLevel( const std::string& levelId, const std::string& levelName, const LevelSettings& settings )
 {
+    // Selecting an original offline world ends all Java connection-scoped state.
+    stopJavaServer();
 #if defined(CREATORMODE)
 	level = new CreatorLevel(
 #else
@@ -338,7 +362,8 @@ void Minecraft::setLevel(Level* level, const std::string& message /* ="" */, Loc
 
 void Minecraft::leaveGame(bool renameLevel /*=false*/)
 {
-    if (isGeneratingLevel || !_hasSignaledGeneratingLevelFinished)
+    stopJavaServer();
+    if (level && (isGeneratingLevel || !_hasSignaledGeneratingLevelFinished))
         return;
 
 	isGeneratingLevel = false;
@@ -382,6 +407,8 @@ void Minecraft::leaveGame(bool renameLevel /*=false*/)
 }
 
 void Minecraft::prepareLevel(const std::string& title) {
+    if(level && level->isJavaServerLevel())return;
+
 	LOGI("status: 1\n");
 	progressStageStatusId = 1;
 
@@ -534,10 +561,14 @@ void Minecraft::update() {
 }
 
 void Minecraft::tick(int nTick, int maxTick) {
+#ifndef STANDALONE_SERVER
+    updateJavaServer();
+#endif
 	if (missTime > 0) missTime--;
 #ifndef STANDALONE_SERVER
-	if (!screen && player) {
-		if (player->health <= 0) {
+	if (player) {
+		const bool replaceJavaMenu=javaSession&&javaSession->spawned&&isLevelGenerated()&&javaDeathMayReplaceMenu(screen);
+		if (player->health <= 0 && (!screen||replaceJavaMenu) && (!javaSession||javaSession->showDeathScreen)) {
 			setScreen(new DeathScreen());
 		}
 	}
@@ -666,6 +697,14 @@ void Minecraft::tickInput() {
 #else
 	bool mouseDiggable = !gui.isInside(Mouse::getX(), Mouse::getY());
 	bool allowGuiClicks = true;
+#ifdef PLATFORM_DESKTOP
+    // Captured mouse coordinates are an unbounded look cursor, not HUD touches.
+    // A world click must not also select whichever hotbar slot it passes over.
+    if (mouseGrabbed && !useTouchscreen()) {
+        mouseDiggable = true;
+        allowGuiClicks = false;
+    }
+#endif
 #endif
 
 	TIMER_PUSH("mouse");
@@ -722,10 +761,10 @@ void Minecraft::tickInput() {
 		if (isPressed) {
 			gui.handleKeyPressed(key);
 
-			#if defined(WIN32) || defined(RPI) || defined (PLATFORM_DESKTOP)//|| defined(_DEBUG) || defined(DEBUG)
-				if (key >= '0' && key <= '9') {
-					int digit = key - '0';
-					int slot = digit - 1;
+			#if defined(WIN32) || defined(RPI) || defined(ANDROID) || defined (PLATFORM_DESKTOP)//|| defined(_DEBUG) || defined(DEBUG)
+				for (int slot = 0; slot < 9; ++slot) {
+                    if (key != options.keyHotbar[slot].key || !key) continue;
+                    int digit = slot + 1;
 
 					if (slot >= 0 && slot < gui.getNumSlots())
 						player->inventory->selectSlot(slot);
@@ -746,18 +785,20 @@ void Minecraft::tickInput() {
 					#endif
 				}
 			#endif
-			#if defined(PLATFORM_DESKTOP)
-				if (key == Keyboard::KEY_E) {
+			#if defined(PLATFORM_DESKTOP) || defined(ANDROID)
+				if (!screen && javaSession && key && key == options.keySwapOffhand.key)
+                    javaSession->connection.send("{\"type\":\"swap_offhand\"}");
+                if (key && key == options.keyBuild.key) {
 					screenChooser.setScreen(SCREEN_BLOCKSELECTION);
 				}
-				if (!screen && key == Keyboard::KEY_T && level) {
+				if (!screen && key && key == options.keyChat.key && level) {
 					setScreen(new ConsoleScreen());
 				}
-				if (!screen && key == Keyboard::KEY_O || key == 250) {
+				if ((!screen && key && key == options.keyReleaseMouse.key) || key == 250) {
 					releaseMouse();
 				}
 
-				if (key == Keyboard::KEY_F5) {
+				if (key && key == options.keyPerspective.key) {
 					options.thirdPersonView = !options.thirdPersonView;
 					/*
 					ImprovedNoise noise;
@@ -766,6 +807,7 @@ void Minecraft::tickInput() {
 					*/
 				}
 			#endif
+			if (!screen && key && key == options.keyFog.key) options.viewDistance = (options.viewDistance + 1) % 4;
 			#if defined(WIN32)
 				if (key == Keyboard::KEY_F) {
 					options.isFlying = !options.isFlying;
@@ -860,11 +902,11 @@ void Minecraft::tickInput() {
 				}
 			#endif
 
-			#ifndef PLATFORM_DESKTOP
+			#if !defined(PLATFORM_DESKTOP) && !defined(ANDROID)
 				if (key == 82)
 					pauseGame(false);
 			#else
-				if (key == Keyboard::KEY_ESCAPE)
+				if ((key && key == options.keyPause.key) || key == ControllerKeys::Pause)
 					pauseGame(false);
 			#endif
 
@@ -888,16 +930,21 @@ void Minecraft::tickInput() {
 	TIMER_POP_PUSH("handlemouse");
 
 	static bool prevMouseDownLeft = false;
+    bool removeIntent = false;
 
 	if (useTouchscreen()) {
 		// Touch: gesture recognizer classifies the action type (turn/destroy/build)
 		BuildActionIntention bai;
 		if (inputHolder && inputHolder->getBuildInput()->tickBuild(player, &bai)) {
+            removeIntent = bai.isRemove();
 			handleBuildAction(&bai);
 		}
-	} else {
+	}
+    {
+        // Keyboard/controller actions also work while the native touch UI stays enabled.
 		// Desktop: left mouse = destroy/attack
-		if (Mouse::isButtonDown(MouseAction::ACTION_LEFT)) {
+		if ((!useTouchscreen() && Mouse::isButtonDown(MouseAction::ACTION_LEFT)) || ((options.keyDestroy.key && Keyboard::isKeyDown(options.keyDestroy.key)) || Keyboard::isKeyDown(ControllerKeys::Attack))) {
+            removeIntent = true;
 			auto baiFlags = BuildActionIntention::BAI_REMOVE | BuildActionIntention::BAI_ATTACK;
 
 			if (!prevMouseDownLeft) baiFlags |= BuildActionIntention::BAI_FIRSTREMOVE;
@@ -906,12 +953,22 @@ void Minecraft::tickInput() {
 			handleBuildAction(&bai);
 		}
 
-		prevMouseDownLeft = Mouse::isButtonDown(MouseAction::ACTION_LEFT);
+		prevMouseDownLeft = (!useTouchscreen() && Mouse::isButtonDown(MouseAction::ACTION_LEFT)) || ((options.keyDestroy.key && Keyboard::isKeyDown(options.keyDestroy.key)) || Keyboard::isKeyDown(ControllerKeys::Attack));
 
 		// Build and use/interact is on same button
 		// USPESHNO spizheno
 		static int buildHoldTicks = 0;
-		if (Mouse::isButtonDown(MouseAction::ACTION_RIGHT)) {
+		if ((!useTouchscreen() && Mouse::isButtonDown(MouseAction::ACTION_RIGHT)) || ((options.keyUse.key && Keyboard::isKeyDown(options.keyUse.key)) || Keyboard::isKeyDown(ControllerKeys::Use))) {
+			if (javaSession) {
+				// Java retries held use every four ticks, never during an
+				// active charge. Reissuing Use while charging can release
+				// and restart server-owned weapon use on every native tick.
+				if (buildHoldTicks == 0 && !javaSession->itemUseActive) {
+					BuildActionIntention bai(BuildActionIntention::BAI_BUILD | BuildActionIntention::BAI_INTERACT);
+					handleBuildAction(&bai);
+				}
+				buildHoldTicks = (buildHoldTicks + 1) % 4;
+			} else {
 			BuildActionIntention bai(BuildActionIntention::BAI_BUILD | BuildActionIntention::BAI_INTERACT);
 			handleBuildAction(&bai);
 			if (buildHoldTicks >= 5) buildHoldTicks = 0;
@@ -920,10 +977,16 @@ void Minecraft::tickInput() {
 				BuildActionIntention bai(BuildActionIntention::BAI_BUILD | BuildActionIntention::BAI_INTERACT);
 				handleBuildAction(&bai);
 			}
+			}
 		} else {
 			buildHoldTicks = 0;
 		}
 	}
+
+    // Java mining is a held action. End it on mouse/key/finger release rather
+    // than leaving the networking client mining until a menu is opened.
+    if (level && level->isJavaServerLevel() && !removeIntent)
+        gameMode->stopDestroyBlock();
 
 	lastTickTime = getTimeMs();
 
@@ -941,12 +1004,24 @@ void Minecraft::tickInput() {
 
 void Minecraft::handleBuildAction(BuildActionIntention* action) {
 #ifndef STANDALONE_SERVER
+    // Java piercing weapons jab along the server's authoritative ray, including
+    // empty air. They use STAB rather than a legacy single-entity attack packet.
+    if(javaSession && javaSession->attackPiercing && action->isAttack()) {
+        if(javaSession->attackStrength+0.000001 >= javaSession->attackMinCharge) {
+            player->swing();
+            javaSession->connection.send("{\"type\":\"attack\",\"entity_id\":-1}");
+        }
+        return;
+    }
 	if (action->isRemove()) {
 		if (missTime > 0) return;
 		player->swing();
 	}
 	if(player->isUsingItem())
 		return;
+    // Touch mining carries INTERACT as well as REMOVE. Java must keep those
+    // gestures exclusive so a held mine cannot also use an item or entity.
+    const bool mayInteract = action->isInteract() && !(javaSession && action->isRemove());
     bool mayUse = true;
 
 	if (!hitResult.isHit()) {
@@ -958,14 +1033,14 @@ void Minecraft::handleBuildAction(BuildActionIntention* action) {
 			player->swing();
 			//LOGI("attacking!\n");
 			InteractPacket packet(InteractPacket::Attack, player->entityId, hitResult.entity->entityId);
-			raknetInstance->send(packet);
+			if(!javaSession)raknetInstance->send(packet);
             gameMode->attack(player, hitResult.entity);
-		} else if (action->isInteract()) {
+		} else if (mayInteract) {
 			if (hitResult.entity->interactPreventDefault())
 				mayUse = false;
 			//LOGI("interacting!\n");
 			InteractPacket packet(InteractPacket::Interact, player->entityId, hitResult.entity->entityId);
-			raknetInstance->send(packet);
+			if(!javaSession)raknetInstance->send(packet);
             gameMode->interact(player, hitResult.entity);
         }
     } else if (hitResult.type == TILE) {
@@ -1013,9 +1088,9 @@ void Minecraft::handleBuildAction(BuildActionIntention* action) {
 			//}
 		}
 	}
-	if (mayUse && action->isInteract()) {
+	if (mayUse && mayInteract) {
 		ItemInstance* item = player->inventory->getSelected();
-		if (item && !player->isUsingItem()) {
+		if ((item || level->isJavaServerLevel()) && !player->isUsingItem()) {
 			if (gameMode->useItem(player, level, item)) {
 				gameRenderer->itemInHandRenderer->itemUsed();
 			}
@@ -1054,6 +1129,7 @@ void Minecraft::gameLostFocus() {
 
 void Minecraft::setScreen( Screen* screen )
 {
+ if(dynamic_cast<ChatScreen*>(screen)){delete screen;screen=new ConsoleScreen();}
 #ifndef	STANDALONE_SERVER
 	Mouse::reset();
 	Multitouch::reset();
@@ -1083,7 +1159,7 @@ void Minecraft::setScreen( Screen* screen )
 		int screenHeight = (int)(height * Gui::InvGuiScale); //ssc.getHeight();
 		screen->init(this, screenWidth, screenHeight);
 
-		if (screen->isInGameScreen() && level) {
+		if (screen->isInGameScreen() && level && !level->isJavaServerLevel()) {
 			level->saveLevelData();
             level->saveGame();
         }
@@ -1131,11 +1207,18 @@ bool Minecraft::supportNonTouchScreen() {
 void Minecraft::init()
 {
 	options.minecraft = this;
+#ifndef STANDALONE_SERVER
+#ifdef PLATFORM_DESKTOP
+	// A desktop can provide mouse/keyboard alongside an optional touch UI.
+	// Touch capability must not force every desktop into touch-only input.
+	_supportsNonTouchscreen = true;
+#else
+	_supportsNonTouchscreen = !platform()->supportsTouchscreen();
+#endif
+#endif
 	options.initDefaultValues();
 #ifndef STANDALONE_SERVER
 	checkGlError("Init enter");
-
-	_supportsNonTouchscreen = !platform()->supportsTouchscreen();
 
 	LOGI("IS TOUCHSCREEN? %d\n", options.useTouchScreen);
 
@@ -1375,9 +1458,9 @@ void Minecraft::_levelGenerated()
 	gui.onLevelGenerated();
 #endif
 
-	level->validateSpawn();
+	if (!level->isJavaServerLevel()) level->validateSpawn();
 	const bool hadSavedPlayerData = level->getLevelData()->getLoadedPlayerTag() != NULL || level->getLevelData()->playerDataVersion == 1;
-	level->loadPlayer(player, true);
+	if (!level->isJavaServerLevel()) level->loadPlayer(player, true);
 	// If we are client side, we trust the server to have given us a correct position.
 	// For local saved worlds, also trust the stored player position instead of always
 	// running collision-based resetPos(), which can shove underground saves upward
@@ -1456,6 +1539,8 @@ void Minecraft::onGraphicsReset()
 {
 #ifndef STANDALONE_SERVER
 	textures->clear();
+ javaPackFontRuntime().graphicsReset(font);
+ if(javaSession){javaSession->pendingSkins.clear();for(const auto& entry:javaSession->cachedSkins)javaSession->pendingSkins.push_back(entry.second);}
 
 	font->onGraphicsReset();
 	gui.onGraphicsReset();
@@ -1479,7 +1564,7 @@ const char* Minecraft::getProgressMessage()
 
 bool Minecraft::isLevelGenerated()
 {
-	return level != NULL && !isGeneratingLevel;
+	return level != NULL && !isGeneratingLevel && (!level->isJavaServerLevel() || _hasSignaledGeneratingLevelFinished);
 }
 
 LevelStorageSource* Minecraft::getLevelSource()
@@ -1632,4 +1717,103 @@ void Minecraft::optionUpdated( const Options::Option* option, int value ) {
         // reapply screen scaling using current window size
         setSize(width, height);
     }
+}
+
+bool Minecraft::joinJavaServer(const std::string& address,const std::string& identity,bool online){
+    if(level)return false;
+    stopJavaServer();javaSession=new JavaGameSession();if(font)font->setJavaTextEnabled(true);
+    if(!javaSession->connect(address,identity,online)){stopJavaServer();return false;}
+    return true;
+}
+void Minecraft::stopJavaServer(){if(soundEngine)soundEngine->playServerSound("@reset",0,0,0,0,1,0);javaPackFontRuntime().clear(font,textures);if(javaSession&&textures)for(const auto& skin:javaSession->skinTextures)textures->removeTexture(skin.second);if(font)font->setJavaTextEnabled(false);delete javaSession;javaSession=NULL;appliedJavaInventoryRevision=0;appliedJavaWorldRevision=0;}
+
+void Minecraft::updateJavaServer(){
+#ifndef STANDALONE_SERVER
+ if(!javaSession)return;
+ javaSession->tick();
+ // The user approved Zeus Practice's known pack. Scope requests to the
+ // verified content hash; unrelated servers never inherit this approval.
+ static uint64_t requestedPackConnection=0,requestedPackGeneration=0;
+ if(requestedPackConnection!=javaSession->resourcePackConnection||requestedPackGeneration!=javaSession->resourcePackGeneration){
+  if(soundEngine)soundEngine->playServerSound("@reset",0,0,0,0,1,0);
+  requestedPackConnection=javaSession->resourcePackConnection;requestedPackGeneration=javaSession->resourcePackGeneration;
+  for(size_t i=0;i<javaSession->resourcePacks.size();++i){const auto& pack=javaSession->resourcePacks[i];
+   if(pack.id=="defacbe1-1109-38e9-9e51-279019aee4c8"&&pack.hash=="1edecb2bed1f44a6af0f488da6cff83bbcd59853")javaSession->requestPackFonts(i);
+  }
+ }
+ javaPackFontRuntime().tick(*javaSession,font,textures);
+ for(const auto& skin:javaSession->pendingSkins){
+  const std::string key="java-skin/"+skin.url.substr(skin.url.find_last_of('/')+1);
+  if(!textures->hasTexture(key)){
+   textures->removeTexture(key); // Remove a failed lookup left by a context reset.
+   // Preserve source dimensions: modern Java geometry uses all64 rows,
+   // while legacy32-row skins retain the original humanoid renderer.
+   TextureData image;image.w=64;image.h=skin.height;image.numBytes=64*skin.height*4;image.transparent=true;
+   image.data=new unsigned char[image.numBytes];std::copy(skin.rgba.begin(),skin.rgba.begin()+image.numBytes,image.data);textures->assignTexture(key,image);if(std::getenv("TCPE_JAVA_TRACE_ENTITIES"))fprintf(stderr,"Java skin uploaded: %dx%d source texture\n",skin.width,skin.height);
+  }
+  javaSession->skinTextures[skin.url]=key;javaSession->skinHeights[skin.url]=skin.height;
+ }
+ if(!javaSession->pendingSkins.empty())javaSession->refreshItemSkins();
+ javaSession->pendingSkins.clear();
+ for(size_t i=0;i<javaSession->messages.size();++i)gui.addMessage(javaSession->messages[i],i<javaSession->messageSignatures.size()?javaSession->messageSignatures[i]:std::string());
+ javaSession->messages.clear();javaSession->messageSignatures.clear();
+ for(const auto& signature:javaSession->pendingChatDeletes)gui.deleteMessageBySignature(signature);javaSession->pendingChatDeletes.clear();
+ if(!javaSession->error.empty()){if(!javaSession->errorShown||!dynamic_cast<DisconnectionScreen*>(screen)){javaSession->errorShown=true;setScreen(new DisconnectionScreen(javaSession->error));}return;}
+ if(level&&level->isJavaServerLevel()&&appliedJavaWorldRevision!=javaSession->worldRevision){
+  if(isGeneratingLevel||!_hasSignaledGeneratingLevelFinished)return;
+  cameraTargetPlayer=NULL;levelRenderer->setLevel(NULL);particleEngine->setLevel(NULL);
+  delete level->getLevelStorage();delete level;level=NULL;player=NULL;
+  appliedJavaInventoryRevision=0;setScreen(new JavaConnectScreen());
+ }
+ const bool showingJavaDialog=showPendingJavaDialog(this)||showPendingJavaChatActions(this);
+ if(!level&&javaSession->spawned&&javaSession->hasPosition){
+  const auto& p=javaSession->position;
+  if(javaSession->chunks.chunk(static_cast<int>(std::floor(p[0]/16.)),static_cast<int>(std::floor(p[2]/16.)))){
+   appliedJavaWorldRevision=javaSession->worldRevision;
+   setIsCreativeMode(false);delete gameMode;gameMode=new JavaGameMode(this);
+   JavaLevel* serverLevel=new JavaLevel(new MemoryLevelStorage(),javaSession->chunks);
+   JavaLocalPlayer* local=new JavaLocalPlayer(this,serverLevel,user,serverLevel->dimension->id);
+   local->entityId=javaSession->playerId;local->moveTo(static_cast<float>(p[0]),static_cast<float>(p[1])-local->heightOffset,static_cast<float>(p[2]),0,0);
+   setLevel(serverLevel,"Java server",local);local->moveTo(static_cast<float>(p[0]),static_cast<float>(p[1])-local->heightOffset,static_cast<float>(p[2]),0,0);serverLevel->addEntity(local);if(!showingJavaDialog)setScreen(NULL);
+  }
+ }
+ if(level&&level->isJavaServerLevel()){
+  if(soundEngine){for(const auto& sound:javaSession->pendingSounds)soundEngine->playServerSound((sound.volume<0?"@stop|":"@play|")+std::to_string(sound.source)+"|"+sound.name,float(sound.position[0]),float(sound.position[1]),float(sound.position[2]),float(sound.volume),float(sound.pitch),sound.seed,float(sound.fixedRange));javaSession->pendingSounds.clear();}
+  if(particleEngine&&textures&&!isGeneratingLevel){
+   static Random javaEffectRandom;unsigned effectBudget=256;for(const auto& effect:javaSession->pendingVisualEffects)for(unsigned i=0;i<effect.count&&effectBudget>0;++i,--effectBudget){auto p=effect.position;for(size_t axis=0;axis<3;++axis)if(effect.offset[axis]!=0)p[axis]+=javaEffectRandom.nextGaussian()*effect.offset[axis];
+    if(effect.kind=="gust"||effect.kind=="small_gust")particleEngine->add(new JavaGustParticle(textures,level,float(p[0]),float(p[1]),float(p[2]),effect.kind=="small_gust"?.15f:1.f));
+    else if(effect.kind=="gust_emitter_large"||effect.kind=="gust_emitter_small")particleEngine->add(new JavaGustEmitter(particleEngine,textures,level,float(p[0]),float(p[1]),float(p[2]),effect.kind=="gust_emitter_large"));
+    else if(effect.kind=="firework_spark"){if(auto* spark=JavaFireworkParticles::rocketTrail(particleEngine,textures,level,effect))particleEngine->add(spark);}
+    else if(effect.kind=="firework_explosion"&&JavaFireworkParticles::canSpawn())particleEngine->add(new JavaFireworkParticles::Starter(particleEngine,textures,level,effect));
+   }
+   javaSession->pendingVisualEffects.clear();
+  }
+  if(player&&!javaSession->lookCorrections.empty()){
+   double yaw=player->yRot,pitch=player->xRot;for(const auto& correction:javaSession->lookCorrections)correction.apply(yaw,pitch);
+   player->yRot=player->yRotO=player->yBodyRot=player->yBodyRotO=static_cast<float>(yaw);player->xRot=player->xRotO=static_cast<float>(pitch);javaSession->lookCorrections.clear();
+   if(std::getenv("TCPE_JAVA_TRACE_ENTITIES"))fprintf(stderr,"Java server look applied: yaw=%.2f pitch=%.2f\n",yaw,pitch);
+  }
+  JavaLevel* serverLevel=static_cast<JavaLevel*>(level);
+  if(serverLevel->serverChunks().version()!=javaSession->chunks.version()){
+   const int previousMinY=serverLevel->minBuildHeight(),previousMaxY=serverLevel->maxBuildHeight();
+   const auto previous=serverLevel->serverChunks();serverLevel->synchronize(javaSession->chunks);
+   if(_hasSignaledGeneratingLevelFinished && !isGeneratingLevel){
+   if(previousMinY!=serverLevel->minBuildHeight()||previousMaxY!=serverLevel->maxBuildHeight())levelRenderer->allChanged();
+   for(const auto& entry:javaSession->chunks.entries()){
+    if(previous.chunk(entry.first.first,entry.first.second)==entry.second.get())continue;
+    levelRenderer->setDirty(entry.first.first*16-1,serverLevel->minBuildHeight(),entry.first.second*16-1,entry.first.first*16+16,serverLevel->maxBuildHeight()-1,entry.first.second*16+16);
+   }
+   for(const auto& entry:previous.entries())if(!javaSession->chunks.chunk(entry.first.first,entry.first.second))levelRenderer->setDirty(entry.first.first*16-1,serverLevel->minBuildHeight(),entry.first.second*16-1,entry.first.first*16+16,serverLevel->maxBuildHeight()-1,entry.first.second*16+16);
+  }
+  }
+  if(_hasSignaledGeneratingLevelFinished&&!isGeneratingLevel&&appliedJavaInventoryRevision!=javaSession->inventoryRevision){
+   applyJavaHotbar(this);appliedJavaInventoryRevision=javaSession->inventoryRevision;showJavaInventory(this,false);
+  }
+  if(_hasSignaledGeneratingLevelFinished&&!isGeneratingLevel)synchronizeJavaEntities(level,*javaSession);
+  const auto day=javaSession->dayTime%24000;level->setTime(static_cast<long>(day*19200/24000));
+  if(player){player->health=javaNativeHealth(javaSession->health);
+   if(player->health>0&&dynamic_cast<DeathScreen*>(screen)){player->deathTime=0;setScreen(NULL);}
+  }
+ }
+#endif
 }

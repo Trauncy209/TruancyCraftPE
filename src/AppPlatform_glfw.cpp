@@ -4,6 +4,7 @@
 #include <Windows.h>
 #endif
 
+#ifndef TCPE_GLES3
 // Loader that tries GLFW first, then falls back to opengl32.dll for any
 // function that glfwGetProcAddress can't resolve.
 void* winGLLoader(const char* name) {
@@ -68,6 +69,10 @@ void glPatchDesktopCompat() {
     if (!glad_glFogx)        glad_glFogx        = compat_glFogx;
     if (!glad_glFogxv)       glad_glFogxv       = compat_glFogxv;
 }
+#else
+void glPatchDesktopCompat() {}
+#endif
+
 
 float AppPlatform_glfw::getPixelsPerMillimeter() {
     GLFWmonitor* monitor = glfwGetPrimaryMonitor();

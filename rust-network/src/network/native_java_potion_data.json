@@ -1,0 +1,451 @@
+{
+  "version": "1.21.11",
+  "source": "Official client JAR javap + Mojang mappings",
+  "mob_effect_colors": {
+    "speed": 3402751,
+    "slowness": 9154528,
+    "haste": 14270531,
+    "mining_fatigue": 4866583,
+    "strength": 16762624,
+    "instant_health": 16262179,
+    "instant_damage": 11101546,
+    "jump_boost": 16646020,
+    "nausea": 5578058,
+    "regeneration": 13458603,
+    "resistance": 9520880,
+    "fire_resistance": 16750848,
+    "water_breathing": 10017472,
+    "invisibility": 16185078,
+    "blindness": 2039587,
+    "night_vision": 12779366,
+    "hunger": 5797459,
+    "weakness": 4738376,
+    "poison": 8889187,
+    "wither": 7561558,
+    "health_boost": 16284963,
+    "absorption": 2445989,
+    "saturation": 16262179,
+    "glowing": 9740385,
+    "levitation": 13565951,
+    "luck": 5882118,
+    "unluck": 12624973,
+    "slow_falling": 15978425,
+    "conduit_power": 1950417,
+    "dolphins_grace": 8954814,
+    "bad_omen": 745784,
+    "hero_of_the_village": 4521796,
+    "darkness": 2696993,
+    "trial_omen": 1484454,
+    "raid_omen": 14565464,
+    "wind_charged": 12438015,
+    "weaving": 7891290,
+    "oozing": 10092451,
+    "infested": 9214860,
+    "breath_of_the_nautilus": 65518
+  },
+  "potions": {
+    "water": [],
+    "mundane": [],
+    "thick": [],
+    "awkward": [],
+    "night_vision": [
+      {
+        "effect": "night_vision",
+        "duration": 3600,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 12779366
+      }
+    ],
+    "long_night_vision": [
+      {
+        "effect": "night_vision",
+        "duration": 9600,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 12779366
+      }
+    ],
+    "invisibility": [
+      {
+        "effect": "invisibility",
+        "duration": 3600,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 16185078
+      }
+    ],
+    "long_invisibility": [
+      {
+        "effect": "invisibility",
+        "duration": 9600,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 16185078
+      }
+    ],
+    "leaping": [
+      {
+        "effect": "jump_boost",
+        "duration": 3600,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 16646020
+      }
+    ],
+    "long_leaping": [
+      {
+        "effect": "jump_boost",
+        "duration": 9600,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 16646020
+      }
+    ],
+    "strong_leaping": [
+      {
+        "effect": "jump_boost",
+        "duration": 1800,
+        "amplifier": 1,
+        "show_particles": true,
+        "color": 16646020
+      }
+    ],
+    "fire_resistance": [
+      {
+        "effect": "fire_resistance",
+        "duration": 3600,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 16750848
+      }
+    ],
+    "long_fire_resistance": [
+      {
+        "effect": "fire_resistance",
+        "duration": 9600,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 16750848
+      }
+    ],
+    "swiftness": [
+      {
+        "effect": "speed",
+        "duration": 3600,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 3402751
+      }
+    ],
+    "long_swiftness": [
+      {
+        "effect": "speed",
+        "duration": 9600,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 3402751
+      }
+    ],
+    "strong_swiftness": [
+      {
+        "effect": "speed",
+        "duration": 1800,
+        "amplifier": 1,
+        "show_particles": true,
+        "color": 3402751
+      }
+    ],
+    "slowness": [
+      {
+        "effect": "slowness",
+        "duration": 1800,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 9154528
+      }
+    ],
+    "long_slowness": [
+      {
+        "effect": "slowness",
+        "duration": 4800,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 9154528
+      }
+    ],
+    "strong_slowness": [
+      {
+        "effect": "slowness",
+        "duration": 400,
+        "amplifier": 3,
+        "show_particles": true,
+        "color": 9154528
+      }
+    ],
+    "turtle_master": [
+      {
+        "effect": "slowness",
+        "duration": 400,
+        "amplifier": 3,
+        "show_particles": true,
+        "color": 9154528
+      },
+      {
+        "effect": "resistance",
+        "duration": 400,
+        "amplifier": 2,
+        "show_particles": true,
+        "color": 9520880
+      }
+    ],
+    "long_turtle_master": [
+      {
+        "effect": "slowness",
+        "duration": 800,
+        "amplifier": 3,
+        "show_particles": true,
+        "color": 9154528
+      },
+      {
+        "effect": "resistance",
+        "duration": 800,
+        "amplifier": 2,
+        "show_particles": true,
+        "color": 9520880
+      }
+    ],
+    "strong_turtle_master": [
+      {
+        "effect": "slowness",
+        "duration": 400,
+        "amplifier": 5,
+        "show_particles": true,
+        "color": 9154528
+      },
+      {
+        "effect": "resistance",
+        "duration": 400,
+        "amplifier": 3,
+        "show_particles": true,
+        "color": 9520880
+      }
+    ],
+    "water_breathing": [
+      {
+        "effect": "water_breathing",
+        "duration": 3600,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 10017472
+      }
+    ],
+    "long_water_breathing": [
+      {
+        "effect": "water_breathing",
+        "duration": 9600,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 10017472
+      }
+    ],
+    "healing": [
+      {
+        "effect": "instant_health",
+        "duration": 1,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 16262179
+      }
+    ],
+    "strong_healing": [
+      {
+        "effect": "instant_health",
+        "duration": 1,
+        "amplifier": 1,
+        "show_particles": true,
+        "color": 16262179
+      }
+    ],
+    "harming": [
+      {
+        "effect": "instant_damage",
+        "duration": 1,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 11101546
+      }
+    ],
+    "strong_harming": [
+      {
+        "effect": "instant_damage",
+        "duration": 1,
+        "amplifier": 1,
+        "show_particles": true,
+        "color": 11101546
+      }
+    ],
+    "poison": [
+      {
+        "effect": "poison",
+        "duration": 900,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 8889187
+      }
+    ],
+    "long_poison": [
+      {
+        "effect": "poison",
+        "duration": 1800,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 8889187
+      }
+    ],
+    "strong_poison": [
+      {
+        "effect": "poison",
+        "duration": 432,
+        "amplifier": 1,
+        "show_particles": true,
+        "color": 8889187
+      }
+    ],
+    "regeneration": [
+      {
+        "effect": "regeneration",
+        "duration": 900,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 13458603
+      }
+    ],
+    "long_regeneration": [
+      {
+        "effect": "regeneration",
+        "duration": 1800,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 13458603
+      }
+    ],
+    "strong_regeneration": [
+      {
+        "effect": "regeneration",
+        "duration": 450,
+        "amplifier": 1,
+        "show_particles": true,
+        "color": 13458603
+      }
+    ],
+    "strength": [
+      {
+        "effect": "strength",
+        "duration": 3600,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 16762624
+      }
+    ],
+    "long_strength": [
+      {
+        "effect": "strength",
+        "duration": 9600,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 16762624
+      }
+    ],
+    "strong_strength": [
+      {
+        "effect": "strength",
+        "duration": 1800,
+        "amplifier": 1,
+        "show_particles": true,
+        "color": 16762624
+      }
+    ],
+    "weakness": [
+      {
+        "effect": "weakness",
+        "duration": 1800,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 4738376
+      }
+    ],
+    "long_weakness": [
+      {
+        "effect": "weakness",
+        "duration": 4800,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 4738376
+      }
+    ],
+    "luck": [
+      {
+        "effect": "luck",
+        "duration": 6000,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 5882118
+      }
+    ],
+    "slow_falling": [
+      {
+        "effect": "slow_falling",
+        "duration": 1800,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 15978425
+      }
+    ],
+    "long_slow_falling": [
+      {
+        "effect": "slow_falling",
+        "duration": 4800,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 15978425
+      }
+    ],
+    "wind_charged": [
+      {
+        "effect": "wind_charged",
+        "duration": 3600,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 12438015
+      }
+    ],
+    "weaving": [
+      {
+        "effect": "weaving",
+        "duration": 3600,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 7891290
+      }
+    ],
+    "oozing": [
+      {
+        "effect": "oozing",
+        "duration": 3600,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 10092451
+      }
+    ],
+    "infested": [
+      {
+        "effect": "infested",
+        "duration": 3600,
+        "amplifier": 0,
+        "show_particles": true,
+        "color": 9214860
+      }
+    ]
+  }
+}

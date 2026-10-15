@@ -96,7 +96,7 @@ void Options::initDefaultValues() {
 	keyBuild = KeyMapping("key.inventory", Keyboard::KEY_E);
 	keySneak = KeyMapping("key.sneak", Keyboard::KEY_LSHIFT);
 #ifndef RPI
-	// keyCraft = KeyMapping("key.crafting", Keyboard::KEY_Q);
+	keyCraft = KeyMapping("key.crafting", Keyboard::KEY_C);
 	keyDrop  = KeyMapping("key.drop", Keyboard::KEY_Q);
 	keyChat  = KeyMapping("key.chat", Keyboard::KEY_T);
 	keyFog   = KeyMapping("key.fog", Keyboard::KEY_F);
@@ -128,6 +128,21 @@ void Options::initDefaultValues() {
 	keyMappings[k++] = &keyMenuPrevious;
 	keyMappings[k++] = &keyMenuOk;
 	keyMappings[k++] = &keyMenuCancel;
+    keyMappings[k++] = &keyCraft;
+    keyPerspective = KeyMapping("key.perspective", Keyboard::KEY_F5);
+    keyReleaseMouse = KeyMapping("key.releaseMouse", Keyboard::KEY_O);
+    keyPause = KeyMapping("key.pause", Keyboard::KEY_ESCAPE);
+    keyMappings[k++] = &keyPerspective;
+    keyMappings[k++] = &keyReleaseMouse;
+    keyMappings[k++] = &keyPause;
+    for (int slot = 0; slot < 9; ++slot) {
+        keyHotbar[slot] = KeyMapping("key.hotbar." + std::to_string(slot + 1), '1' + slot);
+        keyMappings[k++] = &keyHotbar[slot];
+    }
+    keySprint = KeyMapping("key.sprint", 17);
+    keySwapOffhand = KeyMapping("key.swapOffhand", Keyboard::KEY_G);
+    keyMappings[k++] = &keySprint;
+    keyMappings[k++] = &keySwapOffhand;
 
 //	"Polymorphism" at it's worst. At least it's better to have it here
 //	for now, then to have it spread all around the game code (even if
@@ -140,7 +155,7 @@ void Options::initDefaultValues() {
 	fancyGraphics = false;
 
 	//renderDebug = true;
-	#if !defined(RPI)
+	#if !defined(RPI) && !defined(ANDROID)
 		keyUp.key		= 19;
 		keyDown.key		= 20;
 		keyLeft.key		= 21;
@@ -163,6 +178,7 @@ void Options::initDefaultValues() {
 	username = "StevePi";
 	useMouseForDigging = true;
 #endif
+    for (int i = 0; i < KeyMappingCount; ++i) defaultKeys[i] = keyMappings[i]->key;
 }
 
 const Options::Option
@@ -239,13 +255,21 @@ void Options::update()
 {
 	viewDistance = 2;
 	StringVector optionStrings = optionsFile.getOptionStrings();
-	for (unsigned int i = 0; i < optionStrings.size(); i += 2) {
+	for (unsigned int i = 0; i + 1 < optionStrings.size(); i += 2) {
 		const std::string& key = optionStrings[i];
 		const std::string& value = optionStrings[i+1];
 
         //LOGI("reading key: %s (%s)\n", key.c_str(), value.c_str());
 
-		// Multiplayer
+		for (int binding = 0; binding < KeyMappingCount; ++binding) {
+            if (key == "key_" + keyMappings[binding]->name) {
+                char* end = NULL;
+                long valueKey = strtol(value.c_str(), &end, 10);
+                if (end != value.c_str() && *end == '\0' && valueKey >= 0 && valueKey <= 255)
+                    keyMappings[binding]->key = (int)valueKey;
+            }
+        }
+        // Multiplayer
 		if (key == OptionStrings::Multiplayer_Username) username = value;
 		if (key == OptionStrings::Multiplayer_ServerVisible) readBool(value, serverVisible);
 
@@ -270,6 +294,9 @@ void Options::update()
 		if (key == OptionStrings::Controls_IsLefthanded) {
 			readBool(value, isLeftHanded);
 		}
+        if (key == OptionStrings::Controls_UseTouchScreen) {
+            readBool(value, useTouchScreen);
+        }
 		if (key == OptionStrings::Controls_UseTouchJoypad) {
 			readBool(value, isJoyTouchArea);
 			if (!minecraft->useTouchscreen())
@@ -399,6 +426,8 @@ void Options::load()
 void Options::save()
 {
 	StringVector stringVec;
+    for (int i = 0; i < KeyMappingCount; ++i)
+        addOptionToSaveOutput(stringVec, "key_" + keyMappings[i]->name, keyMappings[i]->key);
 	// Login
 	addOptionToSaveOutput(stringVec, OptionStrings::Multiplayer_Username, username);
 	// Game
@@ -591,4 +620,39 @@ void Options::notifyOptionUpdate( const Option* option, float value ) {
 
 void Options::notifyOptionUpdate( const Option* option, int value ) {
 	minecraft->optionUpdated(option, value);
+}
+
+std::string Options::getKeyDescription(int i) {
+    static const char* labels[] = {"Forward", "Left", "Back", "Right", "Jump", "Sneak", "Drop item", "Inventory", "Chat", "Render distance", "Attack / break", "Use / place", "Menu next", "Menu previous", "Menu select", "Menu back", "Crafting", "Camera view", "Release pointer", "Pause", "Hotbar 1", "Hotbar 2", "Hotbar 3", "Hotbar 4", "Hotbar 5", "Hotbar 6", "Hotbar 7", "Hotbar 8", "Hotbar 9", "Sprint", "Swap hands"};
+    return i >= 0 && i < KeyMappingCount ? labels[i] : "";
+}
+std::string Options::getKeyMessage(int i) {
+    if (i < 0 || i >= KeyMappingCount) return "";
+    int key = keyMappings[i]->key;
+    if (!key) return "Unbound";
+    if (key >= 'A' && key <= 'Z' || key >= '0' && key <= '9') return std::string(1, (char)key);
+    if (key >= Keyboard::KEY_F1 && key <= Keyboard::KEY_F12) return "F" + std::to_string(key - Keyboard::KEY_F1 + 1);
+    switch (key) {
+    case 8: return "Backspace"; case 9: return "Tab"; case 10: return "Shift";
+    case 13: return "Enter"; case 17: return "Ctrl"; case 18: return "Alt"; case 27: return "Escape"; case 32: return "Space";
+    case 33: return "Page up"; case 34: return "Page down"; case 35: return "End"; case 36: return "Home"; case 46: return "Delete";
+    case 106:return "Num *";case 107:return "Num +";case 109:return "Num -";case 110:return "Num .";case 111:return "Num /";
+    case 188: return ",";case 190: return ".";case 192: return "`";case 189: return "-";case 187: return "=";case 219: return "[";case 221: return "]";case 220: return "\\";case 186: return ";";case 222: return "\"";case 191: return "/";
+    case 37: return "Left arrow"; case 38: return "Up arrow";
+    case 39: return "Right arrow"; case 40: return "Down arrow";
+    }
+    return "Key " + std::to_string(key);
+}
+int Options::keyConflict(int index, int key) const {
+    if (!key || index < 0 || index >= KeyMappingCount) return -1;
+    // Menu navigation and gameplay are separate contexts.
+    bool menu = index >= 12 && index <= 15;
+    for (int i = 0; i < KeyMappingCount; ++i) {
+        if (i != index && menu == (i >= 12 && i <= 15) && keyMappings[i]->key == key) return i;
+    }
+    return -1;
+}
+void Options::resetKeys() {
+    for (int i = 0; i < KeyMappingCount; ++i) keyMappings[i]->key = defaultKeys[i];
+    save();
 }

@@ -1,4 +1,7 @@
 #include "HumanoidModel.h"
+#include "network/java/JavaEntityAdapter.h"
+#include "network/java/JavaWeaponAnimation.h"
+#include "network/java/JavaCrossbowAnimation.h"
 #include "../Minecraft.h"
 #include "../../util/Mth.h"
 #include "../../world/entity/player/Player.h"
@@ -66,7 +69,35 @@ void HumanoidModel::render(Entity* e, float time, float r, float bob, float yRot
 		}
 	}
 	
+ const auto* javaUse=javaPresentationSnapshot(e);
+ if(javaUse&&javaUse->usingItem&&javaUse->useAnimation=="bow")bowAndArrow=true;
 	setupAnim(time, r, bob, yRot, xRot, scale);
+ if(javaUse&&javaUse->usingItem){
+  if(javaUse->useAnimation=="block_kind"){
+   ModelPart& arm=javaUse->usingOffhand?arm1:arm0;
+   arm.xRot=arm.xRot*.5f-.9424779f+std::max(-1.3962634f,std::min(.43633232f,head.xRot));
+   arm.yRot=(javaUse->usingOffhand?.5235988f:-.5235988f)+std::max(-.5235988f,std::min(.5235988f,head.yRot));
+  }else if(javaUse->useAnimation=="crossbow"&&javaUse->useChargeDuration>0){
+   const auto pose=JavaCrossbowAnimation::armsCharge(float(javaUse->useTicks),float(javaUse->useChargeDuration),javaUse->usingOffhand?-1:1);
+   ModelPart& main=javaUse->usingOffhand?arm1:arm0;ModelPart& other=javaUse->usingOffhand?arm0:arm1;
+   main.xRot=pose.mainX;main.yRot=pose.mainY;other.xRot=pose.otherX;other.yRot=pose.otherY;
+  }else if(javaUse->useAnimation=="spear"){
+   ModelPart& arm=javaUse->usingOffhand?arm1:arm0;
+   const auto pose=JavaWeaponAnimation::thirdPersonArm(head.xRot,head.yRot,float(javaUse->useTicks),float(javaUse->useKineticDelay),float(javaUse->useKineticDismount),float(javaUse->useKineticKnockback),float(javaUse->useKineticDamage),javaUse->usingOffhand?-1:1);
+   arm.xRot=pose.pitch;arm.yRot=pose.yaw;arm.zRot=pose.roll;
+  }else if(javaUse->useAnimation=="bow"&&javaUse->usingOffhand){
+   arm1.yRot=.1f+head.yRot;arm0.yRot=-.1f+head.yRot-.4f;
+   arm0.xRot=arm1.xRot=-Mth::PI/2+head.xRot;
+  }
+ }else if(javaUse&&attackTime<=0){
+  const bool mainCharged=javaUse->equipment[0].resourceId=="minecraft:crossbow"&&!javaUse->equipment[0].chargedProjectile.empty();
+  const bool offCharged=javaUse->equipment[1].resourceId=="minecraft:crossbow"&&!javaUse->equipment[1].chargedProjectile.empty();
+  if(mainCharged||offCharged){
+   const auto pose=JavaCrossbowAnimation::armsHold(head.xRot,head.yRot,mainCharged?1:-1);
+   ModelPart& main=mainCharged?arm0:arm1;ModelPart& other=mainCharged?arm1:arm0;
+   main.xRot=pose.mainX;main.yRot=pose.mainY;other.xRot=pose.otherX;other.yRot=pose.otherY;
+  }
+ }
 	
 	head.render(scale);
 	body.render(scale);

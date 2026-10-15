@@ -152,7 +152,11 @@ public:
 	KeyMapping keyMenuOk;
 	KeyMapping keyMenuCancel;
 
-    KeyMapping* keyMappings[16];
+    static const int KeyMappingCount = 31;
+    KeyMapping keyHotbar[9];
+    KeyMapping keyPerspective, keyReleaseMouse, keyPause, keySprint, keySwapOffhand;
+    KeyMapping* keyMappings[KeyMappingCount];
+    int defaultKeys[KeyMappingCount];
 
 	/*protected*/ Minecraft* minecraft;
     ///*private*/ File optionsFile;
@@ -193,18 +197,12 @@ public:
 
 	void initDefaultValues();
 
-    std::string getKeyDescription(int i) {
-        //Language language = Language.getInstance();
-        //return language.getElement(keyMappings[i].name);
-		return "Options::getKeyDescription not implemented";
-    }
-
-    std::string getKeyMessage(int i) {
-        //return Keyboard.getKeyName(keyMappings[i].key);
-		return "Options::getKeyMessage not implemented";
-    }
-
+    std::string getKeyDescription(int i);
+    std::string getKeyMessage(int i);
+    int keyConflict(int index, int key) const;
+    void resetKeys();
     void setKey(int i, int key) {
+        if (i < 0 || i >= KeyMappingCount || key < 0 || key > 255) return;
         keyMappings[i]->key = key;
         save();
     }

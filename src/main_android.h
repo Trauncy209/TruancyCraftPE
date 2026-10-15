@@ -22,6 +22,7 @@
 #include "platform/log.h"
 #include "platform/input/Controller.h"
 #include "platform/input/Keyboard.h"
+#include "platform/input/AndroidKeyAdapter.h"
 #include "platform/input/Mouse.h"
 #include "platform/input/Multitouch.h"
 
@@ -385,17 +386,15 @@ handle_keyboard_input( struct android_app* app, AInputEvent* event )
 		   LOGW("New keycode: %d", keyCode);
 		   if (!pressedBack) {
 
-               int key = convertAndroidKeyCodeToWindowsKeyCode(keyCode);
-               if (key == 0) key = keyCode;
-			   Keyboard::feed(key, isDown);
+               static AndroidKeyState keyState;
+               auto* game=static_cast<Minecraft*>(engine->userApp);
+               AndroidControllerBindings bindings;
+               if(game&&game->isInited())bindings=androidControllerBindings(game->options);
+               int key=keyState.translate(keyCode,AInputEvent_getSource(event),game&&game->screen,bindings,isDown);
+               if(key)Keyboard::feed(key, isDown);
 			   if(isDown) {
 				   int uniChar = ((struct ENGINE*)app->userData)->appContext.platform->getKeyFromKeyCode(keyCode, metaState, deviceId);
-				   char charI = (char)uniChar;
-				   LOGW("Unichar: %d", uniChar);
-				   if(charI > 31) {
-					   LOGW("New Char %c[%d]", charI, uniChar);
-					   Keyboard::feedText((char)charI);
-				   }
+				   if(uniChar>=32)Keyboard::feedCodepoint(static_cast<uint32_t>(uniChar));
 			   }
 		   }
        }

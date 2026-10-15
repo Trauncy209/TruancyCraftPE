@@ -28,6 +28,9 @@ private:
 	Button* bWorldType;
 	Button* bWorldOptions;
 	Button* bOptionsBack;
+ Button* bOptionsPrevious;
+ Button* bOptionsNext;
+ int worldOptionsPage=0;
 	Button* bOptionCaves;
 	Button* bOptionRavines;
 	Button* bOptionWaterLakes;

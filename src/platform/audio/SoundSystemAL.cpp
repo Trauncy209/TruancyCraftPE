@@ -6,6 +6,12 @@
 #include "../../client/sound/Sound.h"
 
 #include "../log.h"
+#include <map>
+#include <sstream>
+struct JavaVoiceTag{int category;std::string name;};
+static std::map<SoundSystemAL*,std::map<ALuint,JavaVoiceTag>> javaVoices;
+void stopJavaSounds(SoundSystemAL* owner,const std::string& name,int category){for(const auto& v:javaVoices[owner])if((category==255||category==v.second.category)&&(name.empty()||name==v.second.name))alSourceStop(v.first);}
+
 
 static const char* errIdString = 0;
 
@@ -46,6 +52,7 @@ SoundSystemAL::SoundSystemAL()
 
 SoundSystemAL::~SoundSystemAL()
 {
+    javaVoices.erase(this);
     alDeleteSources(MaxNumSources, _sources);
 
     for (int i = 0; i < (int)_buffers.size(); ++i)
@@ -102,7 +109,12 @@ void SoundSystemAL::enable(bool status) {
     checkError();
 }
 
-void SoundSystemAL::destroy() {}
+void SoundSystemAL::destroy() {
+ if(!context)return;
+ for(int i=0;i<MaxNumSources;++i){alSourceStop(_sources[i]);alSourcei(_sources[i],AL_BUFFER,0);}
+ for(auto& b:_buffers)if(b.inited)alDeleteBuffers(1,&b.bufferID);
+ _buffers.clear();javaVoices.erase(this);
+}
 
 void SoundSystemAL::setListenerPos( float x, float y, float z )
 {
@@ -161,6 +173,13 @@ void SoundSystemAL::playAt( const SoundDesc& sound, float x, float y, float z, f
     }
 
     ALuint sourceID = _sources[sourceIndex];
+    if(sound.name.compare(0,6,"@java|")==0){
+     std::istringstream tag(sound.name.substr(6));std::string category,name,range;
+     std::getline(tag,category,'|');std::getline(tag,name,'|');std::getline(tag,range,'|');
+     javaVoices[this][sourceID]={std::atoi(category.c_str()),name};
+     alSourcef(sourceID,AL_REFERENCE_DISTANCE,0);alSourcef(sourceID,AL_MAX_DISTANCE,std::atof(range.c_str()));alSourcef(sourceID,AL_ROLLOFF_FACTOR,1);
+    }else{javaVoices[this].erase(sourceID);alSourcef(sourceID,AL_REFERENCE_DISTANCE,5);alSourcef(sourceID,AL_MAX_DISTANCE,16);alSourcef(sourceID,AL_ROLLOFF_FACTOR,6);}
+
     checkError();
 
     alSourcei(sourceID, AL_BUFFER, 0);

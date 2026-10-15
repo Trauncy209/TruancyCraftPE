@@ -1,5 +1,15 @@
 LOCAL_PATH := $(call my-dir)
 
+# Rust networking is loaded in-process as an APK-packaged shared dependency.
+# Override TCPE_JAVA_LIBRARY_DIR for externally built ABI libraries.
+TCPE_JAVA_LIBRARY_DIR ?= $(abspath $(LOCAL_PATH)/../../../../mobile-libs)
+include $(CLEAR_VARS)
+LOCAL_MODULE := tcpe_java_network
+LOCAL_SRC_FILES := $(TCPE_JAVA_LIBRARY_DIR)/$(TARGET_ARCH_ABI)/libtcpe_java_network.so
+LOCAL_EXPORT_C_INCLUDES := $(LOCAL_PATH)/../../../../include
+include $(PREBUILT_SHARED_LIBRARY)
+
+
 include $(CLEAR_VARS)
 
 LOCAL_MODULE    := minecraftpe
@@ -233,9 +243,18 @@ LOCAL_SRC_FILES := ../../../src/main.cpp \
 ../../../src/world/level/tile/entity/FurnaceTileEntity.cpp \
 ../../../src/world/phys/HitResult.cpp
 
+# Java connection, authoritative world, lighting, entities and model rendering.
+LOCAL_SRC_FILES += ../../../src/network/JavaServerConnection.cpp
+LOCAL_SRC_FILES += $(patsubst $(LOCAL_PATH)/%,%,$(wildcard $(LOCAL_PATH)/../../../src/network/java/*.cpp))
+LOCAL_SHARED_LIBRARIES += tcpe_java_network
+LOCAL_C_INCLUDES += $(LOCAL_PATH)/../../../../include
+LOCAL_CPP_FEATURES := exceptions rtti
+
 LOCAL_CFLAGS := -Wno-psabi $(LOCAL_CFLAGS)
 
-LOCAL_CFLAGS := -DPRE_ANDROID23 -DANDROID_PUBLISH $(LOCAL_CFLAGS)
+LOCAL_CPPFLAGS := -std=c++14
+LOCAL_C_INCLUDES += $(LOCAL_PATH)/../../../src
+LOCAL_CFLAGS := -DPLATFORM_ANDROID -DANDROID -DPRE_ANDROID23 -DANDROID_PUBLISH $(LOCAL_CFLAGS)
 #LOCAL_CFLAGS := -DPRE_ANDROID23 -DANDROID_PUBLISH -DDEMO_MODE $(LOCAL_CFLAGS)
 
 #LOCAL_CFLAGS := -DPRE_ANDROID23 -DDEMO_MODE $(LOCAL_CFLAGS)
@@ -245,7 +264,6 @@ LOCAL_LDLIBS    := -llog -lEGL -lGLESv1_CM
 
 LOCAL_STATIC_LIBRARIES := RakNet
 
-TARGET_ARCH_ABI := armeabi-v7a
 
 include $(BUILD_SHARED_LIBRARY)
 

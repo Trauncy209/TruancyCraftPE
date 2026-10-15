@@ -9,6 +9,7 @@
 #include "../renderer/RenderChunk.h"
 #include "../../util/Random.h"
 #include "../IConfigListener.h"
+#include "../../network/java/JavaHeartState.h"
 
 class Minecraft;
 class ItemInstance;
@@ -19,6 +20,7 @@ struct IntRectangle;
 struct GuiMessage
 {
 	std::string message;
+ std::string signatureId;
 	int ticks;
 };
 
@@ -60,12 +62,23 @@ public:
 
 	void renderBubbles();
 	void renderHearts();
+ void renderJavaVitals(int screenWidth,int screenHeight);
+ void renderJavaExperience(int screenWidth,int ySlot);
+ void renderJavaActionBar(int screenWidth,int ySlot,float partial);
+ void renderJavaScoreboard(int screenWidth,int screenHeight);
+ void renderJavaBossBars(int screenWidth,int screenHeight);
+ void renderJavaTitles(int screenWidth,int screenHeight,float partial);
 	void renderDebugInfo();
 
 	void renderProgressIndicator( const bool isTouchInterface, const int screenWidth, const int screenHeight, float a );
 
-    void addMessage(const std::string& string);
+    void addMessage(const std::string& string,const std::string& signatureId="");
+ void deleteMessageBySignature(const std::string& signatureId);
 	const GuiMessageList& getMessages() const { return guiMessages; }
+ const GuiMessageList& getRawMessages() const { return rawGuiMessages; }
+ struct ChatPanelBounds {int x=0,y=0,width=0,height=0,lineHeight=10;};
+ ChatPanelBounds incomingChatBounds(int width,int height) const;
+ std::vector<std::string> wrapIncomingChat(Font* font,const std::string& text,int width) const;
 	void postError(int errCode);
 
     void onGraphicsReset();
@@ -98,10 +111,12 @@ private:
 	int MAX_MESSAGE_WIDTH;
 	//ItemRenderer itemRenderer;
 	GuiMessageList guiMessages;
+ GuiMessageList rawGuiMessages;
 	Random random;
 
 	Minecraft* minecraft;
 	int tickCount;
+ JavaHeartState javaHearts;
 	float itemNameOverlayTime;
 	std::string overlayMessageString;
 	int overlayMessageTime;

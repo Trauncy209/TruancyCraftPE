@@ -37,6 +37,7 @@ private:
 
 	Button* btnChangeUsername;
 	Button* btnCredits;
+    Button* btnAccount;
 
 	std::vector<Touch::TButton*> categoryButtons;
 	std::vector<OptionsPane*> optionPanes;
@@ -46,6 +47,13 @@ private:
 	int selectedCategory;
 	bool returnToPause;
 	bool showProfileButtons;
+    std::vector<Touch::TButton*> bindButtons;
+    Touch::TButton* bindPrevious;
+    Touch::TButton* bindNext;
+    Touch::TButton* bindReset;
+    int bindPage, bindRows, captureBinding;
+    std::string bindFeedback;
+    void updateBindButtons();
 };
 
 #endif /*NET_MINECRAFT_CLIENT_GUI_SCREENS__OptionsScreen_H__*/

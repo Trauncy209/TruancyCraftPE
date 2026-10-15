@@ -3,6 +3,9 @@
 
 #include "../IInputHolder.h"
 #include "TouchscreenInput.h"
+#include "../HybridMoveInput.h"
+#include "network/java/JavaGameSession.h"
+#include "world/level/Level.h"
 
 #include "../ITurnInput.h"
 #include "TouchAreaModel.h"
@@ -58,6 +61,7 @@ public:
 	UnifiedTurnBuild(int turnMode, int width, int height, float maxMovementDelta, float sensitivity, IInputHolder* holder, Minecraft* minecraft)
 	:	mode(turnMode),
 		_holder(holder),
+        _minecraft(minecraft),
 		_options(&minecraft->options),
 		cxO(0), cyO(0),
 		wasActive(false),
@@ -187,7 +191,9 @@ public:
 			//state = isInMovement? State_Turn : State_Deciding;
 			state = State_Deciding;
 			_canDestroy = !isInMovement;
-			_forceCanUse = false;
+            _forceCanUse = false;
+            if(_minecraft->javaSession&&_minecraft->level&&_minecraft->level->isJavaServerLevel()){const auto& id=_minecraft->javaSession->inventory.held.resourceId;const bool spear=id.size()>=6&&id.compare(id.size()-6,6,"_spear")==0;_forceCanUse=spear||id=="minecraft:bow"||id=="minecraft:crossbow"||id=="minecraft:trident"||id=="minecraft:shield";if(_forceCanUse)_canDestroy=true;}
+
 			if (!_canDestroy && (_lastPlayer && _lastPlayer->canUseCarriedItemWhileMoving())) {
 				_forceCanUse = true;
 				_canDestroy = true;
@@ -283,6 +289,8 @@ public:
 		//LOGI("alpha: %f\n", _holder->alpha);
 	}
 
+    bool chargedUseHeld()const{return _forceCanUse&&state==State_Destroy;}
+
 	bool isInsideArea(float x, float y) {
 		return _area.isInside(x, y);
 	}
@@ -313,6 +321,12 @@ public:
 		_lastPlayer = player;
 
 		if (state == State_Destroy) {
+            // Keep the finger classified as held for release handling, but
+            // do not restart an active Java charge or its equip animation.
+            if (_forceCanUse && _sentFirstRemove && _minecraft->javaSession &&
+                _minecraft->level && _minecraft->level->isJavaServerLevel() &&
+                _minecraft->javaSession->itemUseActive)
+                return false;
 			if (!_sentFirstRemove) {
 				*bai = BuildActionIntention((_forceCanUse?0:BuildActionIntention::BAI_FIRSTREMOVE) | BuildActionIntention::BAI_INTERACT);
 				_sentFirstRemove = true;
@@ -371,6 +385,7 @@ public:
 
 private:
 	IInputHolder* _holder;
+    Minecraft* _minecraft;
 
 	// Turn
 	int cid;
@@ -422,6 +437,7 @@ public:
 	TouchInputHolder(Minecraft* mc, Options* options)
 	:	_mc(mc),
 		_move(mc, options),
+        _hybrid(&_move,options),
 		_turnBuild(UnifiedTurnBuild::MODE_DELTA, mc->width, mc->height, (float)MovementLimit, 1, this, mc)
 	{
 		onConfigChanged(createConfig(mc));
@@ -430,6 +446,7 @@ public:
 	TouchInputHolder(Minecraft* mc, Options* options, bool classicLayout)
 	:	_mc(mc),
 		_move(mc, options, classicLayout),
+        _hybrid(&_move,options),
 		_turnBuild(UnifiedTurnBuild::MODE_DELTA, mc->width, mc->height, (float)MovementLimit, 1, this, mc)
 	{
 		onConfigChanged(createConfig(mc));
@@ -470,12 +487,13 @@ public:
 		_turnBuild.render(alpha);
 	}
 
-	virtual IMoveInput*		getMoveInput()  { return &_move; }
+	virtual IMoveInput*		getMoveInput()  { return &_hybrid; }
 	virtual ITurnInput*		getTurnInput()  { return &_turnBuild; }
 	virtual IBuildInput*	getBuildInput() { return &_turnBuild; }
 
 private:
 	TouchscreenInput_TestFps _move;
+    HybridMoveInput _hybrid;
 	UnifiedTurnBuild _turnBuild;
 
 	Minecraft* _mc;

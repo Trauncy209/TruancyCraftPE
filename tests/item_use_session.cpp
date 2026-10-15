@@ -1,0 +1,9 @@
+#define main retained_dialog_main
+#include "dialog_session.cpp"
+#undef main
+#include <limits>
+static void use(JavaGameSession& s){eventKind=TCPE_JAVA_VITALS;booleans={{"vitals.use_active",true},{"vitals.use_off_hand",true}};numbers={{"vitals.use_ticks",7},{"vitals.use_duration",72000},{"vitals.use_charge_duration",10},{"vitals.attack_strength",.5},{"vitals.attack_min_charge",1},{"vitals.use_kinetic_delay",10},{"vitals.use_kinetic_dismount",100},{"vitals.use_kinetic_knockback",140},{"vitals.use_kinetic_damage",200}};strings={{"vitals.use_animation","block_kind"}};pending=true;s.tick();}
+int main(){JavaGameSession s;assert(s.connect("local","QA",false));use(s);assert(s.itemUseActive&&s.itemUseOffHand&&s.itemUseTicks==7&&s.itemUseDuration==72000&&s.itemUseChargeDuration==10&&s.itemUseAnimation=="block_kind"&&s.attackStrength==.5&&s.attackMinCharge==1&&s.itemUseKineticDelay==10&&s.itemUseKineticDismount==100&&s.itemUseKineticKnockback==140&&s.itemUseKineticDamage==200);
+numbers["vitals.use_ticks"]=std::numeric_limits<double>::quiet_NaN();numbers["vitals.use_duration"]=-1;numbers["vitals.use_charge_duration"]=std::numeric_limits<double>::infinity();pending=true;s.tick();assert(s.itemUseTicks==0&&s.itemUseDuration==0&&s.itemUseChargeDuration==0);
+for(auto kind:{TCPE_JAVA_LOGIN,TCPE_JAVA_ERROR,TCPE_JAVA_DISCONNECTED}){use(s);eventKind=kind;pending=true;s.tick();assert(!s.itemUseActive&&!s.itemUseOffHand&&s.itemUseAnimation.empty()&&s.itemUseKineticDelay==0&&s.itemUseKineticDamage==0&&s.itemUseChargeDuration==0);}
+s.connect("local","QA",false);use(s);s.disconnect();assert(!s.itemUseActive);s.connect("local","QA",false);use(s);s.phase="Game";s.error.clear();closeAfterPoll=true;s.tick();assert(!s.itemUseActive&&s.phase=="Error");std::cout<<"Java item-use: authoritative hand/duration/animation/charge, invalid timing and lifecycle cleanup PASS\n";}

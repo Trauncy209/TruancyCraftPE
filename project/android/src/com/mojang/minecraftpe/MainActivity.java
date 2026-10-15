@@ -33,6 +33,10 @@ import android.graphics.Bitmap.CompressFormat;
 import android.graphics.BitmapFactory;
 import android.media.AudioManager;
 import android.os.Bundle;
+import android.os.Build;
+import android.os.Environment;
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.os.Vibrator;
 import android.preference.PreferenceManager;
 import android.util.DisplayMetrics;
@@ -51,7 +55,11 @@ import android.widget.TextView;
 import android.view.inputmethod.*;
 import com.mojang.minecraftpe.R;
 
-public class MainActivity extends NativeActivity {
+public class MainActivity extends Activity {
+    private TCPEView gameView;
+    private final TcpeAudio tcpeAudio=new TcpeAudio(this);
+    public void playSound(String filename,float volume,float pitch){tcpeAudio.command(filename,volume,pitch);}
+
 	private boolean _isTouchscreen = true;
 	private int _viewDistance = 2;
 	
@@ -62,27 +70,43 @@ public class MainActivity extends NativeActivity {
         setVolumeControlStream(AudioManager.STREAM_MUSIC);
         super.onCreate(savedInstanceState);
         nativeRegisterThis();
+        gameView=new TCPEView(this);setContentView(gameView);
+        prepareLegacyWorldImport();
+    }
+    private static final int LEGACY_WORLD_PERMISSION = 5221;
+    private void prepareLegacyWorldImport() {
+        File oldWorlds = new File(Environment.getExternalStorageDirectory(), "games/com.mojang/minecraftWorlds");
+        if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            // Only storage import needs this; networking/app-owned saves work without it.
+            requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, LEGACY_WORLD_PERMISSION);
+            return;
+        }
+        importLegacyWorlds(oldWorlds);
+    }
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode == LEGACY_WORLD_PERMISSION && results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) importLegacyWorlds(new File(Environment.getExternalStorageDirectory(), "games/com.mojang/minecraftWorlds"));
+    }
+    private void importLegacyWorlds(final File source) {
+        File owned = getExternalFilesDir(null); if (owned == null) owned = getFilesDir();
+        final File destination = new File(owned, "games/com.mojang/minecraftWorlds");
+        new Thread(new Runnable() { public void run() {
+            try { final LegacyWorldMigration.Result result = LegacyWorldMigration.copyWorlds(source, destination);
+                if (result.imported > 0 || result.failed > 0) runOnUiThread(new Runnable() { public void run() {
+                    new AlertDialog.Builder(MainActivity.this).setTitle("Your worlds").setMessage(result.failed == 0 ? "Your old worlds are ready in Start Game. The originals were kept." : "Some old worlds could not be copied. The originals were kept.").setPositiveButton("OK", null).show();
+                }});
+            } catch (IOException ignored) { /* Existing legacy worlds remain untouched. */ }
+        }}, "TCPE world import").start();
     }
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-    	Log.w("MCPE", event.toString());
-    	if(event.getKeyCode() == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_UP) {
-    		return false;
-    	}
-		return super.dispatchKeyEvent(event);
+        // Dialog text fields retain their Android input connection.
+        if(gameView!=null&&getCurrentFocus()==gameView&&(event.getAction()==KeyEvent.ACTION_DOWN||event.getAction()==KeyEvent.ACTION_UP)) {gameView.enqueueKey(event);return true;}
+        return super.dispatchKeyEvent(event);
     }
-    @Override
-    public boolean onKeyUp(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
-            onBackPressed();
-            return true;
-        }
-        return super.onKeyUp(keyCode, event);
-    }
-    @Override
-    public void onBackPressed() {
-    	Log.w("MCPE", "Java - onBackPressed");
-    	return;
+    @Override public void onBackPressed(){
+        if(gameView!=null)gameView.queueEvent(new Runnable(){public void run(){nativeHandleBack(true);nativeHandleBack(false);}});
     }
 
     private final OnCancelListener dialogCancelListener = new OnCancelListener() {
@@ -130,9 +154,7 @@ public class MainActivity extends NativeActivity {
     static public boolean isPowerVR() { return _isPowerVr; }
     
     public boolean supportsTouchscreen() {
-    	return isXperiaPlay();
-    	//if (isXperiaPlay()) return false;
-    	//return true;
+        return getPackageManager().hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN);
     }
 
 	static public boolean isXperiaPlay() {
@@ -163,7 +185,8 @@ public class MainActivity extends NativeActivity {
     	return super.onKeyDown(keyCode, event);
     }
     public int getKeyFromKeyCode(int keyCode, int metaState, int deviceId) {
-    	return InputDevice.getDevice(deviceId).getKeyCharacterMap().get(keyCode, metaState);
+        InputDevice device = InputDevice.getDevice(deviceId);
+        return device == null ? 0 : device.getKeyCharacterMap().get(keyCode, metaState);
     }
     static public void saveScreenshot(String filename, int w, int h, int[] pixels) {
     	Bitmap bitmap = Bitmap.createBitmap(pixels, w, h, Bitmap.Config.ARGB_8888);
@@ -198,7 +221,7 @@ public class MainActivity extends NativeActivity {
 
     	BufferedInputStream bis;
     	try {
-        	InputStream is = assets.open(filename);
+            InputStream is = assets.open(filename.startsWith("images/") ? filename.substring(7) : filename);
         	bis = new BufferedInputStream(is);
         } catch (IOException e) {
         	e.printStackTrace();
@@ -223,6 +246,18 @@ public class MainActivity extends NativeActivity {
     	return s.toByteArray();
     }
     
+    public static native int nativeRendererVersion();
+
+    public void setKeyboardVisible(final boolean visible) {
+        runOnUiThread(new Runnable(){ public void run(){
+            if(gameView==null)return;
+            gameView.setTextInputActive(visible);
+            InputMethodManager manager=(InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
+            if(visible){gameView.requestFocus();manager.restartInput(gameView);manager.showSoftInput(gameView,InputMethodManager.SHOW_IMPLICIT);}
+            else {manager.hideSoftInputFromWindow(gameView.getWindowToken(),0);manager.restartInput(gameView);}
+        }});
+    }
+
     public int[] getImageData(String filename) {
     	AssetManager assets = getAssets();
 
@@ -235,7 +270,7 @@ public class MainActivity extends NativeActivity {
 
         InputStream inputStream = null;
         try {
-        	inputStream = assets.open(filename);
+            inputStream = assets.open(filename.startsWith("images/") ? filename.substring(7) : filename);
         } catch (IOException e) {
         	System.err.println("getImageData: Could not open image " + filename);
         	return null;
@@ -534,22 +569,27 @@ public class MainActivity extends NativeActivity {
     protected void onResume() {
     	//System.out.println("onResume");
     	super.onResume();
+        if(gameView!=null)gameView.onResume();
+        tcpeAudio.resume();
     }
 
     protected void onPause() {
     	//System.out.println("onPause");
+        if(gameView!=null){gameView.queueEvent(new Runnable(){public void run(){nativeStopThis();}});gameView.onPause();}
+        tcpeAudio.pause();
     	super.onPause();
     }
 
     protected void onStop() {
     	//System.out.println("onStop");
-    	nativeStopThis();
     	super.onStop();
     }
     protected void onDestroy() {
+        tcpeAudio.destroy();
     	System.out.println("onDestroy");
 
-    	nativeUnregisterThis();
+        if(gameView!=null)gameView.queueEvent(new Runnable(){public void run(){nativeOnDestroy();nativeUnregisterThis();}});
+        else nativeUnregisterThis();
     	super.onDestroy();
     }
 
@@ -560,7 +600,15 @@ public class MainActivity extends NativeActivity {
     //
     native void nativeRegisterThis(); 
     native void nativeUnregisterThis();
-    native void nativeStopThis();
+    static native void nativeStopThis();
+    native void nativeOnCreate(int width,int height);
+    static native void nativeOnDestroy();
+    static native void nativeKeyEvent(int code,int source,boolean down,int unicode);
+    static native void nativeTextChar(int unicode);
+    static native boolean nativeHandleBack(boolean down);
+    static native void nativeMouseDown(int id,int button,float x,float y);
+    static native void nativeMouseUp(int id,int button,float x,float y);
+    static native void nativeMouseMove(int id,float x,float y);
     
     static {
         System.loadLibrary("minecraftpe");

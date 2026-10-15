@@ -1,5 +1,10 @@
+#include "../../../network/java/JavaGameSession.h"
 #include "ConsoleScreen.h"
+#include "JavaChatActionsScreen.h"
 #include "../Gui.h"
+#include "../components/Button.h"
+#include "../Font.h"
+#include "../../../network/java/JavaRichText.h"
 #include "../../Minecraft.h"
 #include "../../player/LocalPlayer.h"
 #include "../../../platform/input/Keyboard.h"
@@ -14,6 +19,27 @@
 #include <algorithm>
 
 namespace {
+static void eraseLastUtf8(std::string& value){if(value.empty())return;size_t start=value.size()-1;while(start>0&&(static_cast<unsigned char>(value[start])&0xc0)==0x80)--start;value.erase(start);}
+static size_t pendingChatUtf8(const std::string& value){
+    if(value.empty())return 0;size_t start=value.size()-1;
+    while(start>0&&(static_cast<unsigned char>(value[start])&0xc0)==0x80)--start;
+    const auto lead=static_cast<unsigned char>(value[start]);
+    const size_t expected=lead>=0xc2&&lead<=0xdf?2:lead>=0xe0&&lead<=0xef?3:lead>=0xf0&&lead<=0xf4?4:0;
+    return expected&&value.size()-start<expected?value.size()-start:0;
+}
+static void discardIncompleteChatUtf8(std::string& value){const size_t pending=pendingChatUtf8(value);if(pending)value.erase(value.size()-pending);}
+static void appendChatByte(std::string& value,char input){
+    const auto byte=static_cast<unsigned char>(input);const size_t pending=pendingChatUtf8(value);
+    if(pending){
+        const auto lead=static_cast<unsigned char>(value[value.size()-pending]);
+        const bool continuation=(byte&0xc0)==0x80;
+        const bool scalar=!(pending==1&&((lead==0xe0&&byte<0xa0)||(lead==0xed&&byte>=0xa0)||(lead==0xf0&&byte<0x90)||(lead==0xf4&&byte>=0x90)));
+        if(continuation&&scalar&&value.size()<1027){value+=input;return;}
+        discardIncompleteChatUtf8(value);if(continuation)return;
+    }
+    if(value.size()>=1024)return;
+    if((byte>=32&&byte<127)||(byte>=0xc2&&byte<=0xf4))value+=input;
+}
 static std::string trim(const std::string& s) {
     size_t a = s.find_first_not_of(" \t");
     if (a == std::string::npos) return "";
@@ -21,136 +47,95 @@ static std::string trim(const std::string& s) {
     return s.substr(a, b - a + 1);
 }
 
-struct ChatLayout {
-    int panelLeft;
-    int panelRight;
-    int panelTop;
-    int panelBottom;
-    int historyLeft;
-    int historyRight;
-    int historyTop;
-    int historyBottom;
-    int inputLeft;
-    int inputRight;
-    int inputTop;
-    int inputBottom;
-    int closeLeft;
-    int closeRight;
-    int closeTop;
-    int closeBottom;
-    int sendLeft;
-    int sendRight;
-    int sendTop;
-    int sendBottom;
-    int upLeft;
-    int upRight;
-    int upTop;
-    int upBottom;
-    int downLeft;
-    int downRight;
-    int downTop;
-    int downBottom;
-    int titleY;
-    int lineHeight;
-};
-
-static ChatLayout buildLayout(int width, int height, bool touch) {
-    ChatLayout l;
-    if (touch) {
-        const int margin = 8;
-        const int headerH = 22;
-        const int footerH = 24;
-        const int pad = 6;
-        const int scrollW = 16;
-        const int buttonW = 48;
-
-        l.panelLeft = margin;
-        l.panelRight = width - margin;
-        l.panelTop = 10;
-        l.panelBottom = height - 10;
-        l.historyLeft = l.panelLeft + pad;
-        l.historyRight = l.panelRight - pad - scrollW - 2;
-        l.historyTop = l.panelTop + headerH + 3;
-        l.historyBottom = l.panelBottom - footerH - 5;
-        l.inputLeft = l.panelLeft + pad + buttonW + 4;
-        l.inputRight = l.panelRight - pad - buttonW - 4;
-        l.inputTop = l.panelBottom - footerH + 3;
-        l.inputBottom = l.panelBottom - 5;
-        l.closeLeft = l.panelLeft + pad;
-        l.closeRight = l.closeLeft + buttonW;
-        l.closeTop = l.inputTop;
-        l.closeBottom = l.inputBottom;
-        l.sendRight = l.panelRight - pad;
-        l.sendLeft = l.sendRight - buttonW;
-        l.sendTop = l.inputTop;
-        l.sendBottom = l.inputBottom;
-        l.upLeft = l.historyRight + 4;
-        l.upRight = l.panelRight - pad;
-        l.upTop = l.historyTop;
-        l.upBottom = l.upTop + 18;
-        l.downLeft = l.upLeft;
-        l.downRight = l.upRight;
-        l.downBottom = l.historyBottom;
-        l.downTop = l.downBottom - 18;
-        l.titleY = l.panelTop + 7;
-        l.lineHeight = 10;
-        return l;
+// Keep TCPE's local color tags while using the same styled wrapping as Java chat.
+static std::string nativeChatStyle(const std::string& text){
+    std::string out;size_t pos=0;uint32_t color=0xffffff;
+    auto marker=[&](){const char* hex="0123456789abcdef";out+=u8"§x";for(int shift=20;shift>=0;shift-=4){out+=u8"§";out+=hex[(color>>shift)&15];}};
+    while(pos<text.size()){
+        const size_t open=text.find('[',pos);if(open==std::string::npos){out+=text.substr(pos);break;}
+        out+=text.substr(pos,open-pos);const size_t close=text.find(']',open);
+        if(close==std::string::npos){out+=text.substr(open);break;}
+        std::string tag=text.substr(open+1,close-open-1);
+        if(!tag.empty()&&tag[0]=='/')color=0xffffff;
+        else{for(char& c:tag)c=char(std::tolower(static_cast<unsigned char>(c)));
+            if(tag.find("gold")!=std::string::npos)color=0xffd700;
+            else if(tag.find("green")!=std::string::npos)color=0x00ff00;
+            else if(tag.find("yellow")!=std::string::npos)color=0xffff00;
+            else if(tag.find("red")!=std::string::npos)color=0xff0000;
+            else if(tag.find("blue")!=std::string::npos)color=0x0000ff;}
+        marker();pos=close+1;
     }
-
-    const int boxH = 12;
-    const int boxY = height - boxH - 2;
-    const int boxX0 = 2;
-    const int boxX1 = width - 2;
-    const int panelTop = 4;
-    const int panelBottom = boxY - 4;
-    const int buttonSize = 12;
-
-    l.panelLeft = boxX0;
-    l.panelRight = boxX1;
-    l.panelTop = panelTop;
-    l.panelBottom = panelBottom;
-    l.historyLeft = boxX0 + 2;
-    l.historyRight = boxX1 - buttonSize - 3;
-    l.historyTop = panelTop + 14;
-    l.historyBottom = panelBottom - 2;
-    l.inputLeft = boxX0;
-    l.inputRight = boxX1;
-    l.inputTop = boxY;
-    l.inputBottom = boxY + boxH;
-    l.closeLeft = boxX0;
-    l.closeRight = boxX0;
-    l.closeTop = boxY;
-    l.closeBottom = boxY;
-    l.sendLeft = boxX1;
-    l.sendRight = boxX1;
-    l.sendTop = boxY;
-    l.sendBottom = boxY;
-    l.upLeft = boxX1 - buttonSize;
-    l.upRight = boxX1;
-    l.upTop = panelTop;
-    l.upBottom = panelTop + buttonSize;
-    l.downLeft = boxX1 - buttonSize;
-    l.downRight = boxX1;
-    l.downBottom = panelBottom;
-    l.downTop = panelBottom - buttonSize;
-    l.titleY = panelTop + 2;
-    l.lineHeight = 9;
+    return out;
+}
+static std::vector<std::string> wrapChatHistory(Font* font,const std::string& text,int maxWidth){
+    std::vector<std::string> lines;std::string line;float used=0;std::vector<JavaRichText::Glyph> word;
+    auto finish=[&](){lines.push_back(line);line.clear();used=0;};
+    auto flushWord=[&](){float wordWidth=0;for(const auto& glyph:word)wordWidth+=font->javaGlyphAdvance(glyph.codepoint,glyph.bold,glyph.font);
+        if(!line.empty()&&used+wordWidth>maxWidth)finish();
+        for(const auto& glyph:word){const float advance=font->javaGlyphAdvance(glyph.codepoint,glyph.bold,glyph.font);if(!line.empty()&&used+advance>maxWidth)finish();line+=JavaRichText::encode(glyph);used+=advance;}word.clear();};
+    for(const auto& glyph:JavaRichText::parse(text)){
+        if(glyph.codepoint=='\n'){flushWord();finish();}
+        else if(glyph.codepoint==' '||glyph.codepoint=='\t'){flushWord();const float advance=font->javaGlyphAdvance(' ',glyph.bold,glyph.font);if(!line.empty()&&used+advance>maxWidth)finish();else{auto space=glyph;space.codepoint=' ';line+=JavaRichText::encode(space);used+=advance;}}
+        else word.push_back(glyph);
+    }
+    flushWord();if(!line.empty()||lines.empty())lines.push_back(line);return lines;
+}
+struct ChatLayout {
+    int historyLeft,historyRight,historyTop,historyBottom;
+    int inputLeft,inputRight,inputTop,inputBottom;
+    int titleY,lineHeight;
+};
+static ChatLayout buildLayout(int width,int height,bool) {
+    ChatLayout l;
+    l.historyLeft=10;l.historyRight=width-10;l.historyTop=36;
+    // A fullscreen IME can leave only a short landscape surface. Keep
+    // history between the header and input instead of forcing a row into
+    // the navigation buttons when there is no room for both.
+    l.historyBottom=std::max(l.historyTop,height-(height>=116?70:34));
+    l.inputLeft=6;l.inputRight=width-70;l.inputTop=height-30;l.inputBottom=height-6;
+    l.titleY=14;l.lineHeight=10;
     return l;
 }
+
 }
 
 ConsoleScreen::ConsoleScreen()
-:   _input(""),
+:   _historyDragging(false),
+    _dragStartY(0),
+    _dragStartOffset(0),
+    _input(""),
     _cursorBlink(0),
     _historyOffset(0)
 {
 }
 
+ConsoleScreen::~ConsoleScreen(){for(auto* button:_ownedButtons)delete button;}
 void ConsoleScreen::init()
 {
-    _historyOffset = 0;
-    if (minecraft->useTouchscreen())
-        minecraft->platform()->showKeyboard();
+    _historyOffset=0;
+    for(auto* button:_ownedButtons)delete button;
+    _ownedButtons.clear();buttons.clear();tabButtons.clear();
+    const char* labels[]={"Close","Links","Older","Latest","Send",""};
+    for(int i=0;i<6;++i){Button* b=minecraft->useTouchscreen()?static_cast<Button*>(new Touch::TButton(i,labels[i])):new Button(i,labels[i]);_ownedButtons.push_back(b);buttons.push_back(b);tabButtons.push_back(b);}
+    setupPositions();
+    if(minecraft->useTouchscreen())minecraft->platform()->showKeyboard();
+}
+void ConsoleScreen::setupPositions(){
+    if(_ownedButtons.size()!=6)return;
+    auto set=[&](int i,int x,int y,int w,int h){auto* b=_ownedButtons[i];b->x=x;b->y=y;b->width=std::max(1,w);b->height=h;};
+    set(0,6,6,52,24);set(1,width-58,6,52,24);
+    set(2,6,height-62,58,24);set(3,width-64,height-62,58,24);
+    set(4,width-64,height-30,58,24);set(5,6,height-30,width-76,24);
+    _ownedButtons[1]->visible=minecraft->javaSession&&minecraft->javaSession->chatActionsPending;
+    _ownedButtons[2]->visible=_ownedButtons[3]->visible=height>=116;
+}
+void ConsoleScreen::buttonClicked(Button* button){
+    switch(button->id){case 0:minecraft->setScreen(NULL);break;
+    case 1:if(minecraft->javaSession&&minecraft->javaSession->chatActionsPending)minecraft->setScreen(new JavaChatActionsScreen(*minecraft->javaSession));break;
+    case 2:scrollHistory(std::max(1,getVisibleHistoryLines()-1));break;
+    case 3:_historyOffset=0;break;
+    case 4:execute(false);break;
+    case 5:if(minecraft->useTouchscreen())minecraft->platform()->showKeyboard();break;}
 }
 
 void ConsoleScreen::removed()
@@ -170,28 +155,19 @@ bool ConsoleScreen::handleBackEvent(bool /*isDown*/)
     return true;
 }
 
-int ConsoleScreen::getVisibleHistoryLines() const
-{
-    ChatLayout l = buildLayout(width, height, minecraft->useTouchscreen());
-    int available = l.historyBottom - l.historyTop - 4;
-    int lines = available / l.lineHeight;
-    if (minecraft->useTouchscreen()) {
-        if (lines < 10) lines = 10;
-        if (lines > 28) lines = 28;
-    } else {
-        if (lines < 8) lines = 8;
-        if (lines > 32) lines = 32;
-    }
+int ConsoleScreen::getVisibleHistoryLines() const {
+    const auto l=buildLayout(width,height,minecraft->useTouchscreen());
+    return std::max(0,(l.historyBottom-l.historyTop)/l.lineHeight);
+}
+std::vector<std::string> ConsoleScreen::historyLines()const {
+    std::vector<std::string> lines;
+    const auto l=buildLayout(width,height,minecraft->useTouchscreen());
+    const auto& messages=minecraft->gui.getRawMessages();
+    for(const auto& message:messages){auto wrapped=wrapChatHistory(font,minecraft->javaSession?message.message:nativeChatStyle(message.message),std::max(1,l.historyRight-l.historyLeft-2));for(auto i=wrapped.rbegin();i!=wrapped.rend();++i)lines.push_back(*i);}
     return lines;
 }
-
-int ConsoleScreen::getMaxHistoryOffset() const
-{
-    const GuiMessageList& messages = minecraft->gui.getMessages();
-    int visible = getVisibleHistoryLines();
-    if ((int)messages.size() <= visible)
-        return 0;
-    return (int)messages.size() - visible;
+int ConsoleScreen::getMaxHistoryOffset() const {
+    return std::max(0,int(historyLines().size())-getVisibleHistoryLines());
 }
 
 void ConsoleScreen::scrollHistory(int delta)
@@ -211,8 +187,7 @@ void ConsoleScreen::keyPressed(int eventKey)
     } else if (eventKey == Keyboard::KEY_RETURN) {
         execute(!minecraft->useTouchscreen());
     } else if (eventKey == Keyboard::KEY_BACKSPACE) {
-        if (!_input.empty())
-            _input.erase(_input.size() - 1, 1);
+        eraseLastUtf8(_input);
     } else if (eventKey == 38) {
         scrollHistory(minecraft->useTouchscreen() ? 4 : 1);
     } else if (eventKey == 40) {
@@ -222,64 +197,31 @@ void ConsoleScreen::keyPressed(int eventKey)
     }
 }
 
-void ConsoleScreen::keyboardNewChar(char inputChar)
-{
-    if (inputChar >= 32 && inputChar < 127)
-        _input += inputChar;
+void ConsoleScreen::keyboardNewChar(char inputChar){appendChatByte(_input,inputChar);}
+
+void ConsoleScreen::mouseClicked(int x,int y,int buttonNum){
+    if(buttonNum!=MouseAction::ACTION_LEFT)return;
+    const auto l=buildLayout(width,height,minecraft->useTouchscreen());
+    if(x>=l.historyLeft&&x<l.historyRight&&y>=l.historyTop&&y<l.historyBottom){_historyDragging=true;_dragStartY=y;_dragStartOffset=_historyOffset;return;}
+    super::mouseClicked(x,y,buttonNum);
 }
-
-void ConsoleScreen::mouseClicked(int x, int y, int buttonNum)
-{
-    if (buttonNum != MouseAction::ACTION_LEFT)
-        return;
-
-    ChatLayout l = buildLayout(width, height, minecraft->useTouchscreen());
-
-    if (minecraft->useTouchscreen()) {
-        const int pageAmount = std::max(4, getVisibleHistoryLines() - 3);
-        if (x >= l.upLeft && x < l.upRight && y >= l.upTop && y < l.upBottom) {
-            scrollHistory(pageAmount);
-            return;
-        }
-        if (x >= l.downLeft && x < l.downRight && y >= l.downTop && y < l.downBottom) {
-            scrollHistory(-pageAmount);
-            return;
-        }
-        if (x >= l.closeLeft && x < l.closeRight && y >= l.closeTop && y < l.closeBottom) {
-            minecraft->setScreen(NULL);
-            return;
-        }
-        if (x >= l.sendLeft && x < l.sendRight && y >= l.sendTop && y < l.sendBottom) {
-            execute(false);
-            return;
-        }
-        if (x >= l.inputLeft && x < l.inputRight && y >= l.inputTop && y < l.inputBottom) {
-            minecraft->platform()->showKeyboard();
-            return;
-        }
-        return;
-    }
-
-    const int pageAmount = getVisibleHistoryLines() - 2;
-    if (x >= l.upLeft && x < l.upRight && y >= l.upTop && y < l.upBottom) {
-        scrollHistory(pageAmount);
-        return;
-    }
-    if (x >= l.downLeft && x < l.downRight && y >= l.downTop && y < l.downBottom) {
-        scrollHistory(-pageAmount);
-        return;
-    }
+void ConsoleScreen::mouseReleased(int x,int y,int buttonNum){
+    if(_historyDragging&&buttonNum==MouseAction::ACTION_LEFT){_historyOffset=_dragStartOffset;scrollHistory((y-_dragStartY)/10);_historyDragging=false;return;}
+    super::mouseReleased(x,y,buttonNum);
 }
 
 void ConsoleScreen::execute(bool closeAfter)
 {
-    if (_input.empty()) {
+    discardIncompleteChatUtf8(_input);
+    if (trim(_input).empty()) {
         if (closeAfter)
             minecraft->setScreen(NULL);
         return;
     }
 
-    if (_input[0] == '/') {
+    if (minecraft->javaSession) {
+        minecraft->javaSession->connection.chat(_input);
+    } else if (_input[0] == '/') {
         std::string result = processCommand(_input);
         if (!result.empty())
             minecraft->gui.addMessage(result);
@@ -386,75 +328,26 @@ std::string ConsoleScreen::processCommand(const std::string& raw)
     return std::string("Unknown command: /") + args[0];
 }
 
-void ConsoleScreen::render(int /*xm*/, int /*ym*/, float /*a*/)
+void ConsoleScreen::render(int xm,int ym,float a)
 {
-    fillGradient(0, 0, width, height, 0x10000000, 0x70000000);
-
-    const bool touch = minecraft->useTouchscreen();
-    ChatLayout l = buildLayout(width, height, touch);
-
-    fill(l.panelLeft, l.panelTop, l.panelRight, l.panelBottom, touch ? 0xe0101010 : 0x90000000);
-    fill(l.panelLeft, l.panelTop, l.panelRight, l.panelTop + 1, 0xff808080);
-    fill(l.panelLeft, l.panelBottom - 1, l.panelRight, l.panelBottom, 0xff808080);
-    fill(l.panelLeft, l.panelTop, l.panelLeft + 1, l.panelBottom, 0xff808080);
-    fill(l.panelRight - 1, l.panelTop, l.panelRight, l.panelBottom, 0xff808080);
-
-    if (touch) {
-        fill(l.panelLeft + 1, l.panelTop + 1, l.panelRight - 1, l.panelTop + 21, 0xb0303030);
-        drawString(font, "Chat", l.panelLeft + 8, l.titleY, 0xffffffff);
-        font->drawShadow("Messages", (float)(l.panelLeft + 46), (float)l.titleY, 0xffbbbbbb);
-    } else {
-        fill(l.upLeft, l.upTop, l.upRight, l.upBottom, 0x90404040);
-        fill(l.downLeft, l.downTop, l.downRight, l.downBottom, 0x90404040);
-        font->drawShadow("^", (float)(l.upLeft + 4), (float)(l.upTop + 2), 0xffffffff);
-        font->drawShadow("v", (float)(l.downLeft + 4), (float)(l.downTop + 2), 0xffffffff);
-        drawString(font, "Chat history", l.panelLeft + 4, l.titleY, 0xffffffff);
-        font->drawShadow("tap ^ / v to scroll", (float)(l.panelLeft + 62), (float)l.titleY, 0xffbbbbbb);
-    }
-
-    fill(l.historyLeft, l.historyTop, l.historyRight, l.historyBottom, touch ? 0x50000000 : 0x40000000);
-    if (touch) {
-        fill(l.upLeft, l.upTop, l.upRight, l.upBottom, 0x90404040);
-        fill(l.downLeft, l.downTop, l.downRight, l.downBottom, 0x90404040);
-        drawCenteredString(font, "^", (l.upLeft + l.upRight) / 2, l.upTop + 5, 0xffffffff);
-        drawCenteredString(font, "v", (l.downLeft + l.downRight) / 2, l.downTop + 5, 0xffffffff);
-    }
-
-    const GuiMessageList& messages = minecraft->gui.getMessages();
-    int visibleLines = getVisibleHistoryLines();
-    int start = _historyOffset;
-    int end = std::min((int)messages.size(), start + visibleLines);
-    int lineY = l.historyBottom - (touch ? 12 : 11);
-    for (int i = start; i < end; ++i) {
-        const std::string& msg = messages[i].message;
-        fill(l.historyLeft + 2, lineY - 1, l.historyRight - 2, lineY + 8, touch ? 0x44000000 : 0x50000000);
-        Gui::drawColoredString(font, msg, (float)(l.historyLeft + 4), (float)lineY, 255);
-        lineY -= l.lineHeight;
-    }
-
-    char scrollBuf[32];
-    sprintf(scrollBuf, "%d/%d", _historyOffset, getMaxHistoryOffset());
-    font->drawShadow(scrollBuf, (float)(touch ? l.upLeft - 28 : l.upLeft - 28), (float)l.titleY, 0xffbbbbbb);
-
-    if (touch) {
-        fill(l.closeLeft, l.closeTop, l.closeRight, l.closeBottom, 0x90404040);
-        fill(l.sendLeft, l.sendTop, l.sendRight, l.sendBottom, 0x90605030);
-        drawCenteredString(font, "Close", (l.closeLeft + l.closeRight) / 2, l.closeTop + 6, 0xffffffff);
-        drawCenteredString(font, "Send", (l.sendLeft + l.sendRight) / 2, l.sendTop + 6, 0xffffffff);
-    }
-
-    fill(l.inputLeft, l.inputTop, l.inputRight, l.inputBottom, 0xc0000000);
-    fill(l.inputLeft, l.inputTop, l.inputRight, l.inputTop + 1, 0xff808080);
-    fill(l.inputLeft, l.inputBottom - 1, l.inputRight, l.inputBottom, 0xff808080);
-    fill(l.inputLeft, l.inputTop, l.inputLeft + 1, l.inputBottom, 0xff808080);
-    fill(l.inputRight - 1, l.inputTop, l.inputRight, l.inputBottom, 0xff808080);
-
-    std::string displayed = _input;
-    if ((_cursorBlink / 10) % 2 == 0)
-        displayed += '_';
-
-    if (_input.empty() && (_cursorBlink / 10) % 2 != 0)
-        font->drawShadow(touch ? "Tap here to type a message" : "Type a message or /command", (float)(l.inputLeft + 4), (float)(l.inputTop + 5), 0xff606060);
-    else
-        font->drawShadow(displayed, (float)(l.inputLeft + 4), (float)(l.inputTop + 5), 0xffffffff);
+    renderBackground();setupPositions();
+    const auto l=buildLayout(width,height,minecraft->useTouchscreen());
+    drawCenteredString(font,"Chat",width/2,l.titleY,0xffffffff);
+    if(_historyDragging&&ym>=0){_historyOffset=_dragStartOffset;scrollHistory((ym-_dragStartY)/10);}
+    const auto lines=historyLines();const int visible=getVisibleHistoryLines();
+    if(lines.empty()&&visible>0)drawCenteredString(font,"No messages yet",width/2,(l.historyTop+l.historyBottom)/2,0xffcccccc);
+    _historyOffset=std::max(0,std::min(_historyOffset,std::max(0,int(lines.size())-visible)));
+    int y=l.historyBottom-10;
+    for(int i=_historyOffset;i<int(lines.size())&&i<_historyOffset+visible;++i){font->drawJava(lines[i],float(l.historyLeft+1),float(y+1),0xffffffff,true);font->drawJava(lines[i],float(l.historyLeft),float(y),0xffffffff);y-=l.lineHeight;}
+    _ownedButtons[2]->active=_historyOffset<std::max(0,int(lines.size())-visible);
+    _ownedButtons[3]->active=_historyOffset>0;
+    _ownedButtons[4]->active=!trim(_input).empty();
+    if(width>=240&&height>=116)drawCenteredString(font,_historyOffset>0?"Browsing history":"Newest messages",width/2,height-54,0xffcccccc);
+    super::render(xm,ym,a);
+    std::string displayed=_input;
+    if((_cursorBlink/10)%2==0)displayed+='_';
+    const int maxWidth=std::max(1,l.inputRight-l.inputLeft-12);
+    while(!displayed.empty()&&font->widthJava(displayed)>maxWidth){size_t count=1;while(count<displayed.size()&&(static_cast<unsigned char>(displayed[count])&0xc0)==0x80)++count;displayed.erase(0,count);}
+    if(_input.empty())font->drawJava(font->fitJava("Message or /command",maxWidth),float(l.inputLeft+6),float(l.inputTop+8),0xffaaaaaa);
+    else {font->drawJava(displayed,float(l.inputLeft+7),float(l.inputTop+9),0xffffffff,true);font->drawJava(displayed,float(l.inputLeft+6),float(l.inputTop+8),0xffffffff);}
 }

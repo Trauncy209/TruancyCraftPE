@@ -74,7 +74,7 @@ void JoinByIPScreen::init()
 	tabButtons.push_back(&bBack);
     tabButtons.push_back(&bHeader);
 #endif
-    tPort.text = "19132";
+    tPort.text = "25565";
 }
 
 void JoinByIPScreen::setupPositions() {

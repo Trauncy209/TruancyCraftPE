@@ -10,6 +10,15 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     set(CMAKE_CXX_FLAGS "-Wno-c++11-narrowing -Wno-narrowing -Wno-invalid-source-encoding -Wno-reserved-user-defined-literal")
 endif()
 
+option(TCPE_GLES3 "Use genuine GLES3 shader compatibility renderer" ON)
+option(TCPE_USE_SYSTEM_LIBS "Use installed Linux platform libraries" ${UNIX})
+if(TCPE_USE_SYSTEM_LIBS)
+    find_package(ZLIB REQUIRED)
+    find_package(PNG REQUIRED)
+    find_package(OpenAL REQUIRED)
+    find_package(glfw3 REQUIRED)
+    set(TCPE_PLATFORM_LIBRARIES ZLIB::ZLIB PNG::PNG OpenAL::OpenAL glfw)
+else()
 CPMAddPackage("gh:madler/zlib@1.3.2")
 CPMAddPackage(
     NAME "libpng"
@@ -44,6 +53,9 @@ CPMAddPackage(
         "GLFW_BUILD_DOCS OFF"
         "BUILD_SHARED_LIBS ON"
 )
+
+    set(TCPE_PLATFORM_LIBRARIES zlib png_shared alsoft.common OpenAL::OpenAL glfw)
+endif()
 
 file(GLOB SOURCES 
     "src/client/*.cpp"
@@ -143,10 +155,15 @@ list(APPEND SOURCES
     "src/client/gui/screens/CreditsScreen.cpp"
 )
 
-add_executable(${PROJECT_NAME} 
-    ${SOURCES}
-    "glad/src/glad.c"
-)
+if(NOT TCPE_GLES3)
+    list(APPEND SOURCES "glad/src/glad.c")
+endif()
+add_executable(${PROJECT_NAME} ${SOURCES})
+if(TCPE_GLES3)
+    find_library(TCPE_GLES3_LIBRARY GLESv2 REQUIRED)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC TCPE_GLES3 GLFW_INCLUDE_NONE)
+    target_link_libraries(${PROJECT_NAME} ${TCPE_GLES3_LIBRARY})
+endif()
 
 if(WIN32)
     set(EXTRA_LIBS "ws2_32")
@@ -166,7 +183,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 )
 
 target_compile_definitions(${PROJECT_NAME} PUBLIC "OPENGL_ES" "NO_EGL" ${PLATFORM})
-target_link_libraries(${PROJECT_NAME} zlib png_shared alsoft.common OpenAL::OpenAL glfw ${EXTRA_LIBS})
+target_link_libraries(${PROJECT_NAME} ${TCPE_PLATFORM_LIBRARIES} ${EXTRA_LIBS})
 
 if (NOT UNIX)
 add_custom_command(
@@ -182,3 +199,13 @@ add_custom_command(
     POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/data" $<TARGET_FILE_DIR:${PROJECT_NAME}>/data
 )
+# Direct native Java protocol support; no separate proxy process.
+set(TCPE_JAVA_NETWORK_LIBRARY "" CACHE FILEPATH "Path to libtcpe_java_network shared library")
+if(NOT TCPE_JAVA_NETWORK_LIBRARY)
+    message(FATAL_ERROR "Set TCPE_JAVA_NETWORK_LIBRARY after building rust-network")
+endif()
+target_include_directories(MinecraftPE PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_link_libraries(MinecraftPE "${TCPE_JAVA_NETWORK_LIBRARY}")
+
+file(GLOB JAVA_ADAPTER_SOURCES CONFIGURE_DEPENDS "src/network/java/*.cpp")
+target_sources(MinecraftPE PRIVATE ${JAVA_ADAPTER_SOURCES})

@@ -12,6 +12,9 @@
 #endif
 #include "SoundRepository.h"
 #include "../../util/Random.h"
+#include <memory>
+#include <cstdint>
+class JavaSoundBank;
 
 class Minecraft;
 class Mob;
@@ -20,6 +23,7 @@ class Options;
 class SoundEngine
 {
     static const int SOUND_DISTANCE = 16;
+    std::unique_ptr<JavaSoundBank> javaSoundBank;
 
 	#if defined(ANDROID) && !defined(PRE_ANDROID23) && !defined(RPI)
 		SoundSystemSL soundSystem;
@@ -55,6 +59,7 @@ public:
 
 	void play(const std::string& name, float x, float y, float z, float volume, float pitch);
 	void playUI(const std::string& name, float volume, float pitch);
+    bool playServerSound(const std::string& name,float x,float y,float z,float volume,float pitch,uint64_t seed,float fixedRange=-1);
 
 	float _getVolumeMult(float x, float y, float z);
 private:

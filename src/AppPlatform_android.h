@@ -136,6 +136,10 @@ public:
 		_readAssetFile = env->GetMethodID( _activityClass, "getFileDataBytes", "(Ljava/lang/String;)[B");
         #if defined(PRE_ANDROID23)
             _methodPlaySound = env->GetMethodID( _activityClass, "playSound", "(Ljava/lang/String;FF)V");
+            // Older Java activities may omit the optional sound bridge. Clear
+            // its lookup exception before any further JNI calls (CheckJNI aborts
+            // otherwise); sound remains unavailable until a bridge is present.
+            if (!_methodPlaySound && env->ExceptionCheck()) env->ExceptionClear();
         #endif
         _showDialog = env->GetMethodID( _activityClass, "displayDialog", "(I)V");
         _methodTick = env->GetMethodID( _activityClass, "tick", "()V");
@@ -578,42 +582,13 @@ public:
 		super::hideKeyboard();
 	}
 	virtual void showKeyboard(bool bShow) {
-		if (!_isInited) return;
-
-		jint lResult = 0;
-		jint lFlags = 0;
-
-		JVMAttacher ta(_vm);
-		JNIEnv* env = ta.getEnv();
-
- 		jobject INPUT_METHOD_SERVICE =
- 			env->GetStaticObjectField(_classContext,
- 			_fieldINPUT_METHOD_SERVICE);
-
-		jobject lInputMethodManager = env->CallObjectMethod(
-			instance, _methodGetSystemService,
-			INPUT_METHOD_SERVICE);
-
-		jobject lWindow = env->CallObjectMethod(instance,
-			_methodGetWindow);
-
-		jobject lDecorView = env->CallObjectMethod(lWindow,
-			_methodGetDecorView);
-
-		if (bShow) {
-			// Runs lInputMethodManager.showSoftInput(...).
-			jboolean lResult = env->CallBooleanMethod(
-				lInputMethodManager, _methodShowSoftInput,
-				lDecorView, lFlags);
-		} else {
-			// Runs lWindow.getViewToken()
-			jobject lBinder = env->CallObjectMethod(lDecorView,
-				_methodGetWindowToken);
-			jboolean lRes = env->CallBooleanMethod(
-				lInputMethodManager, _methodHideSoftInput,
-				lBinder, lFlags);
-		}
-	}
+        if (!_isInited || !instance) return;
+        JVMAttacher ta(_vm); JNIEnv* env=ta.getEnv();
+        jclass activity=env->GetObjectClass(instance);
+        jmethodID method=env->GetMethodID(activity,"setKeyboardVisible","(Z)V");
+        if(method) env->CallVoidMethod(instance,method,(jboolean)bShow);
+        env->DeleteLocalRef(activity);
+    }
 	virtual int getKeyFromKeyCode(int keyCode, int metaState, int deviceId) {
 		JVMAttacher ta(_vm);
 		JNIEnv* env = ta.getEnv();

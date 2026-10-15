@@ -5,6 +5,7 @@
 #include "../renderer/Tesselator.h"
 #include "../sound/SoundEngine.h"
 #include "../../platform/input/Keyboard.h"
+#include "../../platform/input/ControllerActionKeys.h"
 #include "../../platform/input/Mouse.h"
 #include "../renderer/Textures.h"
 
@@ -167,38 +168,47 @@ bool Screen::closeOnPlayerHurt() {
 
 void Screen::keyPressed( int eventKey )
 {
-	if (eventKey == Keyboard::KEY_ESCAPE) {
+    bool editing = false;
+    for(auto* textbox:textBoxes)if(textbox->focused)editing=true;
+	if (eventKey == Keyboard::KEY_ESCAPE || eventKey == ControllerKeys::MenuCancel || (!editing && eventKey && eventKey == minecraft->options.keyMenuCancel.key)) {
 		minecraft->setScreen(NULL);
 		//minecraft->grabMouse();
+        return;
 	}
 
 	// pass key events to any text boxes first
 	for (auto& textbox : textBoxes) {
 		textbox->handleKey(eventKey);
 	}
+    if(editing)return;
 
-	if (minecraft->useTouchscreen())
-		return;
-
+	// Physical keyboard/gamepad navigation remains available with the touch UI.
 	// "Tabbing" the buttons (walking with keys)
 	const int tabButtonCount = tabButtons.size();
 	if (!tabButtonCount)
 		return;
 
 	Options& o = minecraft->options;
-	if (eventKey == o.keyMenuNext.key)
-		if (++tabButtonIndex == tabButtonCount) tabButtonIndex = 0;
-	if (eventKey == o.keyMenuPrevious.key)
-		if (--tabButtonIndex == -1) tabButtonIndex = tabButtonCount-1;
-	if (eventKey == o.keyMenuOk.key) {
+	bool menuNext=eventKey==o.keyMenuNext.key||eventKey==ControllerKeys::MenuNext;
+    bool menuPrevious=eventKey==o.keyMenuPrevious.key||eventKey==ControllerKeys::MenuPrevious;
+    if (menuNext || menuPrevious) {
+        int step = menuNext ? 1 : -1;
+        for (int attempts = 0; attempts < tabButtonCount; ++attempts) {
+            tabButtonIndex = (tabButtonIndex + step + tabButtonCount) % tabButtonCount;
+            if (tabButtons[tabButtonIndex]->visible && tabButtons[tabButtonIndex]->active) break;
+        }
+    }
+	if (eventKey == o.keyMenuOk.key || eventKey == ControllerKeys::MenuSelect) {
 		Button* button = tabButtons[tabButtonIndex];
-		if (button->active) {
+		if (button->visible && button->active) {
 			minecraft->soundEngine->playUI("random.click", 1, 1);
 			buttonClicked(button);
 		}
 	}
 
 	updateTabButtonSelection();
+    if(minecraft->useTouchscreen()&&(menuNext||menuPrevious))
+        for(unsigned i=0;i<tabButtons.size();++i)tabButtons[i]->selected=(i==tabButtonIndex);
 }
 
 void Screen::updateTabButtonSelection()

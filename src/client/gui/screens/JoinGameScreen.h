@@ -14,6 +14,8 @@
 struct JoinGameListEntry {
     std::string title;
     std::string subtitle;
+    std::string javaAddress;
+    std::string savedHost;unsigned short savedPort=25565;
     RakNet::SystemAddress address;
     bool isSpecial;
     bool isSaved;
@@ -30,9 +32,9 @@ class AvailableGamesList : public ScrolledSelectionList
 
 public:
 	AvailableGamesList(Minecraft* _minecraft, int _width, int _height)
-	:	ScrolledSelectionList(_minecraft, _width, _height, 24, _height - 30, 28),
+	:	ScrolledSelectionList(_minecraft, _width, _height, 24, _height - 30, 44),
         selectedItem(-1)
-	{
+	{ setWideRows(true);
 	}
 
 protected:
@@ -67,7 +69,6 @@ private:
 	Button bBack;
     Button bAddServer;
 	AvailableGamesList* gamesList;
-    RakNet::TimeMS lastManualPingTime;
 };
 
 #endif /*NET_MINECRAFT_CLIENT_GUI_SCREENS__JoinGameScreen_H__*/

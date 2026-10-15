@@ -17,6 +17,8 @@ namespace Touch {
 struct JoinGameListEntry {
     std::string title;
     std::string subtitle;
+    std::string javaAddress;
+    std::string savedHost;unsigned short savedPort=25565;
     RakNet::SystemAddress address;
     bool isSpecial;
     bool isSaved;
@@ -34,7 +36,7 @@ class AvailableGamesList : public RolledSelectionListV
 
 public:
 	AvailableGamesList(Minecraft* _minecraft, int _width, int _height)
-	:	RolledSelectionListV(_minecraft, _width, _height, 0, _width, 30, _height - 38, 38),
+	:	RolledSelectionListV(_minecraft, _width, _height, 0, _width, 30, _height - 38, 44),
 		selectedItem(-1),
 		startSelected(-1)
 	{
@@ -74,7 +76,6 @@ private:
 	TButton bBack;
 	THeader bHeader;
 	AvailableGamesList* gamesList;
-    RakNet::TimeMS lastManualPingTime;
 };
 
 };

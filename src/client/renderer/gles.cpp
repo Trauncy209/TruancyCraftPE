@@ -47,6 +47,9 @@ void glInit()
 }
 
 void anGenBuffers(GLsizei n, GLuint* buffers) {
+	#ifdef TCPE_GLES3
+    glGenBuffers(n,buffers);return;
+#endif
 	static GLuint k = 1;
 	for (int i = 0; i < n; ++i)
 		buffers[i] = ++k;

@@ -42,6 +42,7 @@ void ModelPart::_init() {
 	visible = true;
 	neverRender = false;
 	compiled = false;
+	useCustomTextureDimensions = false;
 	xTexSize = 64;
 	yTexSize = 32;
 

@@ -4,6 +4,12 @@
 #include "../../Minecraft.h"
 #include "../../player/LocalPlayer.h"
 #include "../../../platform/time.h"
+#include "../../../network/java/JavaGameSession.h"
+#include "JavaDialogScreen.h"
+
+bool javaDeathMayReplaceMenu(Screen* screen){
+ return screen&&screen->isInGameScreen()&&!dynamic_cast<DeathScreen*>(screen)&&!dynamic_cast<JavaDialogScreen*>(screen);
+}
 
 static const int WAIT_TICKS = 30;
 
@@ -70,6 +76,16 @@ void DeathScreen::buttonClicked( Button* button )
 	if (_tick < WAIT_TICKS) return;
 
 	if (button == bRespawn) {
+		if (minecraft->javaSession) {
+			if (_hasChosen) return;
+			if (minecraft->javaSession->connection.send("{\"type\":\"respawn\"}")) {
+				_hasChosen = true;
+				bRespawn->active = false;
+				bRespawn->msg = "Respawning...";
+			}
+			// Server health/world updates close this screen after acceptance.
+			return;
+		}
 		//RespawnPacket packet();
 		//minecraft->raknetInstance->send(packet);
 

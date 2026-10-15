@@ -1,3 +1,4 @@
+#include "../../../network/java/JavaEntityAdapter.h"
 #include "HumanoidMobRenderer.h"
 #include "EntityRenderDispatcher.h"
 #include "../ItemInHandRenderer.h"
@@ -68,6 +69,15 @@ void HumanoidMobRenderer::additionalRendering(Mob* mob, float a) {
 		entityRenderDispatcher->itemInHandRenderer->renderItem(mob, item);
 		glPopMatrix2();
 	}
+ const auto* off=javaCarriedItem(mob,true);
+ if(off&&off->count>0){
+  ItemInstance legacy;
+  if(off->originalId>0&&off->originalId<Item::MAX_ITEMS&&Item::items[off->originalId])legacy=ItemInstance(off->originalId,off->count,off->originalData);
+  glPushMatrix2();humanoidModel->arm1.translateTo(1/16.f);glTranslatef2(1/16.f,7/16.f,1/16.f);
+  const float scale=6/16.f;glTranslatef2(-4/16.f,3/16.f,-3/16.f);glScalef2(scale,scale,scale);glRotatef2(-60,0,0,1);glRotatef2(-90,1,0,0);glRotatef2(-20,0,0,1);
+  entityRenderDispatcher->itemInHandRenderer->renderItem(mob,legacy.isNull()?nullptr:&legacy,true);glPopMatrix2();
+ }
+
 }
 
 void HumanoidMobRenderer::render( Entity* mob_, float x, float y, float z, float rot, float a ) {

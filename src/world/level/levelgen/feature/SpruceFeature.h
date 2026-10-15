@@ -13,18 +13,18 @@ class SpruceFeature: public Feature
 {
 	typedef Feature super;
 public:
-	SpruceFeature(bool doUpdate = false)
-	:	super(doUpdate)
+	SpruceFeature(bool doUpdate = false, bool tall = false)
+	:	super(doUpdate), tall(tall)
 	{
 	}
 
     bool place(Level* level, Random* random, int x, int y, int z) {
 
         // pines can be quite tall
-        int treeHeight = random->nextInt(4) + 6;
+        int treeHeight = tall ? random->nextInt(7) + 13 : random->nextInt(4) + 6;
         int trunkHeight = 1 + random->nextInt(2);
         int topHeight = treeHeight - trunkHeight;
-        int leafRadius = 2 + random->nextInt(2);
+        int leafRadius = (tall ? 3 : 2) + random->nextInt(2);
 
         bool free = true;
         // may not be outside of y boundaries
@@ -96,6 +96,8 @@ public:
         }
         return true;
     }
+private:
+    bool tall;
 };
 
 #endif /*NET_MINECRAFT_WORLD_LEVEL_LEVELGEN_FEATURE__SpruceFeature_H__*/

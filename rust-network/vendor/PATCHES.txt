@@ -1,0 +1,49 @@
+Vendored dependencies for native Java 1.21.11 support
+
+azalea-protocol 0.15.1+mc1.21.11 (MIT):
+- ClientboundSetObjective Add/Change number_format is Option<NumberFormat>.
+  The upstream crate incorrectly required a NumberFormat. Live ZeusPvP sent
+  a present optional fixed format, which upstream misread as styled NBT.
+  Confirmed against Mojang's verified 1.21.11 server JAR/mappings:
+  ClientboundSetObjectivePacket.numberFormat is java.util.Optional and the
+  RegistryFriendlyByteBuf constructor reads the optional codec.
+- Regression coverage in tests/java_play.rs and the patched packet module.
+
+azalea-chat 0.15.1+mc1.21.11 (MIT):
+- Preserve run_command and suggest_command from NBT click_event (including
+  legacy clickEvent/value spelling). Upstream NBT Style discarded all clicks.
+- No remote action executes merely on receipt. Native UI presents run-command
+  buttons which require an explicit mouse click while chat is open.
+- No browser/file/custom actions are executed.
+- Regression coverage decodes an actual system-chat packet in java_play.rs.
+
+Source: published crates.io packages, https://github.com/azalea-rs/azalea
+Each vendored directory includes its MIT LICENSE.md.
+
+azalea-client 0.15.1+mc1.21.11 (MIT):
+- Exposes join_transfer to send handshake intention Transfer (3) instead of
+  Login (2) when following a server-requested transfer. Native connection
+  handling follows the packet directly, retaining account and server cookies.
+  This replaces upstream's empty game transfer handler for this application.
+
+- Custom click action (config and game) now writes/reads VarInt length-prefixed
+  optional network NBT, bounded to 65536 bytes. Official 1.21.11 abx bytecode
+  uses aam$20 length wrapper around aam$7 optional NBT. None is [1,0].
+  Exact None/Some bytes and full consumption covered in java_play.rs.
+- ConfigPacket events expose server notices to the native frontend. Server
+  cookies survive reconfiguration and transfer. Reconfiguration resets entity
+  ID, loaded-chunk/client-loaded and sent-Spawn markers to emit a fresh Spawn.
+  Live ZeusPvP Practice arrival verified after these corrections.
+
+- azalea-chat accepts 1.21.11 flattened player/sprite object components using
+  official ObjectContents styled U+FFFC placeholder so entity/player-info
+  packets are not discarded. Object sprite graphics/metadata fidelity is
+  still incomplete. Observed object+sibling wire regression in java_play.rs.
+
+azalea-physics: retained source/license for pinned 0.15.1+mc1.21.11. Flying air acceleration uses PlayerAbilities flying_speed and sprint multiplier; flying travel restores pre-travel vertical velocity multiplied by 0.6 and bypasses fluid travel. Based on local 1.21.11 mapped Player bytecode. Native toggle/vertical input and full mounted/spectator flight coverage remain unfinished.
+
+azalea-physics flight input: typed per-entity vertical input applied before travel; flying suppresses ordinary ground/liquid jumping; guarded native toggle preserves a one-shot grounded takeoff through repeated commands and consumes it once during the physics schedule. Physics integration fixture verifies two ticks and existing suite remains passing. Full altered-attribute/riding/spectator/fluid fidelity is unverified.
+
+azalea-entity: pinned0.15.1+mc1.21.11 source and MIT notice retained. Dimension updates now respond to Small/ArmorStandMarker/InteractionWidth/InteractionHeight metadata and calculate half-size/zero-marker/custom interaction dimensions. Small armorstand eye height0.9875 follows verified1.21.11 client static dimensions. Dynamic bounds flow into spatial picking and native snapshots. Attribute scaling and exact attachments remain outside verified scope.
+
+azalea-inventory: pinned0.15.1+mc1.21.11 vendored locally from the existing Cargo registry archive; shared upstream MIT workspace notice retained as LICENSE.md. BannerPattern.pattern now uses actual Holder<data::BannerPattern,BannerPatternData> (0 inline asset_id/translation_key; reference protocolID+1) rather than raw VarInt. Based on local official1.21.11 BannerPattern.STREAM_CODEC/ByteBufCodecs holder bytecode; actual inline/reference wire and ContainerSetContent next-slot/cursor alignment regressions live in root tests/native_shield_components.rs. Global Cargo registry was not modified. Existing checksums use Holder's registry-aware representation.

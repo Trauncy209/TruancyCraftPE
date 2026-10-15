@@ -17,6 +17,7 @@ class LocalPlayer: public Player
 {
 	typedef Player super;
 public:
+ bool isSprinting()const{return sprinting;}
 	LocalPlayer(Minecraft* minecraft, Level* level, User* user, int dimension, bool isCreative);
 	~LocalPlayer();
 
