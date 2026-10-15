@@ -1,4 +1,10 @@
 #include "network/packet/ChunkDataPacket.h"
+#include "network/packet/RequestChunkPacket.h"
+#include "network/ServerSideNetworkHandler.h"
+#include "network/RakNetInstance.h"
+#include "client/Minecraft.h"
+#include "world/level/Level.h"
+#include "world/level/storage/MemoryLevelStorage.h"
 #include "world/level/material/Material.h"
 #include "world/level/tile/Tile.h"
 #include "world/entity/MobCategory.h"
@@ -29,6 +35,7 @@ struct Terrain {
   assert(packet.chunkData.GetNumberOfUnreadBits()==0);
  }
 };
+struct Game: Minecraft {Game():Minecraft(){}};
 int main() {
  Mth::initMth();Material::initMaterials();MobCategory::initMobCategories();Tile::initTiles();Item::initItems();Biome::initBiomes();
  auto* storage=new unsigned char[16*16*128]();LevelChunk chunk(nullptr,storage,-3,4);
@@ -53,5 +60,18 @@ int main() {
  assert(!std::memcmp(chunk.updateMap,mixed.data(),mixed.size())&&!chunk.unsaved);
  assert(std::memcmp(storage,expected.data(),expected.size())==0&&std::memcmp(chunk.data.data,expectedMetadata.data(),expectedMetadata.size())==0);
  std::cout<<"Native full snapshot legacy-wire roundtrip: all2048sections, air replacement, metadata, negative coordinates, clean/mixed dirty maps, repeat writes and no server dirty mutation PASS\n";
+ // A real finite-world request handler must refuse the empty chunk sentinel.
+ // A deliberately absent peer makes any attempted serialization/send fail,
+ // so these calls prove the guard exits before touching unavailable storage.
+ auto* level=new Level(new MemoryLevelStorage(),"snapshot-boundary",LevelSettings(123,GameType::Survival,LGV_ORIGINAL),LGV_ORIGINAL);
+ auto* game=new Game();game->level=level;IRakNetInstance noPeer;
+ {
+  ServerSideNetworkHandler handler(game,&noPeer);handler.levelGenerated(level);
+  for(auto pos:{std::pair<int,int>{-1,0},{16,0},{0,-1},{0,16}}) {
+   assert(level->getChunk(pos.first,pos.second)->isEmpty());
+   RequestChunkPacket request(pos.first,pos.second);handler.handle(RakNet::UNASSIGNED_RAKNET_GUID,&request);
+  }
+ }
+ std::cout<<"Actual finite request handler rejects four out-of-range EmptyLevelChunks before serialization/send PASS\n";
  chunk.deleteBlockData();
 }
