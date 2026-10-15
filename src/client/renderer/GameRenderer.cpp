@@ -188,7 +188,7 @@ void GameRenderer::render(float a) {
 	int xMouse = (int)(Mouse::getX() * Gui::InvGuiScale);
 	int yMouse = (int)(Mouse::getY() * Gui::InvGuiScale);
 #ifndef PLATFORM_DESKTOP
-    if (mc->useTouchscreen()) {
+    if (mc->useTouchscreen() && !mc->screen) {
 		const int pid = Multitouch::getFirstActivePointerIdExThisUpdate();
 		if (pid >= 0) {
 			xMouse = (int)(Multitouch::getX(pid) * Gui::InvGuiScale);

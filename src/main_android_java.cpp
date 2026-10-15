@@ -5,6 +5,9 @@
 
 //#include "main_android_java.h"
 #include "platform/input/Multitouch.h"
+#include "platform/input/TouchMouseOwner.h"
+static TouchMouseOwner touchMouseOwner;
+
 #include <unistd.h>
 #include <sys/syscall.h>
 #define gettid() ((int)syscall(SYS_gettid))
@@ -287,6 +290,7 @@ Java_com_mojang_minecraftpe_MainActivity_nativeKeyEvent(JNIEnv*,jclass,jint code
 }
 JNIEXPORT void JNICALL
 Java_com_mojang_minecraftpe_MainActivity_nativeStopThis(JNIEnv*,jclass) {
+    touchMouseOwner.cancel();
     for(int key=0;key<256;++key)if(Keyboard::isKeyDown(key))Keyboard::feed(key,false);
     mouseUp(1,Mouse::getX(),Mouse::getY());mouseUp(2,Mouse::getX(),Mouse::getY());
     for(int i=0;i<Multitouch::MAX_POINTERS;++i)if(Multitouch::isPointerDown(i))pointerUp(i,Multitouch::getX(i),Multitouch::getY(i));
@@ -321,22 +325,26 @@ Java_com_mojang_minecraftpe_MainActivity_nativeHandleBack(JNIEnv* env, jclass cl
 //
 // Mouse events
 //
+static bool observeTouchScreen(){auto* game=static_cast<Minecraft*>(gApp);touchMouseOwner.observe(reinterpret_cast<std::uintptr_t>(game?game->screen:nullptr));return game&&game->screen;}
 JNIEXPORT void JNICALL
 Java_com_mojang_minecraftpe_MainActivity_nativeMouseDown(JNIEnv* env, jclass cls, jint pointerId, jint buttonId, jfloat x, jfloat y) {
     //LOGI("@nativeMouseDown: %f %f\n", x, y);
-    mouseDown(1, x, y);
+    const bool menu=observeTouchScreen();
+    if(!menu||touchMouseOwner.down(pointerId))mouseDown(1, x, y);
     pointerDown(pointerId, x, y);
 }
 JNIEXPORT void JNICALL
 Java_com_mojang_minecraftpe_MainActivity_nativeMouseUp(JNIEnv* env, jclass cls, jint pointerId, jint buttonId, jfloat x, jfloat y) {
     //LOGI("@nativeMouseUp: %f %f\n", x, y);
-    mouseUp(1, x, y);
+    const bool menu=observeTouchScreen();
+    if(!menu||touchMouseOwner.up(pointerId))mouseUp(1, x, y);
     pointerUp(pointerId, x, y);
 }
 JNIEXPORT void JNICALL
 Java_com_mojang_minecraftpe_MainActivity_nativeMouseMove(JNIEnv* env, jclass cls, jint pointerId, jfloat x, jfloat y) {
     //LOGI("@nativeMouseMove: %f %f\n", x, y);
-    mouseMove(x, y);
+    const bool menu=observeTouchScreen();
+    if(!menu||touchMouseOwner.move(pointerId))mouseMove(x, y);
     pointerMove(pointerId, x, y);
 }
 }

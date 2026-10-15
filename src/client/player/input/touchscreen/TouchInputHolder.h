@@ -321,6 +321,13 @@ public:
 		_lastPlayer = player;
 
 		if (state == State_Destroy) {
+            // A held entity gesture is use/interact, never block mining.
+            if(!_forceCanUse && _minecraft->javaSession && _minecraft->hitResult.type==ENTITY){
+                if(_sentFirstRemove)return false;
+                _sentFirstRemove=true;
+                *bai=BuildActionIntention(BuildActionIntention::BAI_INTERACT);
+                return true;
+            }
             // Keep the finger classified as held for release handling, but
             // do not restart an active Java charge or its equip animation.
             if (_forceCanUse && _sentFirstRemove && _minecraft->javaSession &&
@@ -358,7 +365,10 @@ public:
 				if (state <= State_Deciding) {
 					if (since >= 0.0f && since < 0.25f) {
 						// We've pressed and released in haste; Let's build!
-						*bai = BuildActionIntention(BuildActionIntention::BAI_BUILD | BuildActionIntention::BAI_ATTACK);
+						// Java air/block taps must reach useItem as well as placement.
+                        // A short entity tap retains the native attack gesture.
+                        const bool javaUse=_minecraft->javaSession && _minecraft->hitResult.type!=ENTITY;
+                        *bai = BuildActionIntention(BuildActionIntention::BAI_BUILD | (javaUse?BuildActionIntention::BAI_INTERACT:BuildActionIntention::BAI_ATTACK));
 						handled = true;
 					}
 				}

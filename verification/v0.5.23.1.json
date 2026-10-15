@@ -1,0 +1,58 @@
+{
+  "version": "0.5.23.1",
+  "prerelease": true,
+  "artifacts": [
+    {
+      "name": "TruancyCraftPE-0.5.23.1-Android-arm64-v8a.apk",
+      "sha256": "05ba90dfd5f51b846ff1bfa1569f9bf390a79ba8ac8d8dfa5fcfa5bcb2fe7975",
+      "bytes": 399298842,
+      "abi": "arm64-v8a",
+      "version": "0.5.23.1",
+      "versionCode": 6003,
+      "package": "com.truancycraft.tcpe",
+      "signer_sha256": "e0e241d7c0730e3d2ef1987f6bda63f24bc56b5cb9c4e94713d09235093628df",
+      "in_game_version": "0.5.23.1",
+      "native_recompiled": [
+        "local/arm64-v8a/objs/minecraftpe/__/__/__/src/SharedConstants.o",
+        "local/arm64-v8a/objs/minecraftpe/__/__/__/src/main_android_java.o",
+        "local/arm64-v8a/objs/minecraftpe/__/__/__/src/client/Minecraft.o",
+        "local/arm64-v8a/objs/minecraftpe/__/__/__/src/network/RakNetInstance.o",
+        "local/arm64-v8a/objs/minecraftpe/__/__/__/src/client/gui/Gui.o",
+        "local/arm64-v8a/objs/minecraftpe/__/__/__/src/client/player/LocalPlayer.o",
+        "local/arm64-v8a/objs/minecraftpe/__/__/__/src/client/renderer/GameRenderer.o",
+        "local/arm64-v8a/objs/minecraftpe/__/__/__/src/client/gui/screens/StartMenuScreen.o",
+        "local/arm64-v8a/objs/minecraftpe/__/__/__/src/client/gui/screens/ScreenChooser.o",
+        "local/arm64-v8a/objs/minecraftpe/__/__/__/src/client/gui/screens/touch/TouchStartMenuScreen.o"
+      ],
+      "physical_phone_tested": false
+    },
+    {
+      "name": "TruancyCraftPE-0.5.23.1-Android-armeabi-v7a.apk",
+      "sha256": "387dc1104824d3d1f772710bbf180cb105e3c2d6843d71b59651b405cea7e18a",
+      "bytes": 397291806,
+      "abi": "armeabi-v7a",
+      "version": "0.5.23.1",
+      "versionCode": 6003,
+      "package": "com.truancycraft.tcpe",
+      "signer_sha256": "e0e241d7c0730e3d2ef1987f6bda63f24bc56b5cb9c4e94713d09235093628df",
+      "in_game_version": "0.5.23.1",
+      "native_recompiled": [
+        "local/armeabi-v7a/objs/minecraftpe/__/__/__/src/SharedConstants.o",
+        "local/armeabi-v7a/objs/minecraftpe/__/__/__/src/main_android_java.o",
+        "local/armeabi-v7a/objs/minecraftpe/__/__/__/src/client/Minecraft.o",
+        "local/armeabi-v7a/objs/minecraftpe/__/__/__/src/network/RakNetInstance.o",
+        "local/armeabi-v7a/objs/minecraftpe/__/__/__/src/client/gui/Gui.o",
+        "local/armeabi-v7a/objs/minecraftpe/__/__/__/src/client/player/LocalPlayer.o",
+        "local/armeabi-v7a/objs/minecraftpe/__/__/__/src/client/renderer/GameRenderer.o",
+        "local/armeabi-v7a/objs/minecraftpe/__/__/__/src/client/gui/screens/StartMenuScreen.o",
+        "local/armeabi-v7a/objs/minecraftpe/__/__/__/src/client/gui/screens/ScreenChooser.o",
+        "local/armeabi-v7a/objs/minecraftpe/__/__/__/src/client/gui/screens/touch/TouchStartMenuScreen.o"
+      ],
+      "physical_phone_tested": false
+    }
+  ],
+  "native_regressions": "PASS: absent-pointer menu tap; multi-finger ownership/context/cancel; air item use; entity tap attack and one held interaction; existing native crafting/storage/server refresh regressions",
+  "source_app_version_checked": true,
+  "fresh_VirusTotal_scan": false,
+  "physical_phone_verified": false
+}

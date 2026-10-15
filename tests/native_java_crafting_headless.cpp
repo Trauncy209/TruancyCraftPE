@@ -1,6 +1,7 @@
 #include "network/java/JavaPackFontRuntime.h"
 #include "client/gui/screens/JavaServerRow.h"
 #include <set>
+#include "platform/input/TouchMouseOwner.h"
 #include <map>
 #include <unistd.h>
 #include <fstream>
@@ -105,6 +106,17 @@ int main(){
   session.recipes.erase(session.recipes.begin()+1);++session.recipesRevision;ui.tick();sent.clear();ui.buttonClicked(find(ui,1));assert(sent.empty());
   ++session.inventory.menuGeneration;sent.clear();ui.onItemSelected(nullptr,0);assert(sent.empty());
  }
+ // Secondary fingers must not overwrite or release the menu cursor; a fresh
+ // menu permits a new finger even while the world movement thumb stays down.
+ {TouchMouseOwner owner;owner.observe(0);assert(owner.down(2));assert(!owner.down(5));assert(!owner.move(5)&&!owner.up(5)&&owner.move(2));owner.observe(7);assert(!owner.up(2));assert(owner.down(5));assert(!owner.move(2));assert(owner.up(5));assert(owner.down(9));owner.cancel();assert(!owner.up(9));}
+ // Real touch recognizer: air taps use held menu items; short entity taps
+ // still attack, while a deliberate hold interacts exactly once.
+ {game->width=400;game->height=240;TouchInputHolder holder(game,&game->options);auto* turn=dynamic_cast<UnifiedTurnBuild*>(holder.getBuildInput());assert(turn);int tx=-1,ty=-1;for(int y=30;y<180&&tx<0;y+=10)for(int x=150;x<350;x+=10)if(turn->isInsideArea(x,y)){tx=x;ty=y;break;}assert(tx>=0);BuildActionIntention gesture;
+ auto reset=[](){Multitouch::reset();Multitouch::resetThisUpdate();Multitouch::commit();};
+ game->hitResult=HitResult();Multitouch::feed(1,MouseAction::DATA_DOWN,tx,ty,1);turn->tickBuild(nullptr,&gesture);Multitouch::feed(1,MouseAction::DATA_UP,tx,ty,1);assert(turn->tickBuild(nullptr,&gesture)&&gesture.isInteract()&&!gesture.isAttack()&&!gesture.isRemove());reset();
+ game->hitResult.type=ENTITY;Multitouch::feed(1,MouseAction::DATA_DOWN,tx,ty,1);turn->tickBuild(nullptr,&gesture);Multitouch::feed(1,MouseAction::DATA_UP,tx,ty,1);assert(turn->tickBuild(nullptr,&gesture)&&gesture.isAttack()&&!gesture.isInteract());reset();
+ Multitouch::feed(1,MouseAction::DATA_DOWN,tx,ty,1);Multitouch::commit();turn->getTurnDelta();turn->tickBuild(nullptr,&gesture);usleep(450000);turn->getTurnDelta();assert(turn->tickBuild(nullptr,&gesture)&&gesture.isInteract()&&!gesture.isRemove()&&!gesture.isAttack());assert(!turn->tickBuild(nullptr,&gesture));Multitouch::feed(1,MouseAction::DATA_UP,tx,ty,1);Multitouch::commit();turn->getTurnDelta();turn->tickBuild(nullptr,&gesture);reset();game->hitResult=HitResult();}
+ std::cout<<"Mobile taps: menu absent-pointer frame, single-finger ownership/context/cancel, Java air use, entity tap attack and one held interaction PASS"<<std::endl;
  // Exercise the real keyboard queue, not just a direct virtual callback. Keep
  // screen changes deferred as in Minecraft's event loop; no native window exists.
  game->*field(ScreenMutexTag{})=true;
@@ -118,7 +130,8 @@ int main(){
   inv.carried.count=3;inv.carried.resourceId="minecraft:stone";assert(JavaInventoryScreen::storageSupported(inv));auto broken=inv;broken.slotRanges["hotbar"].end--;assert(!JavaInventoryScreen::storageSupported(broken));broken=inv;broken.menuKind="merchant";assert(!JavaInventoryScreen::storageSupported(broken));
   game->width=400;game->height=240;Gui::GuiScale=400.f/size.first;Gui::InvGuiScale=1.f/Gui::GuiScale;
   inv.slots[3]=inv.carried;inv.slots[3].originalId=1;inv.slots[kind.second+27]=inv.carried;inv.slots[kind.second+27].resourceId="minecraft:compass";inv.slots[kind.second+27].originalId=345;inv.slots[kind.second+27].count=1;
-  SemanticInventoryProbe popup(7);popup.Screen::init(game,size.first,size.second);assert(popup.mappedSlotForButton(0)==3);assert(button(popup,-6)->msg=="Storage");sent.clear();sentCalls=0;(game->*field(ScheduledTag{}))=false;popup.buttonClicked(button(popup,-6));assert(sent.empty()&&sentCalls==0);assert(dynamic_cast<JavaStorageScreen*>(game->*field(NextScreenTag{})));assert(JavaInventoryViewPreference::storage()&&JavaInventoryViewPreference::read());
+  SemanticInventoryProbe popup(7);popup.Screen::init(game,size.first,size.second);assert(popup.mappedSlotForButton(0)==3);assert(button(popup,-6)->msg=="Storage");{auto* choice=button(popup,0);const int x=choice->x+choice->width/2,y=choice->y+choice->height/2;sent.clear();sentCalls=0;popup.mouseClicked(x,y,1);projection();popup.render(-9999,-9999,0);popup.mouseReleased(x,y,1);assert(sentCalls==1&&sent.find("\"slot\":3")!=std::string::npos);}
+sent.clear();sentCalls=0;(game->*field(ScheduledTag{}))=false;popup.buttonClicked(button(popup,-6));assert(sent.empty()&&sentCalls==0);assert(dynamic_cast<JavaStorageScreen*>(game->*field(NextScreenTag{})));assert(JavaInventoryViewPreference::storage()&&JavaInventoryViewPreference::read());
   StorageProbe drawer(7);drawer.Screen::init(game,size.first,size.second);assert(drawer.slotAt(false,0)==0&&drawer.slotAt(false,kind.second-1)==kind.second-1&&drawer.slotAt(true,0)==kind.second+27&&drawer.slotAt(true,9)==kind.second);assert(drawer.slotAt(false,kind.second)==-1&&drawer.slotAt(true,36)==-1);assert(drawer.getItems(drawer.paneFor(false)).size()==size_t(kind.second)&&drawer.getItems(drawer.paneFor(true)).size()==36);
   sent.clear();assert(drawer.addItem(drawer.paneFor(false),kind.second-1));assert(sent.find("\"slot\":"+std::to_string(kind.second-1)+",")!=std::string::npos);sent.clear();assert(drawer.addItem(drawer.paneFor(true),0));assert(sent.find("\"slot\":"+std::to_string(kind.second+27)+",")!=std::string::npos);
   drawer.buttonClicked(storageButton(drawer,5));sent.clear();drawer.addItem(drawer.paneFor(false),0);assert(sent.find("\"right\":true")!=std::string::npos);drawer.buttonClicked(storageButton(drawer,5));sent.clear();drawer.addItem(drawer.paneFor(true),9);assert(sent.find("\"type\":\"quick_move\"")!=std::string::npos);

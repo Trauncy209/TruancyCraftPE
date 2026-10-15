@@ -726,7 +726,7 @@ void Minecraft::tickInput() {
 #endif
 
 		if (allowGuiClicks && e.action == MouseAction::ACTION_LEFT && e.data == MouseAction::DATA_DOWN) {
-			gui.handleClick(MouseAction::ACTION_LEFT, Mouse::getX(), Mouse::getY());
+			gui.handleClick(MouseAction::ACTION_LEFT, e.x, e.y);
 		}
 
 		if (e.action == MouseAction::ACTION_WHEEL) {
@@ -1042,6 +1042,8 @@ void Minecraft::handleBuildAction(BuildActionIntention* action) {
 			InteractPacket packet(InteractPacket::Interact, player->entityId, hitResult.entity->entityId);
 			if(!javaSession)raknetInstance->send(packet);
             gameMode->interact(player, hitResult.entity);
+            // Java use already resolves entity/block/item fallback in Rust.
+            if(javaSession)mayUse=false;
         }
     } else if (hitResult.type == TILE) {
 		int x = hitResult.x;

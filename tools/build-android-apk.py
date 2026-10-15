@@ -67,7 +67,7 @@ if args.gles3:
     import xml.etree.ElementTree as ET
     ET.register_namespace('android','http://schemas.android.com/apk/res/android'); tree=ET.parse(manifest); ET.SubElement(tree.getroot(),'uses-feature',{'{http://schemas.android.com/apk/res/android}glEsVersion':'0x00030000','{http://schemas.android.com/apk/res/android}required':'true'})
     manifest=work/'gles3-manifest/AndroidManifest.xml'; manifest.parent.mkdir(parents=True,exist_ok=True); tree.write(manifest,encoding='utf-8',xml_declaration=True)
-run(tools/'aapt', 'package', '-f', '-m', '-J', work/'generated', '-M', manifest, '-S', project/'res', '-A', project/'assets', '-I', android_jar, '-F', work/'resources.apk')
+run(tools/'aapt', 'package', '-f', '-m', '--custom-package', 'com.mojang.minecraftpe', '-J', work/'generated', '-M', manifest, '-S', project/'res', '-A', project/'assets', '-I', android_jar, '-F', work/'resources.apk')
 # The Verizon flavor references an obsolete external licensing SDK and is not
 # declared in this manifest. Preserve its source, but omit that unused flavor.
 sources = sorted(p for p in (project/'src').rglob('*.java') if p.name != 'Minecraft_Verizon.java')
@@ -90,7 +90,7 @@ with zipfile.ZipFile(work/'unsigned.apk', 'a', compression=zipfile.ZIP_DEFLATED)
         apk.write(library, 'lib/'+args.abi+'/'+library.name)
 run(tools/'zipalign', '-f', '-P', '16', '4', work/'unsigned.apk', work/'aligned.apk')
 release_signing = bool(os.environ.get('TCPE_RELEASE_KEYSTORE'))
-name = 'TruancyCraftPE-0.5.23-Android-'+args.abi+('' if release_signing else '-development')+'.apk'
+name = 'TruancyCraftPE-0.5.23.1-Android-'+args.abi+('' if release_signing else '-development')+'.apk'
 output = (args.output or work/name).resolve()
 output.parent.mkdir(parents=True, exist_ok=True)
 if release_signing:
