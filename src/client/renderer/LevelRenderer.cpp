@@ -798,9 +798,10 @@ int LevelRenderer::renderChunks( int from, int to, int layer, float alpha )
 	float zOff = player->zOld + (player->z - player->zOld) * alpha;
 
 	// Build render lists for main atlas and alternate atlas and render them separately
-	RenderList mainList;
+	// These lists own only CPU descriptors. Refill them with current VBOs each pass.
+	static thread_local RenderList mainList;
 	mainList.init(xOff, yOff, zOff);
-	RenderList altList;
+	static thread_local RenderList altList;
 	altList.init(xOff, yOff, zOff);
 
 	for (unsigned int i = 0; i < _renderChunks.size(); ++i) {

@@ -1,0 +1,151 @@
+{
+  "baseline_commit": "61f532e5f6342a0f17bf393c1d9ff3dfc1c5cbb2",
+  "renderer": "Radeon610M integrated / GLES3",
+  "measurement": "Hidden hardware window, stationary copied native Extreme Terrain world seed1723818205,15s warmup+30s sampling, real simulation",
+  "vsync": false,
+  "fps_cap": false,
+  "fancy_graphics": true,
+  "cpu_miner_paused_for_measurement": true,
+  "cpu_miner_resumed_after_measurement": true,
+  "physical_phone_fps_measured": false,
+  "results": {
+    "native_short": {
+      "resolution": [
+        854,
+        480
+      ],
+      "view_distance": 2,
+      "before": {
+        "frames": 18429.0,
+        "fps": 614.195,
+        "low1": 80.824,
+        "p50_ms": 1.142,
+        "p95_ms": 3.706,
+        "p99_ms": 7.632,
+        "app_ms": 1.625,
+        "submission_ms": 0.985,
+        "draws": 474.8,
+        "log": "fast-low-a1.log",
+        "log_sha256": "b80f69410c52caf82efe00829b773211d1be5a2fdba24ca41934d622ba4fb6b8"
+      },
+      "after": {
+        "frames": 24560.0,
+        "fps": 818.731,
+        "low1": 110.285,
+        "p50_ms": 1.087,
+        "p95_ms": 2.377,
+        "p99_ms": 5.72,
+        "app_ms": 1.218,
+        "submission_ms": 0.438,
+        "draws": 480.8,
+        "log": "fast-low-b1.log",
+        "log_sha256": "06cf49002c888a516831c81a632cffd7ff4b411b704a1a44ed4b964b0dde0d29"
+      },
+      "fps_improvement_percent": 33.301475915629396
+    },
+    "native_normal_hd": {
+      "resolution": [
+        1920,
+        1080
+      ],
+      "view_distance": 1,
+      "before": {
+        "frames": 3438.0,
+        "fps": 114.602,
+        "low1": 30.935,
+        "p50_ms": 8.063,
+        "p95_ms": 16.704,
+        "p99_ms": 23.443,
+        "app_ms": 8.718,
+        "submission_ms": 5.568,
+        "draws": 1720.8,
+        "log": "fast-hd-a1.log",
+        "log_sha256": "886f67d1343a6b9f7ddac1248c8a0c511b2465c7ec0b664bf334f368f63b45ef"
+      },
+      "after": {
+        "frames": 4984.0,
+        "fps": 166.089,
+        "low1": 40.706,
+        "p50_ms": 5.66,
+        "p95_ms": 8.824,
+        "p99_ms": 10.689,
+        "app_ms": 6.017,
+        "submission_ms": 4.047,
+        "draws": 1720.8,
+        "log": "fast-hd-b1.log",
+        "log_sha256": "01a456f888e5605affd6e7163f9697515086e2509f1f269484e8af17834016f1"
+      },
+      "fps_improvement_percent": 44.92679010837506
+    }
+  },
+  "optimized_source_files": {
+    "src/client/renderer/GLES3Compat.cpp": "27a993a2eb8b77f1f027bdbb5137f9ab94cef88013bfab7cf7270f76628b6688",
+    "src/client/renderer/LevelRenderer.cpp": "5b31f9eded138cd79b7dee506e07696404930bca41cf4b912fcc67630a579734",
+    "src/client/renderer/RenderList.cpp": "fd2fdb038c424762764c02abb97044b160d90fd9398623f6c0b8d05539b15554"
+  },
+  "pixel_equivalence": {
+    "frames": 64,
+    "covers": [
+      "lighting and normal transitions",
+      "nonuniform scale",
+      "texturing and UV matrices",
+      "flat/smooth shading",
+      "alpha/fog",
+      "program switches",
+      "context reset"
+    ],
+    "baseline_sha256": "d29fd75084359104199838f78650cc0caf17352e4420bfb8cbfa77958860cacc",
+    "optimized_sha256": "d29fd75084359104199838f78650cc0caf17352e4420bfb8cbfa77958860cacc"
+  },
+  "render_validation": [
+    {
+      "test": "render_list_reuse",
+      "result": "PASS",
+      "log": "/home/truancy/Documents/Codex/2026-10-13/referenced-chatgpt-conversation-this-is-an/work/performance-0.5.25.5/final-tests/render_list_reuse.log"
+    },
+    {
+      "test": "gles3_uniform_state_render",
+      "result": "PASS",
+      "log": "/home/truancy/Documents/Codex/2026-10-13/referenced-chatgpt-conversation-this-is-an/work/performance-0.5.25.5/final-tests/gles3_uniform_state_render.log"
+    },
+    {
+      "test": "chunk_face_boundary_offscreen",
+      "result": "PASS",
+      "log": "/home/truancy/Documents/Codex/2026-10-13/referenced-chatgpt-conversation-this-is-an/work/performance-0.5.25.5/final-tests/chunk_face_boundary_offscreen.log"
+    },
+    {
+      "test": "creative_icon_fallback_offscreen",
+      "result": "PASS",
+      "log": "/home/truancy/Documents/Codex/2026-10-13/referenced-chatgpt-conversation-this-is-an/work/performance-0.5.25.5/final-tests/creative_icon_fallback_offscreen.log"
+    }
+  ],
+  "android_abis_compiled_signed": [
+    "arm64-v8a",
+    "armeabi-v7a"
+  ],
+  "public_release_changed": false,
+  "additional_ui_validation": {
+    "titles_unicode_fade_expiry": "PASS",
+    "experience_fill_clamp_level_hearts_food": "PASS",
+    "fixture_note": "Legacy fixtures now select the real GLES3 context; XP fixture uses in-game alpha-test state. The old missing-alpha setup also failed against the baseline shader.",
+    "source_fixture_execution": "PASS: title_render and vitals_hud_render built from the updated repository tests"
+  },
+  "audio_backend": "OpenAL null backend, same for all timed runs",
+  "final_build_tests": {
+    "linux": "PASS",
+    "android_arm64": "PASS",
+    "android_armv7": "PASS",
+    "pixel_state_and_context_reset": "PASS",
+    "terrain_list_reuse": "PASS",
+    "chunk_boundaries": "PASS",
+    "inventory_icons": "PASS",
+    "titles": "PASS",
+    "vitals_experience": "PASS"
+  },
+  "validation_log_hashes": {
+    "final-linux-build.log": "cb19da1f53c83e34096868efafdfdf571232eedea876fc97a83e692a4b62877f",
+    "final-validation.log": "01485eccbfbebf54dfde2de69e787cf77593609ec5346ef0b738ac7551da886a",
+    "source-ui-validation.log": "c3e5e40829379acbaafd24c4815434a95792b3abbe992ffe09badc17f172f59e",
+    "android-builds.log": "6dc26f62d92364db6774b965bb67a805b1aaa3c9db472a6dd28a72592fd952d4"
+  }
+}

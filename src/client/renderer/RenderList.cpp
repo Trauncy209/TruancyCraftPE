@@ -23,7 +23,10 @@ RenderList::~RenderList() {
 
 void RenderList::init(float xOff, float yOff, float zOff) {
 	inited = true;
+	// Reused lists may shrink or become empty; never replay the previous limit.
+	rendered = false;
 	listIndex = 0;
+	bufferLimit = 0;
 
 	this->xOff = (float) xOff;
 	this->yOff = (float) yOff;

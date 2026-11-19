@@ -12,7 +12,6 @@
 #include <cstdio>
 #include <algorithm>
 #include <string>
-#include <unordered_map>
 #include <chrono>
 #include <cstdlib>
 namespace TCPEGL3 {
@@ -21,7 +20,12 @@ Mat identity(){Mat m{};m[0]=m[5]=m[10]=m[15]=1;return m;}
 Mat multiply(const Mat&a,const Mat&b){Mat m{};for(int c=0;c<4;c++)for(int r=0;r<4;r++)for(int k=0;k<4;k++)m[c*4+r]+=a[k*4+r]*b[c*4+k];return m;}
 struct Array{int size=4;GLenum type=GL_FLOAT;int stride=0;const void* pointer=nullptr;GLuint buffer=0;bool enabled=false;};
 struct Light{std::array<float,4>position{{0,0,1,0}},diffuse{{0,0,0,1}},ambient{{0,0,0,1}};};
-struct State{GLenum mode=GL_MODELVIEW,alpha=GL_ALWAYS,fogMode=GL_EXP,shade=GL_SMOOTH;float alphaRef=0,density=1,start=0,end=1;std::vector<Mat>mv{identity()},pr{identity()},tx{identity()};std::set<GLenum>enables;std::array<float,4> color{{1,1,1,1}},fogColor{{0,0,0,0}},ambient{{.2,.2,.2,1}};std::array<float,3>normal{{0,0,1}};Array arrays[4];Light lights[2];GLuint program=0,vao=0,stream[4]{};GLenum error=GL_NO_ERROR;std::unordered_map<std::string,GLint> locations;std::unordered_map<std::string,int> ints;std::unordered_map<std::string,float> floats;std::unordered_map<std::string,std::array<float,4>> vectors;std::unordered_map<std::string,Mat> matrices;};
+enum class Uniform { MV, PR, TX, Normal, Lighting, Normalize, Ambient, LightPosition0, LightPosition1, LightDiffuse0, LightDiffuse1, LightAmbient0, LightAmbient1, Lights0, Lights1, Texture, Textured, Flat, Alpha, AlphaFunc, Fog, FogMode, AlphaRef, Density, Start, End, FogColor, Count };
+static const char* const uniformNames[] = { "uMV", "uPR", "uTX", "uNormal", "uLighting", "uNormalize", "uAmbient", "uLightPosition[0]", "uLightPosition[1]", "uLightDiffuse[0]", "uLightDiffuse[1]", "uLightAmbient[0]", "uLightAmbient[1]", "uLights[0]", "uLights[1]", "uTexture", "uTextured", "uFlat", "uAlpha", "uAlphaFunc", "uFog", "uFogMode", "uAlphaRef", "uDensity", "uStart", "uEnd", "uFogColor" };
+static_assert(sizeof(uniformNames)/sizeof(*uniformNames)==size_t(Uniform::Count), "Uniform table must match shader slots");
+// Each program owns independent locations and cached values.
+struct UniformValue { GLint location=-2; bool valid=false; int integer=0; float scalar=0; Mat values{}; };
+struct State{std::array<UniformValue,size_t(Uniform::Count)*2> uniforms;GLuint fastProgram=0;bool fastActive=false,fastFailed=false;GLenum mode=GL_MODELVIEW,alpha=GL_ALWAYS,fogMode=GL_EXP,shade=GL_SMOOTH;float alphaRef=0,density=1,start=0,end=1;std::vector<Mat>mv{identity()},pr{identity()},tx{identity()};std::set<GLenum>enables;std::array<float,4> color{{1,1,1,1}},fogColor{{0,0,0,0}},ambient{{.2,.2,.2,1}};std::array<float,3>normal{{0,0,1}};Array arrays[4];Light lights[2];GLuint program=0,vao=0,stream[4]{};GLenum error=GL_NO_ERROR;};
 static State s;
 std::vector<Mat>& stack(){return s.mode==GL_PROJECTION?s.pr:s.mode==GL_TEXTURE?s.tx:s.mv;}
 bool legacy(GLenum e){return e==GL_TEXTURE_2D||e==GL_ALPHA_TEST||e==GL_LIGHTING||e==GL_LIGHT0||e==GL_LIGHT1||e==GL_COLOR_MATERIAL||e==GL_NORMALIZE||e==GL_RESCALE_NORMAL||e==GL_FOG;}
@@ -48,12 +52,39 @@ precision highp float;
 in vec2 vUV;in vec4 vColor;flat in vec4 fColor;in float vFog;layout(location=0)out vec4 outColor;
 uniform sampler2D uTexture;uniform int uTextured,uFlat,uAlpha,uAlphaFunc,uFog,uFogMode;uniform float uAlphaRef,uDensity,uStart,uEnd;uniform vec4 uFogColor;
 void main(){vec4 c=uFlat!=0?fColor:vColor;if(uTextured!=0)c*=texture(uTexture,vUV);if(uAlpha!=0){bool pass=true;if(uAlphaFunc==512)pass=false;else if(uAlphaFunc==513)pass=c.a<uAlphaRef;else if(uAlphaFunc==514)pass=c.a==uAlphaRef;else if(uAlphaFunc==515)pass=c.a<=uAlphaRef;else if(uAlphaFunc==516)pass=c.a>uAlphaRef;else if(uAlphaFunc==517)pass=c.a!=uAlphaRef;else if(uAlphaFunc==518)pass=c.a>=uAlphaRef;if(!pass)discard;}if(uFog!=0){float f=uFogMode==9729?(uEnd-vFog)/max(.000001,uEnd-uStart):uFogMode==2048?exp(-uDensity*vFog):exp(-pow(uDensity*vFog,2.));c.rgb=mix(uFogColor.rgb,c.rgb,clamp(f,0.,1.));}outColor=c;})";
+// Exact common state: unlit, smooth, textured, identity UV matrix.
+static const char*fastVS=R"(#version 300 es
+precision highp float;
+layout(location=0)in vec4 aPosition;layout(location=1)in vec2 aUV;layout(location=2)in vec4 aColor;layout(location=3)in vec3 aNormal;
+uniform mat4 uMV,uPR,uTX;uniform mat3 uNormal;uniform int uLighting,uNormalize;uniform vec4 uAmbient,uLightPosition[2],uLightDiffuse[2],uLightAmbient[2];uniform int uLights[2];
+out vec2 vUV;out vec4 vColor;out float vFog;
+void main(){vec4 eye=uMV*aPosition;gl_Position=uPR*eye;vUV=aUV;vec4 c=aColor;vColor=c;vFog=abs(eye.z);})";
+static const char*fastFS=R"(#version 300 es
+precision highp float;
+in vec2 vUV;in vec4 vColor;in float vFog;layout(location=0)out vec4 outColor;
+uniform sampler2D uTexture;uniform int uTextured,uFlat,uAlpha,uAlphaFunc,uFog,uFogMode;uniform float uAlphaRef,uDensity,uStart,uEnd;uniform vec4 uFogColor;
+void main(){vec4 c=vColor;c*=texture(uTexture,vUV);if(uAlpha!=0){bool pass=true;if(uAlphaFunc==512)pass=false;else if(uAlphaFunc==513)pass=c.a<uAlphaRef;else if(uAlphaFunc==514)pass=c.a==uAlphaRef;else if(uAlphaFunc==515)pass=c.a<=uAlphaRef;else if(uAlphaFunc==516)pass=c.a>uAlphaRef;else if(uAlphaFunc==517)pass=c.a!=uAlphaRef;else if(uAlphaFunc==518)pass=c.a>=uAlphaRef;if(!pass)discard;}if(uFog!=0){float f=uFogMode==9729?(uEnd-vFog)/max(.000001,uEnd-uStart):uFogMode==2048?exp(-uDensity*vFog):exp(-pow(uDensity*vFog,2.));c.rgb=mix(uFogColor.rgb,c.rgb,clamp(f,0.,1.));}outColor=c;})";
 GLuint compile(GLenum type,const char*source){GLuint id=glCreateShader(type);glShaderSource(id,1,&source,nullptr);glCompileShader(id);GLint ok=0;glGetShaderiv(id,GL_COMPILE_STATUS,&ok);if(!ok){char log[2048];glGetShaderInfoLog(id,sizeof(log),nullptr,log);std::fprintf(stderr,"GLES3 shader failed: %s\n",log);glDeleteShader(id);return 0;}return id;}
 bool initialize(){if(s.program)return true;const char*v=(const char*)glGetString(GL_VERSION);if(!v||!std::strstr(v,"OpenGL ES 3")){std::fprintf(stderr,"GLES3 required; actual context: %s\n",v?v:"none");return false;}GLuint a=compile(GL_VERTEX_SHADER,vs),b=compile(GL_FRAGMENT_SHADER,fs);if(!a||!b)return false;s.program=glCreateProgram();glAttachShader(s.program,a);glAttachShader(s.program,b);glLinkProgram(s.program);glDeleteShader(a);glDeleteShader(b);GLint ok;glGetProgramiv(s.program,GL_LINK_STATUS,&ok);if(!ok){char log[2048];glGetProgramInfoLog(s.program,sizeof(log),nullptr,log);std::fprintf(stderr,"GLES3 program failed: %s\n",log);glDeleteProgram(s.program);s.program=0;return false;}glGenVertexArrays(1,&s.vao);glGenBuffers(4,s.stream);std::fprintf(stderr,"TCPE shader renderer: %s\n",v);std::fprintf(stderr,"TCPE GLES3 GPU: %s / %s\n",glGetString(GL_VENDOR),glGetString(GL_RENDERER));return true;}
 void resetContext(){s=State{};}
 GLenum getError(){if(s.error!=GL_NO_ERROR){auto e=s.error;s.error=GL_NO_ERROR;return e;}return glGetError();}
-GLint loc(const char*n){auto f=s.locations.find(n);if(f!=s.locations.end())return f->second;GLint value=glGetUniformLocation(s.program,n);s.locations.emplace(n,value);return value;}void ui(const char*n,int v){auto f=s.ints.find(n);if(f!=s.ints.end()&&f->second==v)return;s.ints[n]=v;glUniform1i(loc(n),v);}void uf(const char*n,float v){auto f=s.floats.find(n);if(f!=s.floats.end()&&f->second==v)return;s.floats[n]=v;glUniform1f(loc(n),v);}void u4(const char*n,const float*p){std::array<float,4>v;std::copy(p,p+4,v.begin());auto f=s.vectors.find(n);if(f!=s.vectors.end()&&f->second==v)return;s.vectors[n]=v;glUniform4fv(loc(n),1,p);}
-void um(const char*n,const float*p,int dim){Mat v{};std::copy(p,p+dim*dim,v.begin());auto f=s.matrices.find(n);if(f!=s.matrices.end()&&f->second==v)return;s.matrices[n]=v;if(dim==3)glUniformMatrix3fv(loc(n),1,GL_FALSE,p);else glUniformMatrix4fv(loc(n),1,GL_FALSE,p);}
+GLuint activeProgram(){return s.fastActive?s.fastProgram:s.program;}
+size_t uniformIndex(Uniform id){return size_t(id)+(s.fastActive?size_t(Uniform::Count):0);}
+GLint loc(const char*n){return glGetUniformLocation(activeProgram(),n);}
+bool ensureFastProgram(){
+ if(s.fastProgram)return true;if(s.fastFailed)return false;
+ GLuint a=compile(GL_VERTEX_SHADER,fastVS),b=compile(GL_FRAGMENT_SHADER,fastFS);
+ if(!a||!b){if(a)glDeleteShader(a);if(b)glDeleteShader(b);s.fastFailed=true;return false;}
+ GLuint program=glCreateProgram();glAttachShader(program,a);glAttachShader(program,b);glLinkProgram(program);glDeleteShader(a);glDeleteShader(b);GLint ok=0;glGetProgramiv(program,GL_LINK_STATUS,&ok);
+ if(!ok){glDeleteProgram(program);s.fastFailed=true;return false;}s.fastProgram=program;return true;
+}
+GLint uniformLocation(Uniform id){auto& value=s.uniforms[uniformIndex(id)];if(value.location==-2)value.location=glGetUniformLocation(activeProgram(),uniformNames[size_t(id)]);return value.location;}
+void ui(Uniform id,int v){auto& value=s.uniforms[uniformIndex(id)];if(value.valid&&value.integer==v)return;value.valid=true;value.integer=v;glUniform1i(uniformLocation(id),v);}
+void uf(Uniform id,float v){auto& value=s.uniforms[uniformIndex(id)];if(value.valid&&value.scalar==v)return;value.valid=true;value.scalar=v;glUniform1f(uniformLocation(id),v);}
+void u4(Uniform id,const float*p){auto& value=s.uniforms[uniformIndex(id)];if(value.valid&&std::equal(p,p+4,value.values.begin()))return;value.valid=true;std::copy(p,p+4,value.values.begin());glUniform4fv(uniformLocation(id),1,p);}
+void um(Uniform id,const float*p,int dim){auto& value=s.uniforms[uniformIndex(id)];const int count=dim*dim;if(value.valid&&std::equal(p,p+count,value.values.begin()))return;value.valid=true;std::copy(p,p+count,value.values.begin());if(dim==3)glUniformMatrix3fv(uniformLocation(id),1,GL_FALSE,p);else glUniformMatrix4fv(uniformLocation(id),1,GL_FALSE,p);}
+int cachedInteger(const char* name){for(size_t i=0;i<size_t(Uniform::Count);++i)if(std::strcmp(name,uniformNames[i])==0)return s.uniforms[i+(s.fastActive?size_t(Uniform::Count):0)].integer;return 0;}
+
 static unsigned frameDraws=0;static double frameDrawMs=0;static const bool qaStats=std::getenv("TCPE_GLES3_QA_STATS")!=nullptr;
 void takeFrameStats(unsigned&count,double&ms){count=frameDraws;ms=frameDrawMs;frameDraws=0;frameDrawMs=0;}
 // Off by default: capture the real GL-thread state without debugger function calls.
@@ -70,9 +101,9 @@ static void qaDrawState(GLsizei count){
   GLint depth=0,bits=0,read=0,draw=0,active=0,viewport[4]{},range[2]{},precision=0;GLboolean mask=0;GLfloat depthRange[2]{},clear=0;
   glGetIntegerv(GL_DEPTH_FUNC,&depth);glGetIntegerv(GL_DEPTH_BITS,&bits);glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING,&read);glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&draw);glGetIntegerv(GL_ACTIVE_TEXTURE,&active);glGetIntegerv(GL_VIEWPORT,viewport);glGetBooleanv(GL_DEPTH_WRITEMASK,&mask);glGetFloatv(GL_DEPTH_RANGE,depthRange);glGetFloatv(GL_DEPTH_CLEAR_VALUE,&clear);glGetShaderPrecisionFormat(GL_VERTEX_SHADER,GL_HIGH_FLOAT,range,&precision);
   std::fprintf(stderr,"GLES3_QA draw count=%d texture=%d size=%dx%d format=%x active=%x fbo=%d/%d depth=%d func=%x bits=%d write=%d range=%g,%g clear=%g alpha=%d/%x/%g viewport=%d,%d,%d,%d highp=%d/%d/%d\n",count,texture,width,height,format,active,read,draw,glIsEnabled(GL_DEPTH_TEST),depth,bits,mask,depthRange[0],depthRange[1],clear,isEnabled(GL_ALPHA_TEST),s.alpha,s.alphaRef,viewport[0],viewport[1],viewport[2],viewport[3],range[0],range[1],precision);
-  GLint current=0,sampler=0,minFilter=0,magFilter=0,wrapS=0,wrapT=0,base=0,maxLevel=0;glGetIntegerv(GL_CURRENT_PROGRAM,&current);glGetIntegerv(GL_SAMPLER_BINDING,&sampler);glGetTexParameteriv(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,&minFilter);glGetTexParameteriv(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,&magFilter);glGetTexParameteriv(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,&wrapS);glGetTexParameteriv(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,&wrapT);glGetTexParameteriv(GL_TEXTURE_2D,GL_TEXTURE_BASE_LEVEL,&base);glGetTexParameteriv(GL_TEXTURE_2D,GL_TEXTURE_MAX_LEVEL,&maxLevel);std::fprintf(stderr,"GLES3_QA program actual=%d expected=%u sampler=%d filters=%x/%x wrap=%x/%x levels=%d/%d\n",current,s.program,sampler,minFilter,magFilter,wrapS,wrapT,base,maxLevel);
-  for(const char*n:{"uTexture","uTextured","uAlpha","uAlphaFunc","uFlat","uFog","uLighting"}){GLint actual=0;glGetUniformiv(s.program,loc(n),&actual);std::fprintf(stderr,"GLES3_QA uniform %s actual=%d cached=%d\n",n,actual,s.ints[n]);}
-  for(const char*n:{"uMV","uPR","uTX"}){GLfloat actual[16]{};glGetUniformfv(s.program,loc(n),actual);std::fprintf(stderr,"GLES3_QA uniform %s",n);for(float v:actual)std::fprintf(stderr," %.9g",v);std::fprintf(stderr,"\n");}
+  GLint current=0,sampler=0,minFilter=0,magFilter=0,wrapS=0,wrapT=0,base=0,maxLevel=0;glGetIntegerv(GL_CURRENT_PROGRAM,&current);glGetIntegerv(GL_SAMPLER_BINDING,&sampler);glGetTexParameteriv(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,&minFilter);glGetTexParameteriv(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,&magFilter);glGetTexParameteriv(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,&wrapS);glGetTexParameteriv(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,&wrapT);glGetTexParameteriv(GL_TEXTURE_2D,GL_TEXTURE_BASE_LEVEL,&base);glGetTexParameteriv(GL_TEXTURE_2D,GL_TEXTURE_MAX_LEVEL,&maxLevel);std::fprintf(stderr,"GLES3_QA program actual=%d expected=%u sampler=%d filters=%x/%x wrap=%x/%x levels=%d/%d\n",current,activeProgram(),sampler,minFilter,magFilter,wrapS,wrapT,base,maxLevel);
+  for(const char*n:{"uTexture","uTextured","uAlpha","uAlphaFunc","uFlat","uFog","uLighting"}){GLint actual=0;if(loc(n)>=0)glGetUniformiv(activeProgram(),loc(n),&actual);std::fprintf(stderr,"GLES3_QA uniform %s actual=%d cached=%d\n",n,actual,cachedInteger(n));}
+  for(const char*n:{"uMV","uPR","uTX"}){GLfloat actual[16]{};if(loc(n)>=0)glGetUniformfv(activeProgram(),loc(n),actual);std::fprintf(stderr,"GLES3_QA uniform %s",n);for(float v:actual)std::fprintf(stderr," %.9g",v);std::fprintf(stderr,"\n");}
   for(GLuint a=0;a<4;++a){GLint buffer=0,stride=0,size=0,type=0,on=0;void*ptr=nullptr;glGetVertexAttribiv(a,GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING,&buffer);glGetVertexAttribiv(a,GL_VERTEX_ATTRIB_ARRAY_STRIDE,&stride);glGetVertexAttribiv(a,GL_VERTEX_ATTRIB_ARRAY_SIZE,&size);glGetVertexAttribiv(a,GL_VERTEX_ATTRIB_ARRAY_TYPE,&type);glGetVertexAttribiv(a,GL_VERTEX_ATTRIB_ARRAY_ENABLED,&on);glGetVertexAttribPointerv(a,GL_VERTEX_ATTRIB_ARRAY_POINTER,&ptr);std::fprintf(stderr,"GLES3_QA attr%u enabled=%d buffer=%d stride=%d size=%d type=%x offset=%p\n",a,on,buffer,stride,size,type,ptr);}
   std::fprintf(stderr,"GLES3_QA matrices MV");for(float v:s.mv.back())std::fprintf(stderr," %.9g",v);std::fprintf(stderr," PR");for(float v:s.pr.back())std::fprintf(stderr," %.9g",v);std::fprintf(stderr," TX");for(float v:s.tx.back())std::fprintf(stderr," %.9g",v);std::fprintf(stderr,"\n");
  }
@@ -91,15 +122,19 @@ static void qaDrawState(GLsizei count){
 }
 int typeSize(GLenum t){return t==GL_FLOAT||t==GL_FIXED?4:t==GL_SHORT||t==GL_UNSIGNED_SHORT?2:1;}
 void drawArrays(GLenum mode,GLint first,GLsizei count){if(count<=0||first<0)return;if(!initialize())return;auto drawStart=qaStats?std::chrono::steady_clock::now():std::chrono::steady_clock::time_point{};GLint oldBuffer=0;glGetIntegerv(GL_ARRAY_BUFFER_BINDING,&oldBuffer);
+ const bool lighting=isEnabled(GL_LIGHTING);static const Mat unit=identity();s.fastActive=!lighting&&s.shade==GL_SMOOTH&&isEnabled(GL_TEXTURE_2D)&&s.tx.back()==unit&&ensureFastProgram();
  // The TCPE renderer owns this context's programmable pipeline. Legacy calls
  // have no program/VAO state; keep our pipeline bound across glyph/chunk draws.
  // ARRAY_BUFFER still restores exactly because it is visible to legacy arrays.
- glBindVertexArray(s.vao);glUseProgram(s.program);
- um("uMV",s.mv.back().data(),4);um("uPR",s.pr.back().data(),4);um("uTX",s.tx.back().data(),4);
+ glBindVertexArray(s.vao);glUseProgram(activeProgram());
+ um(Uniform::MV,s.mv.back().data(),4);um(Uniform::PR,s.pr.back().data(),4);um(Uniform::TX,s.tx.back().data(),4);
+ ui(Uniform::Lighting,lighting);
+ if(lighting){
  // Inverse-transpose upper 3x3, including nonuniform item scale.
- const auto&m=s.mv.back();float a=m[0],b=m[4],c=m[8],d=m[1],e=m[5],f=m[9],g=m[2],h=m[6],i=m[10];float det=a*(e*i-f*h)-b*(d*i-f*g)+c*(d*h-e*g);float norm[9]{1,0,0,0,1,0,0,0,1};if(std::abs(det)>1e-20){float z=1/det;float q[9]{(e*i-f*h)*z,(b*i-c*h)*-z,(b*f-c*e)*z,(d*i-f*g)*-z,(a*i-c*g)*z,(a*f-c*d)*-z,(d*h-e*g)*z,(a*h-b*g)*-z,(a*e-b*d)*z};std::copy(q,q+9,norm);}um("uNormal",norm,3);
- ui("uLighting",isEnabled(GL_LIGHTING));ui("uNormalize",isEnabled(GL_NORMALIZE)||isEnabled(GL_RESCALE_NORMAL));u4("uAmbient",s.ambient.data());for(int j=0;j<2;j++){std::string idx="["+std::to_string(j)+"]";u4(("uLightPosition"+idx).c_str(),s.lights[j].position.data());u4(("uLightDiffuse"+idx).c_str(),s.lights[j].diffuse.data());u4(("uLightAmbient"+idx).c_str(),s.lights[j].ambient.data());ui(("uLights"+idx).c_str(),isEnabled(GL_LIGHT0+j));}
- ui("uTexture",0);ui("uTextured",isEnabled(GL_TEXTURE_2D));ui("uFlat",s.shade==GL_FLAT);ui("uAlpha",isEnabled(GL_ALPHA_TEST));ui("uAlphaFunc",s.alpha);uf("uAlphaRef",s.alphaRef);ui("uFog",isEnabled(GL_FOG));ui("uFogMode",s.fogMode);uf("uDensity",s.density);uf("uStart",s.start);uf("uEnd",s.end);u4("uFogColor",s.fogColor.data());
+ const auto&m=s.mv.back();float a=m[0],b=m[4],c=m[8],d=m[1],e=m[5],f=m[9],g=m[2],h=m[6],i=m[10];float det=a*(e*i-f*h)-b*(d*i-f*g)+c*(d*h-e*g);float norm[9]{1,0,0,0,1,0,0,0,1};if(std::abs(det)>1e-20){float z=1/det;float q[9]{(e*i-f*h)*z,(b*i-c*h)*-z,(b*f-c*e)*z,(d*i-f*g)*-z,(a*i-c*g)*z,(a*f-c*d)*-z,(d*h-e*g)*z,(a*h-b*g)*-z,(a*e-b*d)*z};std::copy(q,q+9,norm);}um(Uniform::Normal,norm,3);
+ ui(Uniform::Normalize,isEnabled(GL_NORMALIZE)||isEnabled(GL_RESCALE_NORMAL));u4(Uniform::Ambient,s.ambient.data());for(int j=0;j<2;j++){u4(j?Uniform::LightPosition1:Uniform::LightPosition0,s.lights[j].position.data());u4(j?Uniform::LightDiffuse1:Uniform::LightDiffuse0,s.lights[j].diffuse.data());u4(j?Uniform::LightAmbient1:Uniform::LightAmbient0,s.lights[j].ambient.data());ui(j?Uniform::Lights1:Uniform::Lights0,isEnabled(GL_LIGHT0+j));}
+ }
+ ui(Uniform::Texture,0);ui(Uniform::Textured,isEnabled(GL_TEXTURE_2D));ui(Uniform::Flat,s.shade==GL_FLAT);ui(Uniform::Alpha,isEnabled(GL_ALPHA_TEST));ui(Uniform::AlphaFunc,s.alpha);uf(Uniform::AlphaRef,s.alphaRef);ui(Uniform::Fog,isEnabled(GL_FOG));ui(Uniform::FogMode,s.fogMode);uf(Uniform::Density,s.density);uf(Uniform::Start,s.start);uf(Uniform::End,s.end);u4(Uniform::FogColor,s.fogColor.data());
  for(int j=0;j<4;j++){auto&a=s.arrays[j];if(!a.enabled){glDisableVertexAttribArray(j);if(j==0)glVertexAttrib4f(j,0,0,0,1);if(j==1)glVertexAttrib2f(j,0,0);if(j==2)glVertexAttrib4fv(j,s.color.data());if(j==3)glVertexAttrib3fv(j,s.normal.data());continue;}const void*p=a.pointer;int st=a.stride?a.stride:a.size*typeSize(a.type);if(a.buffer){glBindBuffer(GL_ARRAY_BUFFER,a.buffer);}else{if(!p){s.error=GL_INVALID_OPERATION;continue;}size_t bytes=(size_t)(first+count)*st;glBindBuffer(GL_ARRAY_BUFFER,s.stream[j]);glBufferData(GL_ARRAY_BUFFER,bytes,p,GL_STREAM_DRAW);p=nullptr;}glEnableVertexAttribArray(j);glVertexAttribPointer(j,a.size,a.type,j==2&&a.type!=GL_FLOAT?GL_TRUE:GL_FALSE,st,p);}
  qaDrawState(count);
  glDrawArrays(mode==GL_QUADS?GL_TRIANGLES:mode,first,count);glBindBuffer(GL_ARRAY_BUFFER,oldBuffer);if(qaStats){++frameDraws;frameDrawMs+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-drawStart).count();}
