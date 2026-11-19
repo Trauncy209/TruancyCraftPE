@@ -1,0 +1,55 @@
+{
+  "version": "0.5.25.6",
+  "release_channel": "stable",
+  "artifacts": [
+    {
+      "name": "TruancyCraftPE-0.5.25.6-Android-arm64-v8a.apk",
+      "sha256": "6e91f8c88acc21e0fc0fe998473d352673f43e0985e4d4b848b73e49d07cabff",
+      "bytes": 399442492,
+      "version": "0.5.25.6",
+      "release_signature_verified": true
+    },
+    {
+      "name": "TruancyCraftPE-0.5.25.6-Android-armeabi-v7a.apk",
+      "sha256": "6b50346bd0b0949b3a38518b29e52d81f1ad90059a2fbf239089b6a1426b6997",
+      "bytes": 397410880,
+      "version": "0.5.25.6",
+      "release_signature_verified": true
+    },
+    {
+      "name": "TruancyCraftPE-0.5.25.6-Linux-x86_64.tar.gz",
+      "sha256": "51b36f66bce8248bd93ec77441b11b22c7292d5c98af762135bdaa9589fc892e",
+      "bytes": 570885129,
+      "version": "0.5.25.6",
+      "release_signature_verified": true
+    },
+    {
+      "name": "TruancyCraftPE-Server-0.5.25.6-Linux-x86_64.tar.gz",
+      "sha256": "36dac3cc7a5d0c67d3dd9d5a41a3ca5c76de132954b54558214921e8124d3baa",
+      "bytes": 808210,
+      "version": "0.5.25.6",
+      "release_signature_verified": true
+    }
+  ],
+  "android": {
+    "versionCode": 6015,
+    "app_id": "com.truancycraft.tcpe",
+    "abis": [
+      "arm64-v8a",
+      "armeabi-v7a"
+    ],
+    "apk_and_elf_16k_alignment_verified": true,
+    "physical_device_tested": false
+  },
+  "checks": {
+    "linux_client_build": "PASS",
+    "android_32_64_build_signing": "PASS",
+    "render_pixel_equivalence_64_states_and_context_reset": "PASS",
+    "terrain_list_reuse_and_empty_list": "PASS",
+    "chunk_boundary_and_inventory_icons": "PASS",
+    "unicode_titles_xp_hearts": "PASS",
+    "final_server_two_far_clients_save_restart": "PASS"
+  },
+  "performance": "performance-2026-11-19.json",
+  "notes": "Performance measurements are Radeon 610M laptop results, not physical Android FPS. Headless server has matching shared source/version; no server FPS improvement claimed."
+}
