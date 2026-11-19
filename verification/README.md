@@ -1,5 +1,9 @@
 # Download verification
 
+Current stable: **0.5.25.6**. Download checksums and signatures are attached to the [release](https://github.com/Trauncy209/TruancyCraftPE/releases/tag/v0.5.25.6). [Build verification](release-0.5.25.6.json) and [performance checks](../docs/PERFORMANCE-2026-11-19.md) describe this update. No new VirusTotal scans were performed for 0.5.25.6.
+
+## Historical 0.5.23 checks
+
 v0.5.23 downloads are signed and checked. The VirusTotal links below refer to
 the exact final download hashes. Live gameplay confirmation of the latest
 mining, crafting and storage fixes is still pending.
