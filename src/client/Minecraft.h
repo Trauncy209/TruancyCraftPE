@@ -2,6 +2,7 @@
 #define NET_MINECRAFT_CLIENT__Minecraft_H__
 
 #include "Options.h"
+#include <atomic>
 #ifndef STANDALONE_SERVER
 #include "MouseHandler.h"
 #endif
@@ -208,9 +209,12 @@ public:
 	std::string externalCacheStoragePath;
 protected:
 	Timer timer;
-    // @note @attn @warn: this is dangerous as fuck!
-	volatile bool isGeneratingLevel;
+    // The worker publishes prepared terrain before the main thread installs
+    // its renderer, camera and network callbacks.
+	std::atomic<bool> isGeneratingLevel;
 	bool _hasSignaledGeneratingLevelFinished;
+    bool _nativeLeavePending;
+    bool _nativeLeaveRename;
 
 	LevelStorageSource* storageSource;
 	bool _running;

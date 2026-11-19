@@ -3,6 +3,7 @@
 
 
 #include "NetEventCallback.h"
+#include "NativeJoinState.h"
 #include "../raknet/RakNetTypes.h"
 #include "../world/level/LevelConstants.h"
 
@@ -33,7 +34,7 @@ typedef struct IntPair {
 class ClientSideNetworkHandler : public NetEventCallback
 {
 public:
-	ClientSideNetworkHandler(Minecraft* minecraft, IRakNetInstance* raknetInstance);
+	ClientSideNetworkHandler(Minecraft* minecraft, IRakNetInstance* raknetInstance, double (*joinClock)() = NULL);
 	virtual ~ClientSideNetworkHandler();
 
 	virtual void levelGenerated(Level* level);
@@ -83,6 +84,9 @@ public:
 	virtual void handle(const RakNet::RakNetGUID& source, ChatPacket* packet);
 	virtual void handle(const RakNet::RakNetGUID& source, AdventureSettingsPacket* packet);
 	virtual void handle(const RakNet::RakNetGUID& source, SignUpdatePacket* packet);
+	void beginJoin();
+	void cancelJoin();
+	bool hasJoinTimedOut() const;
 	void recenterChunkRequests();
 	bool isChunkLoaded(int x, int z);
 private:
@@ -100,6 +104,9 @@ private:
 	RakNet::RakPeerInterface* rakPeer;
 
 	RakNet::RakNetGUID serverGuid;
+	NativeJoinState joinState;
+	bool authoritativeInventory = false;
+    double (*joinClock)();
 
 	BlockUpdateList	bufferedBlockUpdates;
 	int	requestNextChunkPosition;

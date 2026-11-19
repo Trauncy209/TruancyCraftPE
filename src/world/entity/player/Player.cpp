@@ -717,9 +717,12 @@ void Player::interact(Entity* entity) {
 //}
 
 void Player::attack(Entity* entity) {
+	// Native multiplayer damage and durability belong to the server. The
+	// client already sends InteractPacket and plays the swing animation.
+	if (level->isClientSide || !entity || !entity->isAlive()) return;
 	int dmg = inventory->getAttackDamage(entity);
     if (dmg > 0) {
-        entity->hurt(this, dmg);
+        if (!entity->hurt(this, dmg)) return;
         ItemInstance* item = inventory->getSelected();
         if (item != NULL && entity->isMob() && abilities.instabuild != true) {
             item->hurtEnemy((Mob*) entity);
@@ -817,9 +820,10 @@ void Player::tileEntityDestroyed( int tileEntityId ) {
 
 bool Player::canUseCarriedItemWhileMoving() {
 	ItemInstance* item = getCarriedItem();
-	return item &&
+	Item* definition = item && item->count > 0 ? item->getItem() : NULL;
+	return definition &&
 		(	item->id == Item::bow->id
-		||	item->getItem()->isFood());
+		||	definition->isFood());
 }
 
 void Player::handleEntityEvent( char id ) {
@@ -921,4 +925,3 @@ int Player::getArmorValue() {
     }
     return val;
 }
-

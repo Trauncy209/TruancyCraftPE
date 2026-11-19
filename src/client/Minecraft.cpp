@@ -218,6 +218,8 @@ Minecraft::Minecraft()
 	ticks(0),
 	isGeneratingLevel(false),
 	_hasSignaledGeneratingLevelFinished(true),
+    _nativeLeavePending(false),
+    _nativeLeaveRename(false),
 	generateLevelThread(NULL),
 	progressStagePercentage(0),
 	progressStageStatusId(0),
@@ -369,8 +371,23 @@ void Minecraft::setLevel(Level* level, const std::string& message /* ="" */, Loc
 void Minecraft::leaveGame(bool renameLevel /*=false*/)
 {
     stopJavaServer();
-    if (level && (isGeneratingLevel || !_hasSignaledGeneratingLevelFinished))
-        return;
+    if (level && (isGeneratingLevel || !_hasSignaledGeneratingLevelFinished)) {
+        if (!level->isClientSide || level->isJavaServerLevel()) return;
+        // The detached worker still owns the remote snapshot. Remember OK and
+        // clean up after its atomic completion, without finalizing a cancelled
+        // world or requiring the user to press the button a second time.
+        if (isGeneratingLevel) {
+            _nativeLeavePending = true;
+            _nativeLeaveRename = renameLevel;
+            return;
+        }
+    }
+    _nativeLeavePending = false;
+    if (generateLevelThread) {
+        delete generateLevelThread;
+        generateLevelThread = NULL;
+    }
+    _hasSignaledGeneratingLevelFinished = true;
 
 	isGeneratingLevel = false;
 	bool saveLevel = level && (!level->isClientSide || renameLevel);
@@ -388,8 +405,8 @@ void Minecraft::leaveGame(bool renameLevel /*=false*/)
 
 	cameraTargetPlayer = NULL;
 #ifndef STANDALONE_SERVER
-	levelRenderer->setLevel(NULL);
-	particleEngine->setLevel(NULL);
+	if (levelRenderer) levelRenderer->setLevel(NULL);
+	if (particleEngine) particleEngine->setLevel(NULL);
 #endif
 	LOGI("Erasing callback\n");
 	delete netCallback;
@@ -573,6 +590,11 @@ void Minecraft::update() {
 }
 
 void Minecraft::tick(int nTick, int maxTick) {
+    if (_nativeLeavePending && !isGeneratingLevel) {
+        const bool renameLevel = _nativeLeaveRename;
+        leaveGame(renameLevel);
+        return;
+    }
 #ifndef STANDALONE_SERVER
     updateJavaServer();
 #endif
@@ -1439,7 +1461,12 @@ bool Minecraft::joinMultiplayer( const PingedCompatibleServer& server )
 {
 	if (isLookingForMultiplayer && netCallback) {
 		isLookingForMultiplayer = false;
-		return raknetInstance->connect(server.address.ToString(false), server.address.GetPort());
+		ClientSideNetworkHandler* handler = dynamic_cast<ClientSideNetworkHandler*>(netCallback);
+        if (!handler) return false;
+        handler->beginJoin();
+        const bool started = raknetInstance->connect(server.address.ToString(false), server.address.GetPort());
+        if (!started) handler->cancelJoin();
+        return started;
 	}
 	return false;
 }
@@ -1611,7 +1638,9 @@ const char* Minecraft::getProgressMessage()
 
 bool Minecraft::isLevelGenerated()
 {
-	return level != NULL && !isGeneratingLevel && (!level->isJavaServerLevel() || _hasSignaledGeneratingLevelFinished);
+	// A generation worker may finish between ticks. Rendering must wait until
+	// _levelGenerated has attached the renderer and camera on the main thread.
+	return level != NULL && !isGeneratingLevel && _hasSignaledGeneratingLevelFinished;
 }
 
 LevelStorageSource* Minecraft::getLevelSource()

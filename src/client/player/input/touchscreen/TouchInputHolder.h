@@ -3,6 +3,7 @@
 
 #include "../IInputHolder.h"
 #include "JavaTouchTapQueue.h"
+#include "NativeTouchTapTracker.h"
 #include "TouchscreenInput.h"
 #include "../HybridMoveInput.h"
 #include "network/java/JavaGameSession.h"
@@ -369,15 +370,15 @@ public:
 
 		while (Multitouch::next()) {
 			MouseAction& m = Multitouch::getEvent();
-			if (m.action == MouseAction::ACTION_MOVE) continue;
-
 			int areaId = _model.getPointerId(m.x, m.y, m.pointerId);
+            const bool nativeTap = !queuedJava && nativeTaps.update(m, areaId == AREA_TURN, now);
+            if (m.action == MouseAction::ACTION_MOVE) continue;
 			if (areaId != AREA_TURN) continue;
 
 			allowPicking = true;
 			//LOGI("down? %d, up? %d (%d, %d)\n", z && (m.data == MouseAction::DATA_DOWN), z && (m.data == MouseAction::DATA_UP), m.x, m.y); 
 
-			if (_totalMoveDelta <= MaxBuildMovement && (m.data == MouseAction::DATA_UP && !handled)) {
+			if ((queuedJava ? _totalMoveDelta <= MaxBuildMovement : nativeTap) && (m.data == MouseAction::DATA_UP && !handled)) {
 				const float since = now - _lastBuildDownTime;
 				//LOGI("move: (%d) %.2f - %f\n", state, _totalMoveDelta, since);
 				if (state <= State_Deciding) {
@@ -401,6 +402,7 @@ public:
 		return handled;
 	}
 
+    NativeTouchTapTracker nativeTaps;
     JavaTouchTapQueue javaTaps;
     struct JavaPress {bool down=false;int x=0,y=0;float time=0;bool moved=false;uint64_t epoch=0;unsigned world=0;};
     JavaPress javaPress[Multitouch::MAX_POINTERS];

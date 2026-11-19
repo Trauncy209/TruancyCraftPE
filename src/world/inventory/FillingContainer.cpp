@@ -36,7 +36,7 @@ FillingContainer::~FillingContainer()
 void FillingContainer::clearInventory()
 {
 	for (int i = 0; i < numLinkedSlots; ++i) {
-		linkedSlots[i] = LinkedSlot(i);
+		linkedSlots[i] = LinkedSlot(-1);
 	}
 
 	//@todo: i = MAX_ -> get() transforms count=255-ptrs to real
@@ -126,7 +126,8 @@ bool FillingContainer::add( ItemInstance* item )
 		//	item->count = 0;
 		//	return true;
 		//}
-		return item->count < lastSize;
+		// Callers keep or drop the remaining stack when it does not all fit.
+		return item->count == 0;
 	}
 
 	int slot = getFreeSlot();
@@ -623,7 +624,10 @@ ItemInstance* FillingContainer::getLinked( int slot )
 	// sanity checking to prevent exploits
 	if (slot < numLinkedSlots && slot >= 0) {
 		int i = linkedSlots[slot].inventorySlot;
-		return (i >= numLinkedSlots && i < numTotalSlots)? items[i] : NULL;
+		ItemInstance* item = (i >= numLinkedSlots && i < numTotalSlots)? items[i] : NULL;
+		// Network restores include empty ItemInstance values for unused backing
+		// slots. A hotbar link to one must behave exactly like an empty hand.
+		return item && item->id > 0 && item->count > 0 && item->getItem() ? item : NULL;
 	}
 	return NULL;
 }

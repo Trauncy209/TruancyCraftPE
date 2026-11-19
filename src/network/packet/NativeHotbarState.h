@@ -22,14 +22,14 @@ struct NativeHotbarState {
         unsigned int magic=0; if (!wire->Read(magic) || magic!=0x54434831 || !wire->Read(selected)) return;
         if (selected>=Inventory::MAX_SELECTION_SIZE) return;
         for (int i=0;i<Inventory::MAX_SELECTION_SIZE;++i) {
-            if (!wire->Read(slots[i]) || (slots[i]!=-1 && (slots[i]<Inventory::MAX_SELECTION_SIZE || slots[i]>=45))) return;
+            if (!wire->Read(slots[i]) || (slots[i]!=-1 && (slots[i]<Inventory::MAX_SELECTION_SIZE || slots[i]>=Inventory::CREATIVE_SLOT_COUNT+Inventory::MAX_SELECTION_SIZE))) return;
         }
         present=true;
     }
     void apply(Inventory* inventory) const {
         if (!present) return;
         for (int i=0;i<Inventory::MAX_SELECTION_SIZE;++i)
-            inventory->linkedSlots[i].inventorySlot=slots[i]<inventory->getContainerSize()?slots[i]:-1;
+            inventory->linkedSlots[i].inventorySlot=slots[i]>=Inventory::MAX_SELECTION_SIZE && slots[i]<inventory->getContainerSize()?slots[i]:-1;
         inventory->selectSlot(selected);
     }
 };

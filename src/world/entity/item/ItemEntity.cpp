@@ -112,15 +112,21 @@ bool ItemEntity::hurt( Entity* source, int damage )
 
 void ItemEntity::playerTouch( Player* player )
 {
-	if (level->isClientSide) return;
+	if (level->isClientSide || removed || throwTime != 0 || !player ||
+		!player->isAlive() || item.count <= 0) return;
 
-	int orgCount = item.count;
-	if (throwTime == 0 && player->isAlive() && player->inventory->add(&item)) {
-	    level->playSound(this, "random.pop", 0.3f, ((sharedRandom.nextFloat() - sharedRandom.nextFloat()) * 0.7f + 1.0f) * 2.f);
-	    player->take(this, orgCount);
-		//if (item.count <= 0) remove(); //@todo
-		remove();
-	}
+	const int originalCount = item.count;
+	const bool complete = player->inventory->add(&item);
+	// Creative inventories accept pickups without storing a survival stack.
+	if (complete) item.count = 0;
+	const int pickedUp = originalCount - item.count;
+	if (pickedUp <= 0) return;
+
+	level->playSound(this, "random.pop", 0.3f, ((sharedRandom.nextFloat() - sharedRandom.nextFloat()) * 0.7f + 1.0f) * 2.f);
+	player->take(this, pickedUp);
+	// A full inventory may still have room in one existing stack. Keep the
+	// unaccepted portion in the world instead of losing it or taking it twice.
+	if (item.count <= 0) remove();
 }
 
 void ItemEntity::burn( int dmg )

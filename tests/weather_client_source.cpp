@@ -27,7 +27,7 @@ int main(){
  auto* level=new Level(new MemoryLevelStorage(),"source-boundary",LevelSettings(123,GameType::Survival,LGV_ORIGINAL),LGV_ORIGINAL);level->isClientSide=true;game->level=level;
  RakNetInstance peer;game->raknetInstance=&peer;ClientSideNetworkHandler handler(game,&peer);
  const RakNet::RakNetGUID authority(UINT64_C(0x123456789ABCDEF0)),unrelated(UINT64_C(0x23456789ABCDEF01));
- handler.onConnect(authority);handler.levelGenerated(level);SoundCounter sounds;level->addListener(&sounds);
+ handler.beginJoin();handler.onConnect(authority);handler.levelGenerated(level);SoundCounter sounds;level->addListener(&sounds);
  WeatherState wet;assert(wet.command("thunder",12345));wet.restoreIntensity();WeatherPacket snapshot(wet);
  handler.handle(unrelated,&snapshot);assert(!level->getLevelData()->weather.raining&&level->getLevelData()->weather.rainTicks==0);
  WeatherLightning bolt;bolt.id=77;bolt.seed=UINT64_C(0x9ABCDEF012345678);bolt.x=128;bolt.y=100;bolt.z=128;WeatherLightningPacket spawn(bolt,0);assert(spawn.valid);
@@ -56,7 +56,7 @@ int main(){
  auto pump=[&]{peer.runEvents(&handler);goodWire.runEvents(&goodConnected);badWire.runEvents(&badConnected);std::this_thread::sleep_for(std::chrono::milliseconds(3));};
  auto hold=[&](int ms){auto end=std::chrono::steady_clock::now()+std::chrono::milliseconds(ms);while(std::chrono::steady_clock::now()<end)pump();};
  for(int i=0;i<2000&&(!goodConnected.ready||!badConnected.ready);++i)pump();assert(goodConnected.ready&&badConnected.ready);
- handler.onConnect(goodWire.getPeer()->GetMyGUID());handler.levelGenerated(level);
+ handler.beginJoin();handler.onConnect(goodWire.getPeer()->GetMyGUID());handler.levelGenerated(level);
  WeatherLightning wireBolt=bolt;wireBolt.id=88;WeatherLightningPacket wireSpawn(wireBolt,0),wireRemove(wireBolt,2);
  badWire.send(forgedClear);badWire.send(wireSpawn);hold(250);WeatherLightningRuntime::tick(*level);
  assert(level->getLevelData()->weather.raining&&level->weatherLightning.empty()&&sounds.thunder==1&&sounds.impact==1);

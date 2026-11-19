@@ -3,6 +3,7 @@
 #include "packet/WeatherPacket.h"
 
 #include "ClientSideNetworkHandler.h"
+#include <chrono>
 #include "packet/PacketInclude.h"
 #include "RakNetInstance.h"
 #include "../world/level/chunk/ChunkSource.h"
@@ -37,9 +38,16 @@
 
 static MultiPlayerLevel* mpcast(Level* l) { return (MultiPlayerLevel*) l; }
 
-ClientSideNetworkHandler::ClientSideNetworkHandler(Minecraft* minecraft, IRakNetInstance* raknetInstance)
+namespace {
+double nativeJoinTime() {
+    return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+}
+
+ClientSideNetworkHandler::ClientSideNetworkHandler(Minecraft* minecraft, IRakNetInstance* raknetInstance, double (*joinClock)())
 :	minecraft(minecraft),
 	raknetInstance(raknetInstance),
+    joinClock(joinClock ? joinClock : nativeJoinTime),
 	level(NULL),
 	requestNextChunkPosition(0),
     requestNextChunkIndex(0)
@@ -100,8 +108,28 @@ bool ClientSideNetworkHandler::isChunkLoaded(int x, int z)
 	//return areAllChunksLoaded();
 }
 
+void ClientSideNetworkHandler::beginJoin() {
+    joinState.begin(joinClock());
+    authoritativeInventory = false;
+    serverGuid = RakNet::UNASSIGNED_RAKNET_GUID;
+}
+
+void ClientSideNetworkHandler::cancelJoin() {
+    // Invalidate callbacks before closing the transport. A queued StartGame must
+    // never install a world behind an error screen or after returning to menus.
+    joinState.cancel();
+    if (minecraft->player) minecraft->player->nativeInventoryReady = false;
+    raknetInstance->setIsLoggedIn(false);
+    raknetInstance->disconnect();
+}
+
+bool ClientSideNetworkHandler::hasJoinTimedOut() const {
+    return joinState.expired(joinClock());
+}
+
 void ClientSideNetworkHandler::onConnect(const RakNet::RakNetGUID& hostGuid)
 {
+    if (!joinState.connected(joinClock())) return;
 	LOGI("onConnect, server guid: %s, local guid: %s\n", hostGuid.ToString(), rakPeer->GetMyGUID().ToString());
 	serverGuid = hostGuid;
 
@@ -112,7 +140,9 @@ void ClientSideNetworkHandler::onConnect(const RakNet::RakNetGUID& hostGuid)
 
 void ClientSideNetworkHandler::onUnableToConnect()
 {
+    if (!joinState.active()) return;
 	LOGI("onUnableToConnect\n");
+    cancelJoin();
 #ifndef STANDALONE_SERVER
     minecraft->setScreen(new DisconnectionScreen("Could not connect to TCPE server"));
 #endif
@@ -120,27 +150,22 @@ void ClientSideNetworkHandler::onUnableToConnect()
 
 void ClientSideNetworkHandler::onDisconnect(const RakNet::RakNetGUID& guid)
 {
+    if (!joinState.active() || guid != serverGuid) return;
 	LOGI("onDisconnect\n");
+    joinState.cancel();
+	raknetInstance->setIsLoggedIn(false);
+	// A disconnected server snapshot must never become a local simulation.
+	// Otherwise mobs/drops become ghosts, AI starts on stale remote entities,
+	// and the cached world can be saved as though it were authoritative.
+	if (level) level->isClientSide = true;
+	if (minecraft->player) minecraft->player->nativeInventoryReady = false;
 #ifndef STANDALONE_SERVER
-    if(!level){minecraft->setScreen(new DisconnectionScreen("Disconnected from TCPE server"));return;}
-#endif
-	if (level)
-	{
-		level->isClientSide = false;
-		for (int i = (int)level->players.size()-1; i >= 0; --i ) {
-			Player* p = level->players[i];
-			if (p != minecraft->player) {
-				p->reallyRemoveIfPlayer = true;
-				level->removeEntity(p);
-			}
-		}
-	}
-#ifndef STANDALONE_SERVER
-	minecraft->gui.addMessage("Disconnected from server");
+	minecraft->setScreen(new DisconnectionScreen("Disconnected from TCPE server"));
 #endif
 }
 
 void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, LoginStatusPacket* packet) {
+    if (!joinState.acceptsWorld() || source != serverGuid) return;
 	if (packet->status == LoginStatus::Success) {
 		raknetInstance->setIsLoggedIn(true);
 		return;
@@ -148,12 +173,14 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, LoginSta
 
 	if (packet->status == LoginStatus::Failed_ClientOld) {
 		LOGI("Disconnect! Client is outdated!\n");
+        cancelJoin();
 #ifndef STANDALONE_SERVER
 		minecraft->setScreen(new DisconnectionScreen("Could not connect: Outdated client!"));
 #endif
 	}
 	if (packet->status == LoginStatus::Failed_ServerOld) {
 		LOGI("Disconnect! Server is outdated!\n");
+        cancelJoin();
 #ifndef STANDALONE_SERVER
 		minecraft->setScreen(new DisconnectionScreen("Could not connect: Outdated server!"));
 #endif
@@ -163,6 +190,8 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, LoginSta
 
 void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, StartGamePacket* packet)
 {
+	if (!joinState.acceptsWorld() || source != serverGuid) return;
+    joinState.worldStarted(joinClock());
 	LOGI("StartGamePacket\n");
 
 #ifdef RPI
@@ -362,7 +391,17 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, RemoveEn
 
 void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, AddItemEntityPacket* packet)
 {
+    if (source != serverGuid) return;
 	if (!level) return;
+
+	// A server can refresh the remaining count after a partial pickup.
+	// Update in place: putEntity's legacy map insertion cannot replace an ID.
+	if (Entity* existing = level->getEntity(packet->id)) {
+		if (existing->isItemEntity()) {
+			static_cast<ItemEntity*>(existing)->item = ItemInstance(packet->itemId, packet->itemCount, packet->auxValue);
+		}
+		return;
+	}
 
 	ItemEntity* entity = new ItemEntity(level, packet->x, packet->y, packet->z, ItemInstance(packet->itemId, packet->itemCount, packet->auxValue));
 	entity->xd = packet->xa();
@@ -374,6 +413,7 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, AddItemE
 }
 
 void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, TakeItemEntityPacket* packet) {
+    if (source != serverGuid) return;
 	if (!level) return;
 
 	Entity* e = level->getEntity(packet->itemId);
@@ -394,11 +434,18 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, TakeItem
 	if (item.isNull())
 		return;
 
-	// try take it and if we don't have space; re-throw it
-	if (minecraft->player->entityId == packet->playerId
-	&& !minecraft->player->inventory->add(&item)) {
-		DropItemPacket dropPacket(packet->playerId, item);
-		minecraft->raknetInstance->send(dropPacket);
+	// The server sends the inventory snapshot after accepting a pickup. Do
+	// not add or re-drop a predicted copy here: the client can still be showing
+	// a stale/full inventory while the authoritative pickup is in flight.
+	// Older TCPE hosts do not send inventory snapshots; retain their legacy
+	// pickup behavior until a snapshot with native hotbar state identifies one.
+	if (!authoritativeInventory && minecraft->player &&
+		minecraft->player->entityId == packet->playerId) {
+		minecraft->player->inventory->add(&item);
+		if (item.count > 0) {
+			DropItemPacket dropPacket(packet->playerId, item);
+			minecraft->raknetInstance->send(dropPacket);
+		}
 	}
 	level->playSound(e, "random.pop", 0.2f, 1.0f * 2.f);
 }
@@ -627,6 +674,7 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, ChunkDat
 
 void ClientSideNetworkHandler::finishChunkRequests()
 {
+    joinState.worldReady();
 	if (!requestedChunksReadySent) {
 		requestedChunksReadySent = true;
 		ReadyPacket packet(ReadyPacket::READY_REQUESTEDCHUNKS);
@@ -722,6 +770,7 @@ void ClientSideNetworkHandler::arrangeRequestChunkOrder() {
 
 void ClientSideNetworkHandler::levelGenerated(Level* level)
 {
+    if (!joinState.active()) return;
 	this->level = level;
 	ReadyPacket packet(ReadyPacket::READY_CLIENTGENERATION);
 	raknetInstance->send(packet);
@@ -926,10 +975,13 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, Containe
 
 void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, ContainerSetContentPacket* packet)
 {
+    if (source != serverGuid || !packet->valid) return;
 	if (!minecraft || !minecraft->player)
 		return;
 
     if (packet->containerId == 0) {
+        if (packet->items.size() > static_cast<unsigned int>(minecraft->player->inventory->getContainerSize() - Inventory::MAX_SELECTION_SIZE)) return;
+        if (packet->hotbar.present) authoritativeInventory = true;
         for (unsigned int i = 0; i < packet->items.size(); ++i) {
             minecraft->player->inventory->setItem(Inventory::MAX_SELECTION_SIZE + i, &packet->items[i]);
         }
@@ -938,6 +990,7 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, Containe
             if (!packet->items[i].isNull()) minecraft->player->inventory->linkEmptySlot(Inventory::MAX_SELECTION_SIZE+i);
         minecraft->player->nativeInventoryRestored();
     } else if (minecraft->player->containerMenu && minecraft->player->containerMenu->containerId == packet->containerId) {
+        if (packet->items.size() > minecraft->player->containerMenu->getItems().size()) return;
         for (unsigned int i = 0; i < packet->items.size(); ++i) {
             minecraft->player->containerMenu->setSlot(i, &packet->items[i]);
         }
@@ -946,15 +999,13 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, Containe
 
 void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, ContainerSetSlotPacket* packet)
 {
-	//LOGI("ContainerSetSlot\n");
+    if (source != serverGuid || !packet->valid || !minecraft || !minecraft->player ||
+        !minecraft->player->containerMenu ||
+        minecraft->player->containerMenu->containerId != packet->containerId ||
+        packet->slot < 0 || static_cast<unsigned int>(packet->slot) >= minecraft->player->containerMenu->getItems().size())
+        return;
 
-	if (!minecraft->player
-	  || !minecraft->player->containerMenu
-	  || minecraft->player->containerMenu->containerId != packet->containerId)
-	  return;
-
-	//minecraft->player->containerMenu->setSlot(packet->slot, packet->item.isNull()? NULL : &packet->item);
-	minecraft->player->containerMenu->setSlot(packet->slot, &packet->item);
+    minecraft->player->containerMenu->setSlot(packet->slot, &packet->item);
 }
 
 void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, ContainerSetDataPacket* packet)

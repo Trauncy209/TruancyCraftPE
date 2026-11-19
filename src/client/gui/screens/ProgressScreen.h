@@ -12,8 +12,11 @@ public:
 	bool isInGameScreen();
 
 	void tick();
+    void keyPressed(int eventKey) override;
+    bool handleBackEvent(bool isDown) override;
 private:
-	int ticks;
+    void cancelNativeJoin();
+
 };
 
 #endif /*NET_MINECRAFT_CLIENT_GUI_SCREENS__ProgressScreen_H__*/

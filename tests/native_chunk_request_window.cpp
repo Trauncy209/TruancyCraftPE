@@ -2,7 +2,7 @@
 #include "native_start_game_generator.cpp"
 #undef main
 int main(){Mth::initMth();Material::initMaterials();MobCategory::initMobCategories();Tile::initTiles();Item::initItems();Biome::initBiomes();
- Storage storage;auto* game=new Game(&storage);Wire wire;game->raknetInstance=&wire;ClientSideNetworkHandler handler(game,&wire);RakNet::RakNetGUID source(123456);handler.onConnect(source);StartGamePacket start(17,LGV_INFINITE,GameType::Survival,25,-26.5f,65.f,21.5f);handler.handle(source,&start);game->netCallback=&handler;handler.levelGenerated(game->level);
+ Storage storage;auto* game=new Game(&storage);Wire wire;game->raknetInstance=&wire;ClientSideNetworkHandler handler(game,&wire);RakNet::RakNetGUID source(123456);handler.beginJoin();handler.onConnect(source);StartGamePacket start(17,LGV_INFINITE,GameType::Survival,25,-26.5f,65.f,21.5f);handler.handle(source,&start);game->netCallback=&handler;handler.levelGenerated(game->level);
  assert(wire.requests.size()==4);assert(wire.requests.front()==std::make_pair(-2,1));handler.recenterChunkRequests();assert(wire.requests.size()==4);
  std::set<std::pair<int,int>> received;int rounds=0;size_t consumed=0;
  while(consumed<wire.requests.size()){const size_t end=wire.requests.size();assert(end-consumed<=4);++rounds;

@@ -1,4 +1,7 @@
 #include "ProgressScreen.h"
+#include "../../../network/ClientSideNetworkHandler.h"
+#include "../../../platform/input/Keyboard.h"
+#include "../../../platform/input/ControllerActionKeys.h"
 #include "DisconnectionScreen.h"
 #include "../Gui.h"
 #include "../Font.h"
@@ -8,7 +11,6 @@
 #include "../../renderer/Textures.h"
 
 ProgressScreen::ProgressScreen()
-:	ticks(0)
 {
 }
 
@@ -92,12 +94,31 @@ void ProgressScreen::render( int xm, int ym, float a )
 bool ProgressScreen::isInGameScreen() { return false; }
 
 void ProgressScreen::tick() {
-	// Only fail the locate/connect phase if we never got a level at all.
-	// Multiplayer can legitimately remain on progress while chunks finish bootstrapping.
-	if (++ticks == 10 * SharedConstants::TicksPerSecond
-	&& minecraft->getProgressStatusId() == 0
-    && minecraft->level == NULL
-	&& !minecraft->isLevelGenerated()) {
-		minecraft->setScreen( new DisconnectionScreen("Could not connect to server. Try again.") );
-	}
+    ClientSideNetworkHandler* handler = dynamic_cast<ClientSideNetworkHandler*>(minecraft->netCallback);
+    if (handler && handler->hasJoinTimedOut()) {
+        handler->cancelJoin();
+        minecraft->setScreen(new DisconnectionScreen("TCPE server did not finish connecting. Try again."));
+    }
+}
+
+void ProgressScreen::cancelNativeJoin() {
+    ClientSideNetworkHandler* handler = dynamic_cast<ClientSideNetworkHandler*>(minecraft->netCallback);
+    if (!handler) return;
+    handler->cancelJoin();
+    minecraft->setScreen(new DisconnectionScreen("Connection cancelled"));
+}
+
+void ProgressScreen::keyPressed(int eventKey) {
+    if (eventKey == Keyboard::KEY_ESCAPE || eventKey == ControllerKeys::MenuCancel ||
+        (eventKey && eventKey == minecraft->options.keyMenuCancel.key)) {
+        // Do not hide a live join behind the menu, or interrupt local generation.
+        cancelNativeJoin();
+        return;
+    }
+    Screen::keyPressed(eventKey);
+}
+
+bool ProgressScreen::handleBackEvent(bool isDown) {
+    if (!isDown) cancelNativeJoin();
+    return true;
 }

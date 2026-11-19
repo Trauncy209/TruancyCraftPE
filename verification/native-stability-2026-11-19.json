@@ -1,0 +1,141 @@
+{
+  "date": "2026-11-19",
+  "status": "local tested stability candidate; inventory transaction follow-up in progress",
+  "published": false,
+  "version": "0.5.25.4 (local test only)",
+  "fixes": [
+    "native join deadlines, cancellation and late packet guards",
+    "pending server bootstrap sessions released on disconnect",
+    "native worker-to-renderer readiness handoff and deferred cancellation cleanup",
+    "per-pointer native rapid taps after camera dragging",
+    "sparse-chunk mob damage/pickup timers and traveled server player position",
+    "accepted damage-only sword wear and owner inventory sync",
+    "partial pickups preserve exact quantities, no speculative client re-drop",
+    "empty/unknown item dispatch guards",
+    "bounded inventory/container packets and hotbar restoration"
+  ],
+  "tests": [
+    {
+      "test": "native_join_state",
+      "result": "PASS",
+      "log": "work/stability-native_join_state.log"
+    },
+    {
+      "test": "native_world_ready",
+      "result": "PASS",
+      "log": "work/stability-native_world_ready.log"
+    },
+    {
+      "test": "native_bootstrap_cancel",
+      "result": "PASS",
+      "log": "work/stability-native_bootstrap_cancel.log"
+    },
+    {
+      "test": "native_pending_disconnect",
+      "result": "PASS",
+      "log": "work/stability-native_pending_disconnect.log"
+    },
+    {
+      "test": "native_inventory_packet_validation",
+      "result": "PASS",
+      "log": "work/stability-native_inventory_packet_validation.log"
+    },
+    {
+      "test": "native_container_updates",
+      "result": "PASS",
+      "log": "work/stability-native_container_updates.log"
+    },
+    {
+      "test": "native_empty_held_item",
+      "result": "PASS",
+      "log": "work/stability-native_empty_held_item.log"
+    },
+    {
+      "test": "native_item_dispatch",
+      "result": "PASS",
+      "log": "work/stability-native_item_dispatch.log"
+    },
+    {
+      "test": "native_mob_combat",
+      "result": "PASS",
+      "log": "work/stability-native_mob_combat.log"
+    },
+    {
+      "test": "native_partial_pickup",
+      "result": "PASS",
+      "log": "work/stability-native_partial_pickup.log"
+    },
+    {
+      "test": "native_disconnect_authority",
+      "result": "PASS",
+      "log": "work/stability-native_disconnect_authority.log"
+    },
+    {
+      "test": "native_start_game_generator",
+      "result": "PASS",
+      "log": "work/stability-native_start_game_generator.log"
+    },
+    {
+      "test": "native_chunk_request_window",
+      "result": "PASS",
+      "log": "work/stability-native_chunk_request_window.log"
+    },
+    {
+      "test": "native_partial_chunk_input",
+      "result": "PASS",
+      "log": "work/stability-native_partial_chunk_input.log"
+    },
+    {
+      "test": "native_progress_timeout",
+      "result": "PASS",
+      "log": "work/stability-native_progress_timeout.log"
+    },
+    {
+      "test": "native_client_hotbar_restore",
+      "result": "PASS",
+      "log": "work/stability-native_client_hotbar_restore.log"
+    },
+    {
+      "test": "native_hotbar_persistence",
+      "result": "PASS",
+      "log": "work/stability-native_hotbar_persistence.log"
+    },
+    {
+      "test": "native_touch_taps",
+      "result": "PASS",
+      "log": "work/stability-native_touch_taps.log"
+    }
+  ],
+  "dedicated_process_test": "PASS: two real clients, listing PNG/count, movement/chat/blocks, capacity, saved-world restart",
+  "live_linux": "PASS: hidden rendered TCSMP join, walk from z128.5 to133.7, native inventory, pause, quit to title; software GLES3",
+  "live_server": "PASS: updated TCSMP login, owner inventory and spawn chunk within0.14s on LAN",
+  "server_backup": "/var/backups/tcsmp-native-stability-20261119/world-before.tar.gz",
+  "android": "ARM64/ARMv7 compile, release certificate and16KiB alignment verified. No phone attached. Host emulator segfaults before TCPE starts.",
+  "remaining": [
+    "native inventory semantic transactions and queued acknowledgements to eliminate stale valid snapshot races",
+    "physical Android join/combat/pickup/crafting/storage and reconnect verification",
+    "final release packaging/scans/publication only after validation and authorization"
+  ],
+  "artifacts": [
+    {
+      "path": "work/linux-stream-0.5.25.4-client-build/MinecraftPE",
+      "sha256": "279a0bf26d732d4dd9c07efb4c82652fe0e9692316e97abb6e792b4e7c65576b",
+      "bytes": 27367584
+    },
+    {
+      "path": "work/linux-stream-0.5.25.4-server-build/tcpe-server",
+      "sha256": "91c2a0397aa3b889d2261a74026f9a9ac6d0109600d9b7b0621ff9acf35125f5",
+      "bytes": 1894816
+    },
+    {
+      "path": "outputs/tcpe-java-native/TruancyCraftPE-0.5.25.4-native-stability-test-Android-arm64-v8a.apk",
+      "sha256": "395fe95bf3ec851e195610ed7e8fd87bdf159cabdd9a9d2a235a2711885eb40a",
+      "bytes": 397361724
+    },
+    {
+      "path": "outputs/tcpe-java-native/TruancyCraftPE-0.5.25.4-native-stability-test-Android-armeabi-v7a.apk",
+      "sha256": "bb5abf2470361e05e47afa377199460167c665750beed9c65abd52f5e986a584",
+      "bytes": 395502144
+    }
+  ]
+}

@@ -1673,7 +1673,12 @@ void Level::tick(Entity* e, bool actual) {
     }
     int xc = Mth::floor(e->x);
     int zc = Mth::floor(e->z);
-    int r = 32;
+    // Infinite terrain is streamed sparsely, so a resident entity cannot wait
+    // for an entire 5x5 chunk neighborhood. That freezes damage immunity,
+    // death/pickup timers and remote-player movement at streaming borders.
+    // Tick entities in resident chunks; collision reads retain their own
+    // missing-chunk handling. Finite worlds keep their bounded legacy halo.
+    int r = levelData.getGeneratorVersion() == LGV_INFINITE ? 0 : 32;
     if (actual && !isJavaServerLevel() && !nativeLocalPlayer) {
         int x0=xc-r,z0=zc-r,x1=xc+r,z1=zc+r;
         if (levelData.getGeneratorVersion()!=LGV_INFINITE) {

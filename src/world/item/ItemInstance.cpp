@@ -66,7 +66,9 @@ ItemInstance ItemInstance::remove(int count) {
 }
 
 bool ItemInstance::useOn(Player* player, Level* level, int x, int y, int z, int face, float clickX, float clickY, float clickZ) {
-    if (getItem()->useOn(this, player, level, x, y, z, face, clickX, clickY, clickZ)) {
+    Item* item = getItem();
+    if (!item || count <= 0) return false;
+    if (item->useOn(this, player, level, x, y, z, face, clickX, clickY, clickZ)) {
 		//player.awardStat(Stats.itemUsed[id], 1);
 		return true;
 	}
@@ -74,15 +76,18 @@ bool ItemInstance::useOn(Player* player, Level* level, int x, int y, int z, int 
 }
 
 float ItemInstance::getDestroySpeed(Tile* tile) {
-    return getItem()->getDestroySpeed(this, tile);
+    Item* item = count > 0 ? getItem() : NULL;
+    return item ? item->getDestroySpeed(this, tile) : 1.0f;
 }
 
 ItemInstance* ItemInstance::use(Level* level, Player* player) {
-    return getItem()->use(this, level, player);
+    Item* item = count > 0 ? getItem() : NULL;
+    return item ? item->use(this, level, player) : this;
 }
 
 int ItemInstance::getMaxStackSize() const {
-    return getItem()->getMaxStackSize();
+    Item* item = getItem();
+    return item ? item->getMaxStackSize() : 1;
 }
 
 bool ItemInstance::isStackable() const {
@@ -143,26 +148,31 @@ void ItemInstance::hurt(int i) {
 }
 
 void ItemInstance::hurtEnemy(Mob* mob) {
-    Item::items[id]->hurtEnemy(this, mob);
+    Item* item = count > 0 ? getItem() : NULL;
+    if (item) item->hurtEnemy(this, mob);
 }
 
 void ItemInstance::mineBlock(int tile, int x, int y, int z) {
-    Item::items[id]->mineBlock(this, tile, x, y, z);
+    Item* item = count > 0 ? getItem() : NULL;
+    if (item) item->mineBlock(this, tile, x, y, z);
 }
 
 int ItemInstance::getAttackDamage(Entity* entity) {
-    return Item::items[id]->getAttackDamage(entity);
+    Item* item = count > 0 ? getItem() : NULL;
+    return item ? item->getAttackDamage(entity) : 1;
 }
 
 bool ItemInstance::canDestroySpecial(Tile* tile) {
-    return Item::items[id]->canDestroySpecial(tile);
+    Item* item = count > 0 ? getItem() : NULL;
+    return item && item->canDestroySpecial(tile);
 }
 
 void ItemInstance::snap(Player* player) {
 }
 
 void ItemInstance::interactEnemy(Mob* mob) {
-    Item::items[id]->interactEnemy(this, mob);
+    Item* item = count > 0 ? getItem() : NULL;
+    if (item) item->interactEnemy(this, mob);
 }
 
 ItemInstance* ItemInstance::copy() const {
@@ -272,19 +282,23 @@ int ItemInstance::getIcon() const {
 	return item ? item->getIcon(this->auxValue) : -1;
 }
 void ItemInstance::releaseUsing( Level* level, Player* player, int durationLeft ) {
-	getItem()->releaseUsing(this, level, player, durationLeft);
+	Item* item = count > 0 ? getItem() : NULL;
+	if (item) item->releaseUsing(this, level, player, durationLeft);
 }
 
 int ItemInstance::getUseDuration() {
-	return getItem()->getUseDuration(this);
+	Item* item = count > 0 ? getItem() : NULL;
+	return item ? item->getUseDuration(this) : 0;
 }
 
 UseAnim::UseAnimation ItemInstance::getUseAnimation() const {
-	return getItem()->getUseAnimation();
+	Item* item = count > 0 ? getItem() : NULL;
+	return item ? item->getUseAnimation() : UseAnim::none;
 }
 
 ItemInstance ItemInstance::useTimeDepleted( Level* level, Player* player ) {
-	return getItem()->useTimeDepleted(this, level, player);
+	Item* item = count > 0 ? getItem() : NULL;
+	return item ? item->useTimeDepleted(this, level, player) : *this;
 }
 
 bool ItemInstance::isArmorItem( const ItemInstance* instance ) {

@@ -47,14 +47,20 @@ public:
 
 	void read(RakNet::BitStream* bitStream)
 	{
-		bitStream->Read(entityId);
-		bitStream->Read(extra);
-		bitStream->Read(numItems);
-		items.clear();
-        // Inventory, Armor
-		for (int i = 0; i < numItems + NumArmorItems; ++i)
-			items.push_back(PacketUtil::readItemInstance(bitStream));
-        hotbar.read(bitStream);
+        valid = false;
+        entityId = 0; extra = 0; numItems = 0;
+        items.clear(); hotbar.present = false;
+        if (!bitStream->Read(entityId) || !bitStream->Read(extra) || !bitStream->Read(numItems)) return;
+        if (numItems < 0 || numItems > Inventory::CREATIVE_SLOT_COUNT) return;
+        // Every serialized item is exactly a short, a byte and a short.
+        if (bitStream->GetNumberOfUnreadBits() < (unsigned int)(numItems + NumArmorItems) * 40) return;
+        for (int i = 0; i < numItems + NumArmorItems; ++i)
+            items.push_back(PacketUtil::readItemInstance(bitStream));
+        if (bitStream->GetNumberOfUnreadBits() > 0) {
+            hotbar.read(bitStream);
+            if (!hotbar.present) return;
+        }
+        valid = true;
 	}
 
 	void handle(const RakNet::RakNetGUID& source, NetEventCallback* callback)
@@ -62,10 +68,11 @@ public:
 		callback->handle(source, (SendInventoryPacket*)this);
 	}
 
-    int entityId;
+    bool valid = true;
+    int entityId = 0;
 	std::vector<ItemInstance> items;
-	short numItems;
-	unsigned char extra;
+	short numItems = 0;
+	unsigned char extra = 0;
 
 	static const int ExtraDrop = 1;
     static const int NumArmorItems = 4;

@@ -22,6 +22,7 @@ public:
 	void aiStep();
 	void tick();
 	void take(Entity* e, int orgCount);
+	void sendInventory();
 
 	void hurtArmor(int dmg);
 

@@ -37,7 +37,7 @@ struct Wire:IRakNetInstance{
 struct Dirty:LevelListener{int low=-1,high=-1;void setTilesDirty(int,int a,int,int,int b,int)override{low=a;high=b;}};
 void run(int wireGenerator,int expected,bool complete){
  Storage storage;auto* game=new Game(&storage);Wire wire;game->raknetInstance=&wire;ClientSideNetworkHandler handler(game,&wire);const RakNet::RakNetGUID source(123456);
- handler.onConnect(source);StartGamePacket start(1792046386,wireGenerator,GameType::Survival,25,expected==LGV_INFINITE?-26.5f:48.5f,65.f,21.5f);handler.handle(source,&start);
+ handler.beginJoin();handler.onConnect(source);StartGamePacket start(1792046386,wireGenerator,GameType::Survival,25,expected==LGV_INFINITE?-26.5f:48.5f,65.f,21.5f);handler.handle(source,&start);
  assert(game->level&&game->player&&game->level->isClientSide&&game->level->getLevelData()->getGeneratorVersion()==expected);
  assert(storage.deletes==1&&game->level->getLevelData()->getSeed()==1792046386&&game->level->getLevelData()->getGameType()==GameType::Survival);
  if(expected==LGV_INFINITE)assert(game->player->x<0);

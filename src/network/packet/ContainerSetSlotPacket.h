@@ -46,18 +46,21 @@ public:
     }
 
 	void read(RakNet::BitStream* bitStream) {
-        bitStream->Read(containerId);
-        bitStream->Read(slot);
-		item = PacketUtil::readItemInstance(bitStream);
+        valid = false; containerId = 0; slot = -1; item.setNull();
+        if (!bitStream->Read(containerId) || !bitStream->Read(slot) ||
+            bitStream->GetNumberOfUnreadBits() < 40) return;
+        item = PacketUtil::readItemInstance(bitStream);
+        valid = true;
     }
 
 	void handle(const RakNet::RakNetGUID& source, NetEventCallback* callback) {
 		callback->handle(source, (ContainerSetSlotPacket*)this);
 	}
 
-	unsigned char setType;
-    unsigned char containerId;
-    short slot;
+	bool valid = true;
+	unsigned char setType = SETTYPE_SET;
+    unsigned char containerId = 0;
+    short slot = -1;
     ItemInstance item;
 };
 

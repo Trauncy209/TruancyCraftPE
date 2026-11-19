@@ -10,6 +10,7 @@
 #include "../network/packet/EntityEventPacket.h"
 #include "../network/packet/SetHealthPacket.h"
 #include "../network/packet/TakeItemEntityPacket.h"
+#include "../network/packet/AddItemEntityPacket.h"
 #include "../client/Minecraft.h"
 #include "../world/level/tile/entity/FurnaceTileEntity.h"
 #include "../world/inventory/FurnaceMenu.h"
@@ -71,10 +72,26 @@ void ServerPlayer::tick() {
 }
 
 void ServerPlayer::take( Entity* e, int orgCount ) {
-	TakeItemEntityPacket packet(e->entityId, entityId);
-	_mc->raknetInstance->send(packet);
+	if (e->isItemEntity() && static_cast<ItemEntity*>(e)->item.count > 0) {
+		// A partial pickup changes the world stack, not its existence.
+		AddItemEntityPacket packet(static_cast<ItemEntity*>(e));
+		_mc->raknetInstance->send(packet);
+	} else {
+		TakeItemEntityPacket packet(e->entityId, entityId);
+		_mc->raknetInstance->send(packet);
+	}
 
 	super::take(e, orgCount);
+	sendInventory();
+}
+
+void ServerPlayer::sendInventory() {
+	std::vector<ItemInstance> items;
+	for (int i = Inventory::MAX_SELECTION_SIZE; i < inventory->getContainerSize(); ++i)
+		items.push_back(ItemInstance::cloneSafe(inventory->getItem(i)));
+	ContainerSetContentPacket packet(0, items);
+	packet.hotbar.capture(inventory);
+	_mc->raknetInstance->send(owner, packet);
 }
 
 void ServerPlayer::hurtArmor(int dmg) {
