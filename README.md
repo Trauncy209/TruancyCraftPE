@@ -318,7 +318,7 @@ CXX=clang++ ./build_linux.sh
 ./build/linux/launch.sh
 ```
 
-The script builds the Rust networking library and the native GLES3 game together. Keep the supplied assets and dependency notices with the build.
+The script builds the Rust networking library and the native GLES3 game together. Keep the supplied assets and dependency notices with the build. If CMake cannot find `GLESv2`, install `libgles-dev` on Ubuntu/Debian (`mesa-libGLES-devel` on Fedora or `libglvnd` on Arch); the graphics driver alone does not include the build headers.
 
 ---
 

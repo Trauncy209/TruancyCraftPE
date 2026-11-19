@@ -1,0 +1,14 @@
+{
+  "discussion": "https://github.com/Trauncy209/TruancyCraftPE/discussions/2",
+  "fix": "Desktop GLES dependency discovery and actionable setup errors",
+  "runtime_changes": false,
+  "checks": {
+    "full-game.log": "3e3b77c82759347335d8a84df04ccf69416bf119f3d6592df4d366de6b5ddeaf",
+    "headless.log": "7b70ee9e4b8c3f0f5104ef9c4ada65716e94d1cf474ab12bdeead55a63c8355c",
+    "pkgconfig-final.log": "69a5be9439ca00e718ca2e9b9e950553e1f5b96eebd13cf74efe2b33444377da",
+    "fallback-final.log": "5074f5a50f1c822483721c92afb5caea0237600cfc8fd241cba37b0776f9218e",
+    "missing-final.log": "63361fe8c383b9e2a61f481a2faba5d4d39ee9f9226b26f8cca5c8ed8d31da9b",
+    "missing-headers.log": "63361fe8c383b9e2a61f481a2faba5d4d39ee9f9226b26f8cca5c8ed8d31da9b"
+  },
+  "result": "PASS: installed-library configure/compile/link and headless configure; missing dependencies rejected with setup guidance"
+}
