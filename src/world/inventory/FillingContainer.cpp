@@ -232,27 +232,21 @@ void FillingContainer::load( ListTag* inventoryList )
 		if (t->getId() != Tag::TAG_Compound) continue;
 
 		CompoundTag* tag = (CompoundTag*) t;
+        if(!tag->contains("Slot",Tag::TAG_Byte))continue;
         int slot = tag->getByte("Slot") & 0xff;
 		if (slot < 0) continue;
 
-		ItemInstance* item = ItemInstance::fromTag(tag);
-		if (item != NULL) {
-			//LOGI("Loading %d as : %d@%d:%d\n", slot, item->id, item->getAuxValue(), item->count);
-			// Special case! (don't we love them!). item->count == 255 means
-			// we POINT to our real inventory item (from a selection slot).
-			// This is ONLY AND ALWAYS used in Selection Slots at this moment.
-			if (slot < numLinkedSlots) {
-				if (slot < (int)items.size() && item->id == MAGIX_VAL && item->count == MAGIX_VAL) {
-					int invSlot = item->getAuxValue();
-					if (invSlot >= numLinkedSlots && invSlot < (int)items.size())
-						linkSlot(slot, invSlot, false);
-				} else { // Something's wrong, shouldnt go here
-					LOGE("Error: Slot %d is selection slot (inventory size: %d) but id/count is %d/%d\n", slot, (int)items.size(), item->id, item->count);
-				}
-				delete item;
-				continue;
-			}
-
+        // Selection entries are links, not item stacks. Decode their legacy
+        // 255/255 marker before validating real saved resources.
+        if(slot<numLinkedSlots) {
+            ItemInstance marker;marker.load(tag);
+            const int backing=marker.getAuxValue();
+            if(marker.id==MAGIX_VAL && marker.count==MAGIX_VAL && backing>=numLinkedSlots && backing<numTotalSlots)
+                linkSlot(slot,backing,false);
+            continue;
+        }
+        ItemInstance* item = ItemInstance::fromTag(tag);
+        if(item != NULL) {
 			//item->count = 3;
 			if (slot < MAX_SLOTS && slot >= numLinkedSlots)
 			{
@@ -268,6 +262,7 @@ void FillingContainer::load( ListTag* inventoryList )
 				}
 
 				fixBackwardCompabilityItem(*item);
+                delete items[slot];
 				items[slot] = item;
 			}
 			//else if (slot >= 100 && slot < armor.length + 100) armor[slot - 100] = item;

@@ -22,6 +22,14 @@ class ByteArrayTag: public Tag
 	typedef Tag super;
 public:
     TagMemoryChunk data;
+private:
+    bool ownsData = false;
+public:
+    ~ByteArrayTag() { deleteChildren(); }
+    void deleteChildren() {
+        if (ownsData) delete[] static_cast<char*>(data.data);
+        data.data = NULL; data.len = 0; ownsData = false;
+    }
 
     ByteArrayTag(const std::string& name)
     :   super(name)
@@ -58,10 +66,14 @@ public:
 
     //@Override
     Tag* copy() const {
-		TagMemoryChunk chunk;
-        chunk.data = new char[data.len];
-		memcpy(chunk.data, data.data, data.len);
-        return new ByteArrayTag(getName(), chunk);
+        ByteArrayTag* result = new ByteArrayTag(getName());
+        if (data.len > 0 && data.data) {
+            result->data.len = data.len;
+            result->data.data = new char[data.len];
+            result->ownsData = true;
+            memcpy(result->data.data, data.data, data.len);
+        }
+        return result;
     }
 
     void write(IDataOutput* dos) /*throws IOException*/ {
@@ -70,8 +82,13 @@ public:
     }
 
     void load(IDataInput* dis) /*throws IOException*/ {
+        deleteChildren();
         int length = dis->readInt();
+        if (length < 0 || length > 64 * 1024 * 1024) { errorState |= TAGERR_OUT_OF_BOUNDS; return; }
+        data.len = length;
+        if (!length) return;
         data.data = new char[length];
+        ownsData = true;
         dis->readBytes(data.data, length);
     }
 };

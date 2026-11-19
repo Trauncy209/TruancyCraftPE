@@ -72,6 +72,14 @@ bool GameMode::destroyBlock(int x, int y, int z, int face) {
         }
     }
 #ifndef STANDALONE_SERVER
+    if(minecraft->player->nativeTransactionsEnabled()) {
+        NativeInventoryAction action;action.type=NativeInventoryAction::Break;action.x=x;action.y=y;action.z=z;action.face=face;
+        ItemInstance* item=minecraft->player->inventory->getSelected();action.slot=minecraft->player->nativeBackingSlot(item);
+        action.expectedId=item?item->id:0;action.expectedAux=item?item->getAuxValue():0;
+        return minecraft->player->nativeSubmitAction(action);
+    }
+#endif
+#ifndef STANDALONE_SERVER
 	minecraft->particleEngine->destroy(x, y, z);
 #endif
 	int data = level->getData(x, y, z);
@@ -96,6 +104,14 @@ bool GameMode::useItemOn(Player* player, Level* level, ItemInstance* item, int x
 	float clickY = hit.y - y;
 	float clickZ = hit.z - z;
 	item = player->inventory->getSelected();
+#ifndef STANDALONE_SERVER
+    if(minecraft->player==player && minecraft->player->nativeTransactionsEnabled()) {
+        NativeInventoryAction action;action.type=NativeInventoryAction::Use;action.x=x;action.y=y;action.z=z;action.face=face;
+        action.clickX=clickX;action.clickY=clickY;action.clickZ=clickZ;action.slot=minecraft->player->nativeBackingSlot(item);
+        action.expectedId=item?item->id:0;action.expectedAux=item?item->getAuxValue():0;
+        return minecraft->player->nativeSubmitAction(action);
+    }
+#endif
 	if(level->isClientSide) {
 		UseItemPacket packet(x, y, z, face, item, player->entityId, clickX, clickY, clickZ);
 		minecraft->raknetInstance->send(packet);
@@ -119,6 +135,17 @@ bool GameMode::useItemOn(Player* player, Level* level, ItemInstance* item, int x
 }
 
 bool GameMode::useItem( Player* player, Level* level, ItemInstance* item ) {
+#ifndef STANDALONE_SERVER
+    if(minecraft->player==player && minecraft->player->nativeTransactionsEnabled()) {
+        NativeInventoryAction action;action.type=NativeInventoryAction::Use;action.face=255;
+        action.x=int(player->aimDirection.x*32768.f);action.y=int(player->aimDirection.y*32768.f);action.z=int(player->aimDirection.z*32768.f);
+        action.slot=minecraft->player->nativeBackingSlot(item);action.expectedId=item?item->id:0;action.expectedAux=item?item->getAuxValue():0;
+        const bool submitted=minecraft->player->nativeSubmitAction(action);
+        if(submitted && item && item->getUseDuration()>0)player->startUsingItem(*item,item->getUseDuration());
+        return submitted;
+    }
+#endif
+    if(!item)return false;
 	int oldCount = item->count;
 
 	ItemInstance* itemInstance = item->use(level, player);
@@ -159,6 +186,9 @@ void GameMode::releaseUsingItem(Player* player){
 		PlayerActionPacket packet(PlayerActionPacket::RELEASE_USE_ITEM,  0, 0, 0, 0, player->entityId);
 		minecraft->raknetInstance->send(packet);
 	}
+#ifndef STANDALONE_SERVER
+    if(minecraft->player==player && minecraft->player->nativeTransactionsEnabled()) { minecraft->player->nativeStopUsingItem();return; }
+#endif
 	player->releaseUsingItem();
 }
 

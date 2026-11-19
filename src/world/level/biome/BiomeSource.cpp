@@ -2,6 +2,24 @@
 #include "Biome.h"
 #include "../Level.h"
 #include "../ChunkPos.h"
+#include <cassert>
+#include <limits>
+
+namespace {
+template<class T> void ensureCapacity(T*& buffer, int& capacity, int size) {
+    if (capacity >= size) return;
+    T* replacement = new T[size];
+    delete[] buffer;
+    buffer = replacement;
+    capacity = size;
+}
+int blockSize(int w, int h) {
+    // Internal terrain queries must have positive, representable dimensions.
+    assert(w > 0 && h > 0 && w <= std::numeric_limits<int>::max() / h);
+    return w * h;
+}
+}
+
 
 const float BiomeSource::zoom = 2 * 1;
 
@@ -23,6 +41,7 @@ BiomeSource::BiomeSource()
 	biomes(NULL)
 {
 	biomes = new Biome*[16*16];
+    lenBiomes = 16*16;
 }
 
 BiomeSource::BiomeSource( Level* level )
@@ -43,7 +62,9 @@ BiomeSource::BiomeSource( Level* level )
 	noiseMap = new PerlinSimplexNoise(&rndNoise, 2);
 
 	biomes = new Biome*[16*16];
+    lenBiomes = 16*16;
 	temperatures = new float[16*16];
+    lenTemperatures = 16*16;
 }
 
 BiomeSource::~BiomeSource() {
@@ -83,22 +104,18 @@ Biome** BiomeSource::getBiomeBlock( int x, int z, int w, int h )
 
 Biome** BiomeSource::getBiomeBlock( Biome** biomes__, int x, int z, int w, int h )
 {
-	//for (int i = 0; i < w*h; ++i) biomes__[i] = Biome::tundra;
-	//const int size = w * h;
-	//if (lenBiomes < size) {
-	//	//printf("changing to size: %d (was %d). %d, %d (%d, %d)\n", size, lenBiomes, x, z, w, h);
-	//	if (biomes) delete[] biomes;
-	//	biomes = new Biome*[size];
-	//	lenBiomes = size;
-	//}
-
-	temperatures = temperatureMap->getRegion(temperatures, x, z, w, w, tempScale, tempScale, 0.25f);
-	downfalls = downfallMap->getRegion(downfalls, x, z, w, w, downfallScale, downfallScale, 0.3333f);
-	noises = noiseMap->getRegion(noises, x, z, w, w, noiseScale, noiseScale, 0.588f);
+    const int size = blockSize(w, h);
+    ensureCapacity(biomes, lenBiomes, size);
+    ensureCapacity(temperatures, lenTemperatures, size);
+    ensureCapacity(downfalls, lenDownfalls, size);
+    ensureCapacity(noises, lenNoises, size);
+    temperatures = temperatureMap->getRegion(temperatures, x, z, w, h, tempScale, tempScale, 0.25f);
+    downfalls = downfallMap->getRegion(downfalls, x, z, w, h, downfallScale, downfallScale, 0.3333f);
+    noises = noiseMap->getRegion(noises, x, z, w, h, noiseScale, noiseScale, 0.588f);
 
 	int pp = 0;
-	for (int yy = 0; yy < w; yy++) {
-		for (int xx = 0; xx < h; xx++) {
+	for (int yy = 0; yy < h; yy++) {
+		for (int xx = 0; xx < w; xx++) {
 			float noise = (noises[pp] * 1.1f + 0.5f);
 
 			float split2 = 0.01f;
@@ -125,25 +142,15 @@ Biome** BiomeSource::getBiomeBlock( Biome** biomes__, int x, int z, int w, int h
 
 float* BiomeSource::getTemperatureBlock( /*float* temperatures__, */int x, int z, int w, int h )
 {
-	//LOGI("gTempBlock: 1\n");
-	//const int size = w * h;
-	//if (lenTemperatures < size) {
-	//	if (temperatures) delete[] temperatures;
-	//	temperatures = new float[size];
-	//	lenTemperatures = size;
-	//}
-
-	float * ot = temperatures;
-	temperatures = temperatureMap->getRegion(temperatures, x, z, w, h, tempScale, tempScale, 0.25f);
-	noises = noiseMap->getRegion(noises, x, z, w, h, noiseScale, noiseScale, 0.588f);
-
-	if (ot != temperatures) {
-		LOGI("tmp ptr changed\n");
-	}
+    const int size = blockSize(w, h);
+    ensureCapacity(temperatures, lenTemperatures, size);
+    ensureCapacity(noises, lenNoises, size);
+    temperatures = temperatureMap->getRegion(temperatures, x, z, w, h, tempScale, tempScale, 0.25f);
+    noises = noiseMap->getRegion(noises, x, z, w, h, noiseScale, noiseScale, 0.588f);
 
 	int pp = 0;
-	for (int yy = 0; yy < w; yy++) {
-		for (int xx = 0; xx < h; xx++) {
+	for (int yy = 0; yy < h; yy++) {
+		for (int xx = 0; xx < w; xx++) {
 			float noise = (noises[pp] * 1.1f + 0.5f);
 
 			float split2 = 0.01f;

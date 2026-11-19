@@ -4,6 +4,12 @@
 //package net.minecraft.world.level.chunk;
 
 #include "ChunkSource.h"
+#include <set>
+#include <deque>
+#include <map>
+#include "../../entity/player/Player.h"
+#include "../storage/ExternalFileLevelStorage.h"
+#include "../levelgen/RandomLevelSource.h"
 #include "storage/ChunkStorage.h"
 #include "EmptyLevelChunk.h"
 #include "../Level.h"
@@ -32,20 +38,57 @@ public:
 		memset(chunks, 0, sizeof(LevelChunk*) * cacheWidth * cacheWidth);
     }
 
-	~ChunkCache() {
-		delete source;
-		delete emptyChunk;
+    ~ChunkCache() {
+        // The procedural source's map is non-owning. Retired chunks can still
+        // be referenced by queued saves and terrain views while the world is
+        // alive, so release them exactly once only at whole-world teardown.
+        delete source;
+        for (int i=0;i<cacheWidth*cacheWidth;++i)
+            if (chunks[i] && chunks[i]!=emptyChunk) ownedChunks.insert(chunks[i]);
+        for (LevelChunk* chunk:ownedChunks) {
+            chunk->deleteBlockData();
+            delete chunk;
+        }
+        delete emptyChunk;
+        delete[] chunks;
+    }
 
-		for (int i = 0; i < cacheWidth * cacheWidth; i++)
-		{
-			if (chunks[i])
-			{
-				chunks[i]->deleteBlockData();
-				delete chunks[i];
-			}
-		}
-		delete[] chunks;
-	}
+    // Call only at a quiescent main-frame boundary, never from a lookup or
+    // eviction. Region readers and failed disk writes retain their snapshots.
+    size_t collectRetiredChunks(size_t budget=128) {
+        trimAuthoritativeResidents();
+        size_t removed=0;
+        const size_t attempts=ownedChunks.size()>size_t(cacheWidth*cacheWidth*2)
+            ?retiredChunks.size():std::min(budget,retiredChunks.size());
+        for(size_t attempt=0;attempt<attempts;++attempt) {
+            LevelChunk* chunk=retiredChunks.front();retiredChunks.pop_front();
+            const int slot=(chunk->x&(cacheWidth-1))+(chunk->z&(cacheWidth-1))*cacheWidth;
+            if(chunk==last||isResident(chunk)) {queuedRetirement.erase(chunk);continue;}
+            bool discardable=!chunk->hasViews();
+            if(!isNativeClient()) {
+#if !defined(DEMO_MODE) && !defined(APPLE_DEMO_PROMOTION)
+                auto* persistent=dynamic_cast<ExternalFileLevelStorage*>(storage);
+                discardable=discardable&&persistent&&!chunk->unsaved&&!persistent->hasPendingChunk(chunk);
+#else
+                discardable=false;
+#endif
+            }
+            auto* generated=dynamic_cast<RandomLevelSource*>(source);
+            if(source&&!generated)discardable=false;
+            if(!discardable) {retiredChunks.push_back(chunk);continue;}
+            if(generated&&!generated->releaseRetiredChunk(chunk)) {retiredChunks.push_back(chunk);continue;}
+            queuedRetirement.erase(chunk);ownedChunks.erase(chunk);
+            chunk->deleteBlockData();delete chunk;++removed;
+        }
+        return removed;
+    }
+    size_t ownedChunkCount() const { return ownedChunks.size(); }
+    size_t generatedChunkCount() const {
+        auto* generated=dynamic_cast<RandomLevelSource*>(source);
+        return generated?generated->cachedChunkCount():0;
+    }
+    size_t residentCapacity() const { return authorityCoordinates()?size_t(INFINITE_CACHE_WIDTH*INFINITE_CACHE_WIDTH)+level->players.size()*81:size_t(cacheWidth)*cacheWidth; }
+    size_t residentChunkCount() const { return authorityCoordinates()?authorityChunks.size():ownedChunks.size()-retiredChunks.size(); }
 
     bool fits(int x, int z) {
         if (level->getLevelData()->getGeneratorVersion() == LGV_INFINITE)
@@ -60,6 +103,10 @@ public:
     bool hasChunkNow(int x, int z) {
         if (!fits(x, z))
             return false;
+        if(authorityCoordinates()) {
+            auto found=authorityChunks.find(std::make_pair(x,z));
+            return found!=authorityChunks.end()&&found->second&&found->second!=emptyChunk;
+        }
         if (x == xLast && z == zLast && last != NULL) {
             return last != emptyChunk && last->isAt(x, z);
         }
@@ -73,12 +120,13 @@ public:
         if (!isNativeClient() || hasChunkNow(x, z)) return getChunk(x, z);
         if (!fits(x, z)) return emptyChunk;
         const int slot = (x & (cacheWidth - 1)) + (z & (cacheWidth - 1)) * cacheWidth;
-        if (chunks[slot]) chunks[slot]->unload();
+        if (chunks[slot]) { chunks[slot]->unload();retire(chunks[slot]); }
         LevelChunk* chunk = new LevelChunk(level,
             new unsigned char[LevelChunk::ChunkBlockCount](), x, z);
         chunk->terrainPopulated = true;
         memset(chunk->skyLight.data, level->dimension->hasCeiling ? 0 : 0xff,
                chunk->skyLight.length);
+        ownedChunks.insert(chunk);
         chunks[slot] = chunk;
         chunk->load();
         xLast = x; zLast = z; last = chunk;
@@ -94,6 +142,7 @@ public:
         // Rendering/collision reads must not allocate missing network chunks.
         // Only create(), called by an incoming server snapshot, can do that.
         if (isNativeClient() && !hasChunkNow(x, z)) return emptyChunk;
+        if (authorityCoordinates()) authorityAccess[Coordinate(x,z)]=++accessClock;
 
 		if (x == xLast && z == zLast && last != NULL) {
             return last;
@@ -101,13 +150,15 @@ public:
 		int xs = level->getLevelData()->getGeneratorVersion() == LGV_INFINITE ? (x & (cacheWidth - 1)) : x;
 		int zs = level->getLevelData()->getGeneratorVersion() == LGV_INFINITE ? (z & (cacheWidth - 1)) : z;
 		int slot = xs + zs * cacheWidth;
-        if (!hasChunk(x, z)) {
-            if (chunks[slot] != NULL) {
-                chunks[slot]->unload();
+        LevelChunk*& resident=authorityCoordinates()?authorityChunks[std::make_pair(x,z)]:chunks[slot];
+        if (!resident || resident==emptyChunk || !resident->isAt(x,z)) {
+            if (resident != NULL) {
+                resident->unload();
                 if (!level->isClientSide) {
-                    save(chunks[slot]);
-                    saveEntities(chunks[slot]);
+                    save(resident);
+                    saveEntities(resident);
                 }
+                retire(resident);
             }
 
             const bool remoteNative = isNativeClient();
@@ -123,7 +174,8 @@ public:
 				//return emptyChunk;
 				updateLights = !level->isClientSide;
             }
-            chunks[slot] = newChunk;
+            if (newChunk != emptyChunk) ownedChunks.insert(newChunk);
+            resident = newChunk;
             newChunk->lightLava();
 
 			if (updateLights)
@@ -154,23 +206,23 @@ public:
 				//level->updateLight(LightLayer::Block, x * 16, 0, z * 16, x * 16 + 15, 128, z * 16 + 15);
 			}
 
-            if (chunks[slot] != NULL) {
-                chunks[slot]->load();
+            if (resident != NULL) {
+                resident->load();
             }
 
-            if (!remoteNative && !chunks[slot]->terrainPopulated && hasChunk(x + 1, z + 1) && hasChunk(x, z + 1) && hasChunk(x + 1, z)) postProcess(this, x, z);
+            if (!remoteNative && !resident->terrainPopulated && hasChunk(x + 1, z + 1) && hasChunk(x, z + 1) && hasChunk(x + 1, z)) postProcess(this, x, z);
             if (!remoteNative && hasChunk(x - 1, z) && !getChunk(x - 1, z)->terrainPopulated && hasChunk(x - 1, z + 1) && hasChunk(x, z + 1) && hasChunk(x - 1, z)) postProcess(this, x - 1, z);
             if (!remoteNative && hasChunk(x, z - 1) && !getChunk(x, z - 1)->terrainPopulated && hasChunk(x + 1, z - 1) && hasChunk(x, z - 1) && hasChunk(x + 1, z)) postProcess(this, x, z - 1);
             if (!remoteNative && hasChunk(x - 1, z - 1) && !getChunk(x - 1, z - 1)->terrainPopulated && hasChunk(x - 1, z - 1) && hasChunk(x, z - 1) && hasChunk(x - 1, z)) postProcess(this, x - 1, z - 1);
         }
         xLast = x;
         zLast = z;
-        last = chunks[slot];
+        last = resident;
 
 		//sw.stop();
 		//sw.printEvery(500000, "ChunkCache::load: ");
 
-        return chunks[slot];
+        return resident;
     }
 
 	Biome::MobList getMobsAt(const MobCategory& mobCategory, int x, int y, int z) {
@@ -251,10 +303,52 @@ public:
 				if (!onlyUnsaved || chunk->shouldSave(false))
 					loadedChunks.push_back(chunk);
 			}
+            if(authorityCoordinates()) for(const auto& entry:authorityChunks) {
+                LevelChunk* chunk=entry.second;
+                if(chunk&&chunk!=emptyChunk&&(!onlyUnsaved||chunk->shouldSave(false))) loadedChunks.push_back(chunk);
+            }
 			storage->saveAll(level, loadedChunks);
 		}
 	}
 private:
+    // Authoritative worlds may serve players whose coordinates alias the
+    // client's modulo ring. Keep those chunks distinct, and trim only at the
+    // established quiescent frame boundary. The per-player nine-by-nine halo
+    // covers the existing tile/weather simulation radius; the extra 1024 LRU
+    // slots absorb streaming and generation without unbounded resident growth.
+    // Failed saves and outstanding readers retain retired chunks separately.
+    typedef std::pair<int,int> Coordinate;
+    std::map<Coordinate,LevelChunk*> authorityChunks;
+    std::map<Coordinate,uint64_t> authorityAccess;
+    uint64_t accessClock=0;
+    bool authorityCoordinates() const { return !level->isClientSide&&level->getLevelData()->getGeneratorVersion()==LGV_INFINITE; }
+    bool isResident(LevelChunk* chunk) const {
+        if(authorityCoordinates()) {auto found=authorityChunks.find(Coordinate(chunk->x,chunk->z));return found!=authorityChunks.end()&&found->second==chunk;}
+        return chunks[(chunk->x&(cacheWidth-1))+(chunk->z&(cacheWidth-1))*cacheWidth]==chunk;
+    }
+    bool playerPinned(const Coordinate& coordinate) const {
+        for(auto* player:level->players) if(player&&!player->removed) {
+            const int x=Mth::floor(player->x/16.f),z=Mth::floor(player->z/16.f);
+            if(std::abs((int64_t)coordinate.first-x)<=4&&std::abs((int64_t)coordinate.second-z)<=4)return true;
+        }
+        return false;
+    }
+    void trimAuthoritativeResidents() {
+        if(!authorityCoordinates()||authorityChunks.size()<=residentCapacity())return;
+        std::vector<std::pair<uint64_t,Coordinate> > candidates;
+        for(const auto& entry:authorityChunks) if(!playerPinned(entry.first)) candidates.push_back(std::make_pair(authorityAccess[entry.first],entry.first));
+        std::sort(candidates.begin(),candidates.end());
+        for(const auto& candidate:candidates) {
+            if(authorityChunks.size()<=residentCapacity())break;
+            auto found=authorityChunks.find(candidate.second);if(found==authorityChunks.end())continue;
+            LevelChunk* chunk=found->second;
+            if(chunk&&chunk!=emptyChunk) {
+                chunk->unload();save(chunk);saveEntities(chunk);retire(chunk);
+                if(last==chunk){last=NULL;xLast=zLast=-999999999;}
+            }
+            authorityChunks.erase(found);authorityAccess.erase(candidate.second);
+        }
+    }
     bool isNativeClient() const { return level->isClientSide && !level->isJavaServerLevel(); }
 
     LevelChunk* load(int x, int z) {
@@ -303,6 +397,12 @@ private:
     Level* level;
 
     LevelChunk* last;
+    std::set<LevelChunk*> ownedChunks;
+    std::deque<LevelChunk*> retiredChunks;
+    std::set<LevelChunk*> queuedRetirement;
+    void retire(LevelChunk* chunk) {
+        if(chunk&&chunk!=emptyChunk&&queuedRetirement.insert(chunk).second)retiredChunks.push_back(chunk);
+    }
 
 };
 

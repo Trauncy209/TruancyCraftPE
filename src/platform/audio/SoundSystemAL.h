@@ -27,6 +27,7 @@ public:
 	virtual void destroy();
 
     virtual void enable(bool status);
+    bool isAvailable() override { return available && context && _sourceCount>0; }
     
     virtual void setListenerPos(float x, float y, float z);
 	virtual void setListenerAngle(float deg);

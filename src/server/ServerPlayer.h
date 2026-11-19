@@ -3,6 +3,8 @@
 
 #include "../world/entity/player/Player.h"
 #include "../world/inventory/BaseContainerMenu.h"
+#include <cstdint>
+#include <string>
 
 class Minecraft;
 class FurnaceTileEntity;
@@ -23,6 +25,15 @@ public:
 	void tick();
 	void take(Entity* e, int orgCount);
 	void sendInventory();
+    uint64_t inventoryNonce=0, inventoryRevision=0, inventoryAcknowledged=0;
+    int inventoryStatus=0;
+    bool inventoryV1=false;
+    bool inventoryTransactionsSupported=true; // Survival backing stacks, never Creative palettes.
+    bool inventoryDeathDropped=false;
+    void die(Entity* source) override;
+    void finishNativeDeath();
+    void releaseNativeUsingItem();
+    void reset() override;
 
 	void hurtArmor(int dmg);
 
@@ -45,6 +56,9 @@ public:
 
 	void completeUsingItem();
 private:
+	std::string inventoryFingerprint();
+    std::string lastInventoryFingerprint;
+    std::string lastVisualFingerprint;
 	void nextContainerCounter();
 	void setContainerMenu( BaseContainerMenu* menu );
 

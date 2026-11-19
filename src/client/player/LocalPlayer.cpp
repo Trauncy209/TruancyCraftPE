@@ -104,6 +104,142 @@ bool LocalPlayer::isSolidTile(int x, int y, int z) {
 	return tileId > 0 && Tile::tiles[tileId]->material->isSolid();
 }
 
+bool LocalPlayer::nativeTransactionsEnabled() const {
+    return nativeTransactions.enabled() && level && level->isClientSide &&
+           !level->isJavaServerLevel() && !minecraft->javaSession;
+}
+
+bool LocalPlayer::nativeApplySnapshot(const std::vector<ItemInstance>& items, const NativeHotbarState& hotbar, const NativeInventorySnapshot& state) {
+    if (items.size() != static_cast<size_t>(inventory->getContainerSize()-Inventory::MAX_SELECTION_SIZE)) return false;
+    const bool negotiating=!nativeTransactions.enabled();
+    const uint64_t previousAcknowledged=nativeTransactions.acknowledged;
+    bool rejectedUse=false;
+    if(!negotiating && state.acknowledged>previousAcknowledged && state.status!=NativeInventoryAction::Accepted)
+        for(const auto& pending:nativeTransactions.pending)
+            if(pending.action.sequence==state.acknowledged && pending.action.type==NativeInventoryAction::Use)rejectedUse=true;
+    if(nativeTransactionsEnabled() && state.nonce==nativeTransactions.nonce)nativeFlushHotbar();
+    if (!nativeTransactions.accept(items,hotbar,state)) return false;
+    nativeInventoryReady=true;
+    nativeApplyPrediction();
+    if(!negotiating && state.acknowledged>previousAcknowledged) {
+        const char* notice=NULL;
+        switch(state.status) {
+        case NativeInventoryAction::NoSpace: notice="Inventory is full."; break;
+        case NativeInventoryAction::Insufficient: notice="Not enough items."; break;
+        case NativeInventoryAction::InvalidContext: notice="That item or container changed. Try again."; break;
+        case NativeInventoryAction::BadAction:
+        case NativeInventoryAction::Unsupported: notice="That action could not be completed."; break;
+        default: break;
+        }
+        if(rejectedUse)nativeStopUsingItem();
+        if(notice)displayClientMessage(notice);
+    }
+    if(negotiating) {
+        // Explicitly opt into the advertised protocol before any legacy path
+        // can mutate server-owned resources (including death while idle).
+        NativeInventoryAction hello;hello.type=NativeInventoryAction::Hotbar;
+        nativeSubmitAction(hello,&nativeTransactions.predictedHotbar);
+    }
+    return true;
+}
+
+void LocalPlayer::nativeApplyPrediction() {
+    for (unsigned int i=0;i<nativeTransactions.items.size();++i)
+        inventory->setItem(Inventory::MAX_SELECTION_SIZE+i,&nativeTransactions.items[i]);
+    nativeTransactions.predictedHotbar.apply(inventory);
+    for(int i=0;i<NUM_ARMOR;++i)setArmor(i,&nativeTransactions.armor[i]);
+    if(containerMenu && nativeTransactions.base.containerId==containerMenu->containerId &&
+       containerMenu->getItems().size()==nativeTransactions.container.size())
+        for(unsigned int i=0;i<nativeTransactions.container.size();++i)
+            containerMenu->setSlot(i,&nativeTransactions.container[i]);
+}
+
+void LocalPlayer::nativeStopUsingItem() {
+    useItem.setNull();useItemDuration=0;nativeUseCompletionWaitTicks=0;
+}
+
+void LocalPlayer::completeUsingItem() {
+    if(!nativeTransactionsEnabled()) {super::completeUsingItem();return;}
+    if(useItem.isNull())return;
+    // The server already consumed the food. This event finishes only the local
+    // animation; clear first so repeated events cannot play it twice.
+    ItemInstance completed=useItem;
+    nativeStopUsingItem();
+    const auto animation=completed.getUseAnimation();
+    if(animation==UseAnim::eat || animation==UseAnim::drink) {
+        spawnEatParticles(&completed,10);
+        if(animation==UseAnim::eat)
+            level->playSound(this,"random.burp",.5f,1.f);
+    }
+}
+
+void LocalPlayer::nativeFlushHotbar() {
+    if(!nativeTransactionsEnabled() || !nativeInventoryReady)return;
+    NativeHotbarState desired;desired.capture(inventory);
+    if(NativeInventoryClientState::sameHotbar(desired,nativeTransactions.predictedHotbar))return;
+    NativeInventoryAction action;action.type=NativeInventoryAction::Hotbar;
+    nativeSubmitAction(action,&desired);
+}
+
+bool LocalPlayer::nativeSubmitAction(NativeInventoryAction action,const NativeHotbarState* hotbar) {
+    if(!nativeTransactionsEnabled() || !nativeInventoryReady)return false;
+    if(action.type==NativeInventoryAction::Use && action.face==255) {
+        ItemInstance* selected=inventory->getSelected();
+        if(selected && selected->getUseAnimation()==UseAnim::eat && !isHurt())return false;
+    }
+    if(action.type!=NativeInventoryAction::Hotbar)nativeFlushHotbar();
+    NativeHotbarState desired=hotbar?*hotbar:nativeTransactions.predictedHotbar;
+    if(!nativeTransactions.enqueue(action,desired))return false;
+    if(action.type==NativeInventoryAction::Use)nativeUseCompletionWaitTicks=0;
+    SendInventoryPacket packet(this,false);packet.action=action;packet.hotbar=desired;
+    minecraft->raknetInstance->send(packet);
+    nativeApplyPrediction();
+    return true;
+}
+
+int LocalPlayer::nativeBackingSlot(const ItemInstance* item) const {
+    if(!item)return -1;
+    for(int i=Inventory::MAX_SELECTION_SIZE;i<inventory->getContainerSize();++i)
+        if(inventory->getItem(i)==item)return i;
+    return -1;
+}
+
+bool LocalPlayer::nativeDropSlot(int slot,int count,bool randomly) {
+    if(slot>=0 && slot<Inventory::MAX_SELECTION_SIZE)slot=inventory->linkedSlots[slot].inventorySlot;
+    ItemInstance* item=inventory->getItem(slot);
+    if(!item || item->count<=0)return false;
+    int remaining=count<0?item->count:count;
+    if(remaining<=0||remaining>item->count||nativeTransactions.pending.size()+(remaining+63)/64+1>128)return false;
+    const int id=item->id,aux=item->getAuxValue();
+    while(remaining>0) {
+        NativeInventoryAction action;action.type=NativeInventoryAction::Drop;action.slot=slot;
+        action.count=std::min(remaining,64);action.flags=randomly?1:0;
+        action.expectedId=id;action.expectedAux=aux;
+        if(!nativeSubmitAction(action))return false;
+        remaining-=action.count;
+    }
+    return true;
+}
+
+bool LocalPlayer::nativeTransfer(int containerId,bool fromContainer,int slot,int destination,int count) {
+    if(!nativeTransactionsEnabled() || containerId!=nativeTransactions.base.containerId)return false;
+    nativeFlushHotbar();
+    const auto& source=fromContainer?nativeTransactions.container:nativeTransactions.items;
+    const int index=fromContainer?slot:slot-Inventory::MAX_SELECTION_SIZE;
+    if(index<0||index>=int(source.size())||source[index].count<=0)return false;
+    NativeInventoryAction action;action.type=NativeInventoryAction::Transfer;action.flags=fromContainer?1:0;
+    action.x=containerId;action.slot=slot;action.slot2=destination;
+    action.expectedId=source[index].id;action.expectedAux=source[index].getAuxValue();
+    for(action.count=std::min(64,std::min(count,source[index].count));action.count>0;--action.count) {
+        auto items=nativeTransactions.items,container=nativeTransactions.container;
+        ItemInstance armor[4];for(int i=0;i<4;++i)armor[i]=nativeTransactions.armor[i];
+        const int status=NativeInventoryModel::apply(items,armor,container,action);
+        if(status==NativeInventoryAction::Accepted)return nativeSubmitAction(action);
+        if(status!=NativeInventoryAction::NoSpace)return false;
+    }
+    return false;
+}
+
 void LocalPlayer::nativeInventoryRestored() {
     nativeInventoryReady = true;
     SendInventoryPacket snapshot(this, false);
@@ -115,26 +251,36 @@ void LocalPlayer::tick() {
 
 	super::tick();
 	if(!useItem.isNull()) {
-		ItemInstance* item = inventory->getSelected();
-		if(item != NULL && *item == useItem) {
-			if (useItemDuration <= 25 && useItemDuration % 4 == 0) {
-				spawnEatParticles(item, 5);
-			}
-			if(--useItemDuration == 0) {
-				if (minecraft->javaSession) {
-					// Java server owns completion and inventory consumption.
-				} else if(!level->isClientSide) {
-					completeUsingItem();
-				} else {
-					EntityEventPacket p(entityId, EntityEvent::USE_ITEM_COMPLETE);
-					level->raknetInstance->send(p);
-				}
-			}
-		}
-		else {
-			stopUsingItem();
-		}
-	}
+        const bool native=nativeTransactionsEnabled();
+        ItemInstance* item=inventory->getSelected();
+        const bool sameNativeItem=item && item->count>0 && item->id==useItem.id && item->getAuxValue()==useItem.getAuxValue();
+        if(item && (native?sameNativeItem:*item==useItem)) {
+            // A pickup can increase the held stack while eating. Its identity
+            // remains the same; keep the animation and the server's new count.
+            if(native)useItem.count=item->count;
+            if(!native || useItemDuration>0) {
+                if(useItemDuration<=25 && useItemDuration%4==0)spawnEatParticles(item,5);
+                if(--useItemDuration==0) {
+                    if(native) {
+                        // Keep the visual item until the authoritative completion
+                        // event arrives. Never consume from this client copy.
+                    } else if(minecraft->javaSession) {
+                        // Java owns its completion and inventory consumption.
+                    } else if(!level->isClientSide)completeUsingItem();
+                    else {
+                        EntityEventPacket packet(entityId,EntityEvent::USE_ITEM_COMPLETE);
+                        level->raknetInstance->send(packet);
+                    }
+                }
+            } else if(native && ++nativeUseCompletionWaitTicks>=100) {
+                // A rejected/no-op use or interrupted connection must not leave
+                // the hand pose stuck while waiting for a completion visual.
+                nativeStopUsingItem();
+            }
+        } else {
+            if(native)nativeStopUsingItem();else stopUsingItem();
+        }
+    }
 	if (minecraft->isOnline() && !minecraft->javaSession)
 	{
 		if (std::abs(x - sentX) > .1f || std::abs(y - sentY) > .01f || std::abs(z - sentZ) > .1f || std::abs(sentRotX - xRot) > 1 || std::abs(sentRotY - yRot) > 1)
@@ -150,7 +296,9 @@ void LocalPlayer::tick() {
 
         // Native crafting, consumption and hotbar arrangement happen on the client.
         // Sync changed state only, after the initial server inventory was received.
-        if (nativeInventoryReady) {
+        if (nativeTransactionsEnabled()) {
+            nativeFlushHotbar();
+        } else if (nativeInventoryReady) {
             SendInventoryPacket snapshot(this, false);
             RakNet::BitStream wire; snapshot.write(&wire);
             std::string state((const char*)wire.GetData(), wire.GetNumberOfBytesUsed());
@@ -163,8 +311,8 @@ void LocalPlayer::tick() {
 		int newItemId   = (item && item->count > 0) ? item->id : 0;
 		int newItemData = (item && item->count > 0) ? item->getAuxValue() : 0;
 
-		if (sentInventoryItemId != newItemId
-		||  sentInventoryItemData != newItemData)
+		if (!nativeTransactionsEnabled() && (sentInventoryItemId != newItemId
+		||  sentInventoryItemData != newItemData))
 		{
 			sentInventoryItemId   = newItemId;
 			sentInventoryItemData = newItemData;
@@ -470,6 +618,12 @@ void LocalPlayer::respawn()
 
 void LocalPlayer::die(Entity* source)
 {
+    if(nativeTransactionsEnabled()) {
+        NativeInventoryAction action;action.type=NativeInventoryAction::Death;
+        nativeSubmitAction(action);
+        super::die(source);
+        return;
+    }
 	if (minecraft->javaSession) {
 		// Preserve server-owned slots; the server decides drops and respawn.
 		super::die(source);
@@ -525,6 +679,7 @@ void LocalPlayer::_init() {
 }
 
 void LocalPlayer::startCrafting(int x, int y, int z, int tableSize) {
+    nativeCraftX=x;nativeCraftY=y;nativeCraftZ=z;
 #ifndef STANDALONE_SERVER
 	if (minecraft->javaSession) {
   auto* session=minecraft->javaSession;
@@ -563,6 +718,16 @@ void LocalPlayer::openContainer( ChestTileEntity* container ) {
 
 void LocalPlayer::drop( ItemInstance* item, bool randomly )
 {
+    if(nativeTransactionsEnabled()) {
+        if(!item)return;
+        for(int i=Inventory::MAX_SELECTION_SIZE;i<inventory->getContainerSize();++i) {
+            ItemInstance* owned=inventory->getItem(i);
+            if(owned && owned->id==item->id && owned->getAuxValue()==item->getAuxValue() && owned->count>=item->count) {
+                nativeDropSlot(i,item->count,randomly);break;
+            }
+        }
+        delete item;return;
+    }
 	if (!item)
 		return;
 
@@ -593,7 +758,8 @@ void LocalPlayer::causeFallDamage( float distance )
 
 void LocalPlayer::displayClientMessage( const std::string& messageId ) {
 #ifndef STANDALONE_SERVER
-	minecraft->gui.displayClientMessage(messageId);
+    if(nativeTransactionsEnabled())minecraft->gui.addMessage(messageId);
+    else minecraft->gui.displayClientMessage(messageId);
 #endif
 }
 
@@ -625,7 +791,7 @@ void LocalPlayer::openTextEdit( TileEntity* tileEntity ) {
 }
 
 void LocalPlayer::updateArmorTypeHash() {
-	if (minecraft->javaSession) return;
+	if (minecraft->javaSession || nativeTransactionsEnabled()) return;
     int hash = getArmorTypeHash();
     if (hash != armorTypeHash) {
         PlayerArmorEquipmentPacket p(this);

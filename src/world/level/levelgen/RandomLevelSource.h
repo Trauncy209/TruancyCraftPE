@@ -7,20 +7,11 @@ class Biome;
 class Level;
 class LevelChunk;
 
-#if 1 || USE_MAP
-	#include <map>
-	typedef std::map<int, LevelChunk*> ChunkMap;
-#else
-	#if defined(__APPLE__)
-		#include <ext/hash_map>
-		namespace std {
-			using namespace __gnu_cxx;
-		}
-	#else
-		#include <hash_map>
-	#endif
-	typedef std::hash_map<int, LevelChunk*> ChunkMap;
-#endif
+#include <map>
+#include <utility>
+// Full signed coordinates are identity; the old packed hash aliases distant
+// terrain (for example x=32767 and x=65535).
+typedef std::map<std::pair<int,int>, LevelChunk*> ChunkMap;
 
 
 #include "../chunk/ChunkSource.h"
@@ -43,6 +34,8 @@ public:
 
 	bool hasChunk(int x, int y);
 	bool hasChunkNow(int x, int z);
+    bool releaseRetiredChunk(LevelChunk* chunk);
+    size_t cachedChunkCount() const { return chunkMap.size(); }
     LevelChunk* create(int x, int z);
 	LevelChunk* getChunk(int xOffs, int zOffs);
 

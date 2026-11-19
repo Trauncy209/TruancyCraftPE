@@ -1572,9 +1572,14 @@ void Level::tickEntities() {
 
 			if (hasChunk(te->x >> 4, te->z >> 4)) {
 				LevelChunk* lc = getChunk(te->x >> 4, te->z >> 4);
-				if (lc != NULL) {
-					lc->removeTileEntity(te->x & 15, te->y, te->z & 15);
-				}
+                if (lc != NULL) {
+                    // A replacement may already occupy the same coordinates.
+                    // Retiring the old object must not remove the new storage.
+                    const LevelChunk::TEMap& current = lc->getTileEntityMap();
+                    auto stored = current.find(TilePos(te->x & 15, te->y, te->z & 15));
+                    if (stored != current.end() && stored->second == te)
+                        lc->removeTileEntity(te->x & 15, te->y, te->z & 15);
+                }
 			}
 			delete te;
 		}
@@ -2288,6 +2293,12 @@ void Level::removeAllPendingEntityRemovals() {
     }
 }
 */
+
+size_t Level::collectRetiredChunks() {
+    if(isGeneratingTerrain||isJavaServerLevel())return 0;
+    auto* cache=dynamic_cast<ChunkCache*>(_chunkSource);
+    return cache?cache->collectRetiredChunks():0;
+}
 
 ChunkSource* Level::getChunkSource() {
     return _chunkSource;

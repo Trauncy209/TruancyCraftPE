@@ -1,4 +1,5 @@
 #include "FurnaceTileEntity.h"
+#include <algorithm>
 
 #include "../FurnaceTile.h"
 #include "../../Level.h"
@@ -65,13 +66,14 @@ bool FurnaceTileEntity::shouldSave() {
 
 void FurnaceTileEntity::load(CompoundTag* base) {
 	super::load(base);
-	ListTag* inventoryList = base->getList("Items");
+	ListTag* inventoryList = base->contains("Items",Tag::TAG_List)?base->getList("Items"):NULL;
 	for (int i = 0; i < 3; ++i)
 		items[i].setNull();
-	for (int i = 0; i < inventoryList->size(); i++) {
+	for (int i = 0; inventoryList && i < inventoryList->size(); i++) {
 		Tag* tt = inventoryList->get(i);
 		if (tt->getId() == Tag::TAG_Compound) {
 			CompoundTag* tag = (CompoundTag*)tt;
+            if(!tag->contains("Slot",Tag::TAG_Byte))continue;
 			int slot = tag->getByte("Slot");
 			if (slot >= 0 && slot < NumItems) {
 				ItemInstance* loaded = ItemInstance::fromTag(tag);
@@ -86,8 +88,9 @@ void FurnaceTileEntity::load(CompoundTag* base) {
 		}
 	}
 
-	litTime = base->getShort("BurnTime");
+	litTime = std::max(0,int(base->getShort("BurnTime")));
 	tickCount = base->getShort("CookTime");
+    if(tickCount<0 || tickCount>=200)tickCount=0;
 	litDuration = getBurnDuration(items[SLOT_FUEL]);
 }
 

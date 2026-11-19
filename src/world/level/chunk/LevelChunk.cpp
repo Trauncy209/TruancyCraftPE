@@ -1,4 +1,5 @@
 #include "LevelChunk.h"
+#include <cmath>
 #include "../LightLayer.h"
 #include "../tile/Tile.h"
 #include "../Level.h"
@@ -53,6 +54,8 @@ LevelChunk::~LevelChunk()
 
 void LevelChunk::init()
 {
+    static std::atomic<uint64_t> nextIdentity(1);
+    identity=nextIdentity.fetch_add(1,std::memory_order_relaxed);
 	terrainPopulated = false;
 	dontSave = false;
 	unsaved = false;
@@ -455,22 +458,46 @@ bool LevelChunk::isSkyLit( int x, int y, int z )
 
 void LevelChunk::load()
 {
-	loaded = true;
-	/*        level->tileEntityList.addAll(tileEntities.values());
-	for (int i = 0; i < entityBlocks.length; i++) {
-	level->addEntities(entityBlocks[i]);
-	}
-	*/
+    loaded = true;
+    // A disk/network replacement has new spatial lists, while live entities
+    // remain owned by Level. Reattach them immediately instead of leaving
+    // visible mobs and drops outside every collision/pickup query.
+    auto attachEntity = [this](Entity* entity) {
+        if (!entity || entity->removed || entity->inChunk ||
+            !std::isfinite(entity->x) || !std::isfinite(entity->z)) return;
+        if (Mth::floor(entity->x / 16.f)==x && Mth::floor(entity->z / 16.f)==z)
+            addEntity(entity);
+    };
+    for (Entity* entity:level->entities) attachEntity(entity);
+    for (Player* player:level->players) attachEntity(player);
+    // Storage tile entities also outlive the ring-cache slot. Reuse their
+    // actual contents instead of creating an empty duplicate after returning.
+    auto attachStorage = [this](TileEntity* entity) {
+        if (!entity || entity->isRemoved() || entity->x-xt<0 || entity->x-xt>=16 ||
+            entity->z-zt<0 || entity->z-zt>=16 || entity->y<0 || entity->y>=128) return;
+        const int tile=getTile(entity->x-xt,entity->y,entity->z-zt);
+        const bool matches =
+            (entity->type==TileEntityType::Chest && tile==Tile::chest->id) ||
+            (entity->type==TileEntityType::Furnace && (tile==Tile::furnace->id || tile==Tile::furnace_lit->id)) ||
+            (entity->type==TileEntityType::Sign && (tile==Tile::sign->id || tile==Tile::wallSign->id)) ||
+            (entity->type==TileEntityType::NetherReactor && tile==Tile::netherReactor->id);
+        if (matches) setTileEntity(entity->x-xt,entity->y,entity->z-zt,entity);
+    };
+    for (TileEntity* entity:level->tileEntities) attachStorage(entity);
 }
 
 void LevelChunk::unload()
 {
-	loaded = false;
-	/*        level->tileEntityList.removeAll(tileEntities.values());
-	for (int i = 0; i < entityBlocks.length; i++) {
-	level->removeEntities(entityBlocks[i]);
-	}
-	*/
+    loaded = false;
+    for (int section=0;section<EntityBlocksArraySize;++section) {
+        for (Entity* entity:entityBlocks[section])
+            if (entity && entity->inChunk && entity->xChunk==x && entity->zChunk==z)
+                entity->inChunk=false;
+        entityBlocks[section].clear();
+    }
+    // Level owns these objects; unloaded maps must not retain dangling entries
+    // after a removed chest/furnace is destroyed by the level's update loop.
+    tileEntities.clear();
 }
 
 void LevelChunk::markUnsaved()

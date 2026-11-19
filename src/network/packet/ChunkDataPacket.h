@@ -12,6 +12,9 @@ public:
 	RakNet::BitStream chunkData;
 	LevelChunk* chunk;
     bool fullSnapshot;
+private:
+    ChunkViewPin chunkView;
+public:
 
     ChunkDataPacket():x(0),z(0),chunk(nullptr),fullSnapshot(false) {}
 
@@ -19,7 +22,8 @@ public:
 	:	x(x),
 		z(z),
 		chunk(chunk),
-        fullSnapshot(fullSnapshot)
+        fullSnapshot(fullSnapshot),
+        chunkView(chunk)
 	{
 	}
 

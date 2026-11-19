@@ -20,15 +20,32 @@ Region::Region(Level* level, int x1, int y1, int z1, int x2, int y2, int z2) {
 
     for (int xc = xc1; xc <= xc2; xc++) {
         for (int zc = zc1; zc <= zc2; zc++) {
-            chunks[xc - xc1][zc - zc1] = level->isJavaServerLevel() ? NULL : level->getChunk(xc, zc);
+            LevelChunk* chunk=level->isJavaServerLevel()?NULL:level->getChunk(xc,zc);
+            chunks[xc-xc1][zc-zc1]=chunk;
+            if(chunk)chunk->retainView();
         }
     }
 }
 
-Region::~Region() {
-	for (int i = 0 ; i < size_x; ++i)
-		delete[] chunks[i];
-	delete[] chunks;
+void Region::releaseViews() {
+    if(!chunks)return;
+    for(int x=0;x<size_x;++x) {
+        for(int z=0;z<size_z;++z)if(chunks[x][z])chunks[x][z]->releaseView();
+        delete[] chunks[x];
+    }
+    delete[] chunks;chunks=NULL;size_x=size_z=0;
+}
+Region::~Region() { releaseViews(); }
+Region::Region(Region&& other) noexcept
+:xc1(other.xc1),zc1(other.zc1),chunks(other.chunks),level(other.level),size_x(other.size_x),size_z(other.size_z) {
+    other.chunks=NULL;other.level=NULL;other.size_x=other.size_z=0;
+}
+Region& Region::operator=(Region&& other) noexcept {
+    if(this==&other)return *this;
+    releaseViews();xc1=other.xc1;zc1=other.zc1;chunks=other.chunks;level=other.level;
+    size_x=other.size_x;size_z=other.size_z;
+    other.chunks=NULL;other.level=NULL;other.size_x=other.size_z=0;
+    return *this;
 }
 
 int Region::getTile(int x, int y, int z) {

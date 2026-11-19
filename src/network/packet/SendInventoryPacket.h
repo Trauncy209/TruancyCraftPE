@@ -3,11 +3,13 @@
 
 #include "../Packet.h"
 #include "NativeHotbarState.h"
+#include "NativeInventoryTransaction.h"
 
 class SendInventoryPacket: public Packet
 {
 public:
     NativeHotbarState hotbar;
+    NativeInventoryAction action;
 	SendInventoryPacket()
 	{
 	}
@@ -43,13 +45,14 @@ public:
         for (int i = 0; i < NumArmorItems; ++i)
             PacketUtil::writeItemInstance(items[i + numItems], bitStream);
         hotbar.write(bitStream);
+        action.write(bitStream);
 	}
 
 	void read(RakNet::BitStream* bitStream)
 	{
         valid = false;
         entityId = 0; extra = 0; numItems = 0;
-        items.clear(); hotbar.present = false;
+        items.clear(); hotbar.present = false; action.present = false;
         if (!bitStream->Read(entityId) || !bitStream->Read(extra) || !bitStream->Read(numItems)) return;
         if (numItems < 0 || numItems > Inventory::CREATIVE_SLOT_COUNT) return;
         // Every serialized item is exactly a short, a byte and a short.
@@ -60,6 +63,7 @@ public:
             hotbar.read(bitStream);
             if (!hotbar.present) return;
         }
+        if (!action.read(bitStream)) return;
         valid = true;
 	}
 

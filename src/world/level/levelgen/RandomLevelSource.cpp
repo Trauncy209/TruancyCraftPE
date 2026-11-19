@@ -554,9 +554,9 @@ LevelChunk* RandomLevelSource::create(int x, int z) {
 
 LevelChunk* RandomLevelSource::getChunk(int xOffs, int zOffs) {
 	//static int chunkx = 0;
-	int hashedPos = ChunkPos::hashCode(xOffs, zOffs);
+	const std::pair<int,int> position(xOffs,zOffs);
 
-	ChunkMap::iterator it = chunkMap.find(hashedPos);
+	ChunkMap::iterator it = chunkMap.find(position);
 	if (it != chunkMap.end())
 		return it->second;
 
@@ -564,7 +564,7 @@ LevelChunk* RandomLevelSource::getChunk(int xOffs, int zOffs) {
 
     unsigned char* blocks = new unsigned char[LevelChunk::ChunkBlockCount];
     LevelChunk* levelChunk = new LevelChunk(level, blocks, xOffs, zOffs);
-	chunkMap.insert(std::make_pair(hashedPos, levelChunk));
+	chunkMap.insert(std::make_pair(position, levelChunk));
 
 	Biome** biomes = level->getBiomeSource()->getBiomeBlock(/*biomes, */xOffs * 16, zOffs * 16, 16, 16);
     float* temperatures = level->getBiomeSource()->temperatures;
@@ -751,7 +751,13 @@ bool RandomLevelSource::hasChunk(int x, int y) {
 }
 
 bool RandomLevelSource::hasChunkNow(int x, int z) {
-	return chunkMap.find(ChunkPos::hashCode(x, z)) != chunkMap.end();
+	return chunkMap.find(std::make_pair(x,z)) != chunkMap.end();
+}
+
+bool RandomLevelSource::releaseRetiredChunk(LevelChunk* chunk) {
+    auto found=chunkMap.find(std::make_pair(chunk->x,chunk->z));
+    if(found!=chunkMap.end()&&found->second==chunk)chunkMap.erase(found);
+    return true;
 }
 
 bool RandomLevelSource::tick() {

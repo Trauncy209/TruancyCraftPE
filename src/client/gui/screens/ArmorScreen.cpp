@@ -152,6 +152,9 @@ void ArmorScreen::setupPositions() {
 }
 
 void ArmorScreen::tick() {
+    if(minecraft->player->nativeTransactionsEnabled() && nativeInventoryView!=minecraft->player->nativeTransactions.viewRevision) {
+        nativeInventoryView=minecraft->player->nativeTransactions.viewRevision;doRecreatePane=true;
+    }
 	if (inventoryPane)
 		inventoryPane->tick();
 
@@ -213,6 +216,14 @@ bool ArmorScreen::addItem(const Touch::InventoryPane* forPane, int itemIndex) {
 	if (!ItemInstance::isArmorItem(instance))
 		return false;
 
+    if(minecraft->player->nativeTransactionsEnabled()) {
+        NativeInventoryAction action;action.type=NativeInventoryAction::Armor;
+        action.slot=minecraft->player->nativeBackingSlot(instance);
+        action.slot2=static_cast<ArmorItem*>(instance->getItem())->slot;
+        action.expectedId=instance->id;action.expectedAux=instance->getAuxValue();
+        const bool submitted=minecraft->player->nativeSubmitAction(action);
+        doRecreatePane=true;return submitted;
+    }
 	ArmorItem* item = (ArmorItem*) instance->getItem();
 	ItemInstance* old = player->getArmor(item->slot);
 	ItemInstance oldArmor;
@@ -293,6 +304,10 @@ void ArmorScreen::drawSlotItemAt( Tesselator& t, int slot, const ItemInstance* i
 }
 
 void ArmorScreen::takeAndClearSlot( int slot ) {
+    if(minecraft->player->nativeTransactionsEnabled()) {
+        NativeInventoryAction action;action.type=NativeInventoryAction::Armor;action.flags=1;action.slot=slot;
+        minecraft->player->nativeSubmitAction(action);doRecreatePane=true;return;
+    }
 	ItemInstance* item = player->getArmor(slot);
 	if (!item)
 		return;

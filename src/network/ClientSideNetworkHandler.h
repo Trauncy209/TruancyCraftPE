@@ -8,6 +8,7 @@
 #include "../world/level/LevelConstants.h"
 
 #include <vector>
+#include <cstdint>
 #include <map>
 #include <set>
 #include <utility>
@@ -87,6 +88,7 @@ public:
 	void beginJoin();
 	void cancelJoin();
 	bool hasJoinTimedOut() const;
+	void pruneChunkReceipts();
 	void recenterChunkRequests();
 	bool isChunkLoaded(int x, int z);
 private:
@@ -116,7 +118,7 @@ private:
     int requestNextChunkIndex;
     IntPair requestNextChunkIndexList[NumRequestChunks];
 	bool chunksLoaded[NumRequestChunks];
-	std::map<std::pair<int, int>, LevelChunk*> receivedChunks;
+	std::map<std::pair<int, int>, uint64_t> receivedChunks;
 	// Bound memory/processing bursts while hiding per-chunk network latency.
 	static const int MaxPendingChunkRequests = 16;
     int chunkRequestWindow = 4;

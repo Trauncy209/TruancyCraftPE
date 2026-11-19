@@ -67,6 +67,7 @@ private:
 	std::vector<int> inventorySlots;
 	std::vector<const ItemInstance*> inventoryItems;
 	bool doRecreatePane;
+    unsigned long long nativeInventoryView=0;
 
 	int selectedSlot;
 	int lastBurnTypeId;

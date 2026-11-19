@@ -67,6 +67,7 @@ private:
 	
 	std::vector<const ItemInstance*> armorItems;
 	bool doRecreatePane;
+    unsigned long long nativeInventoryView=0;
 
 	// GUI elements such as 9-Patches
 	NinePatchLayer* guiBackground;

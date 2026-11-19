@@ -30,6 +30,7 @@ Entity* EntityFactory::loadEntity( CompoundTag* tag, Level* level )
 	int id = tag->getInt("id");
 
 	Entity* e = NULL;
+    if (id == EntityTypes::IdItemEntity && !tag->contains("Item", Tag::TAG_Compound)) return NULL;
 
 	if (id < 0) {
 		LOGE("Negative ItemId: %d at MobFactory::loadEntity\n", id);
@@ -40,13 +41,13 @@ Entity* EntityFactory::loadEntity( CompoundTag* tag, Level* level )
 	}
 
 	if (e) {
-		e->load(tag);
+        if (!e->load(tag)) { delete e; return NULL; }
 
 		// Add "fixes" here :p
 		if (e->isItemEntity()) {
 			const ItemInstance& item = ((ItemEntity*)e)->item;
 			// Remove items out of range, and now invalid
-			if(item.isNull() || item.id < 0 || item.id >= Item::MAX_ITEMS || !Item::items[item.id]) {
+			if(!item.isValidSavedStack()) {
 				delete e;
 				e = NULL;
 			}

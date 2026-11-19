@@ -5,11 +5,13 @@
 
 #include "../Packet.h"
 #include "NativeHotbarState.h"
+#include "NativeInventoryTransaction.h"
 
 class ContainerSetContentPacket: public Packet
 {
 public:
     NativeHotbarState hotbar;
+    NativeInventorySnapshot nativeState;
     ContainerSetContentPacket() : containerId(0) {
     }
 
@@ -25,7 +27,7 @@ public:
         bitStream->Write((short)items.size());
         for (unsigned int i = 0; i < items.size(); ++i)
     		PacketUtil::writeItemInstance(items[i], bitStream);
-        if (containerId==0) hotbar.write(bitStream);
+        if (containerId==0) { hotbar.write(bitStream); nativeState.write(bitStream); }
     }
 
 	void read(RakNet::BitStream* bitStream) {
@@ -33,6 +35,7 @@ public:
         containerId = 0;
         items.clear();
         hotbar = NativeHotbarState();
+        nativeState = NativeInventorySnapshot();
         short numItems = 0;
         if (!bitStream->Read(containerId) || !bitStream->Read(numItems) ||
             numItems < 0 || numItems > Inventory::CREATIVE_SLOT_COUNT + Inventory::MAX_SELECTION_SIZE ||
@@ -40,7 +43,10 @@ public:
         items.reserve(numItems);
         for (int i = 0; i < numItems; ++i)
             items.push_back(PacketUtil::readItemInstance(bitStream));
-        if (containerId == 0) hotbar.read(bitStream);
+        if (containerId == 0) {
+            hotbar.read(bitStream);
+            if (!nativeState.read(bitStream)) return;
+        }
         valid = true;
     }
 

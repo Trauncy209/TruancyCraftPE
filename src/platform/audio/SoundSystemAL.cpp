@@ -17,7 +17,9 @@ static const char* errIdString = 0;
 
 void checkError() {
 
-    while (1) {
+    // With no current context OpenAL can report the same error forever.
+    if (!alcGetCurrentContext()) return;
+    for (int attempt = 0; attempt < 16; ++attempt) {
         ALenum err = alGetError();
         if(err == AL_NO_ERROR) return;
 
@@ -41,7 +43,7 @@ void checkError() {
 //}
 //
 SoundSystemAL::SoundSystemAL()
-:	available(true),
+:	available(false),
     context(0),
     device(0),
     _rotation(-9999.9f)
@@ -53,24 +55,30 @@ SoundSystemAL::SoundSystemAL()
 SoundSystemAL::~SoundSystemAL()
 {
     javaVoices.erase(this);
-    if(_sourceCount) alDeleteSources(_sourceCount, _sources);
-
-    for (int i = 0; i < (int)_buffers.size(); ++i)
-        if (_buffers[i].inited) alDeleteBuffers(1, &_buffers[i].bufferID);
-
-    alcMakeContextCurrent(NULL);
-	alcDestroyContext(context);
-	
-	// Close the device
-	alcCloseDevice(device);
+    ALCcontext* previous=alcGetCurrentContext();
+    if (context && alcMakeContextCurrent(context)) {
+        if (_sourceCount) alDeleteSources(_sourceCount,_sources);
+        for (const Buffer& buffer:_buffers)
+            if (buffer.inited) alDeleteBuffers(1,&buffer.bufferID);
+    }
+    if (context) {
+        alcMakeContextCurrent(previous==context?NULL:previous);
+        alcDestroyContext(context);
+    }
+    if (device) alcCloseDevice(device);
 }
 
 void SoundSystemAL::init()
 {
+    available=false;
 	device = alcOpenDevice(NULL);
 	if(device) {
 		context = alcCreateContext(device, NULL);
-		alcMakeContextCurrent(context);
+        if (!context || !alcMakeContextCurrent(context)) {
+            if(context)alcDestroyContext(context);
+            context=NULL;alcCloseDevice(device);device=NULL;
+            return;
+        }
         
         alDistanceModel(AL_LINEAR_DISTANCE_CLAMPED);
         
@@ -100,31 +108,31 @@ void SoundSystemAL::init()
 		alListenerfv(AL_ORIENTATION, listenerOri);
 		alListenerfv(AL_VELOCITY, listenerVel);
         
+        available=_sourceCount>0;
         errIdString = "Init audio";
         checkError();
 	}
 }
 
 void SoundSystemAL::enable(bool status) {
-    LOGI("Enabling? audio: %d (context %p)\n", status, context);
+    if (!context) return;
     if (status) {
-        alcMakeContextCurrent(context);
-        errIdString = "Enable audio";
-    }
-    else {
+        available=alcMakeContextCurrent(context) && _sourceCount>0;
+        if(available)checkError();
+    } else if (alcGetCurrentContext()==context) {
         alcMakeContextCurrent(NULL);
-        errIdString = "Disable audio";
     }
-
-    checkError();
 }
 
 void SoundSystemAL::destroy() {
- if(!context)return;
- for(int i=0;i<_sourceCount;++i){alSourceStop(_sources[i]);alSourcei(_sources[i],AL_BUFFER,0);_voiceBudget[i]=SoundVoiceBudget::Voice();}
- _voiceSequence=0;
- for(auto& b:_buffers)if(b.inited)alDeleteBuffers(1,&b.bufferID);
- _buffers.clear();javaVoices.erase(this);
+    if(!context)return;
+    ALCcontext* previous=alcGetCurrentContext();
+    if(previous!=context && !alcMakeContextCurrent(context)) { available=false;return; }
+    for(int i=0;i<_sourceCount;++i){alSourceStop(_sources[i]);alSourcei(_sources[i],AL_BUFFER,0);_voiceBudget[i]=SoundVoiceBudget::Voice();}
+    _voiceSequence=0;
+    for(auto& b:_buffers)if(b.inited)alDeleteBuffers(1,&b.bufferID);
+    _buffers.clear();javaVoices.erase(this);
+    if(previous!=context)alcMakeContextCurrent(previous);
 }
 
 void SoundSystemAL::setListenerPos( float x, float y, float z )
@@ -147,6 +155,7 @@ void SoundSystemAL::setListenerPos( float x, float y, float z )
 
 void SoundSystemAL::setListenerAngle( float deg )
 {
+    if(!available || !context || alcGetCurrentContext()!=context)return;
     if (_rotation != deg) {
         _rotation = deg;
 
@@ -161,6 +170,7 @@ void SoundSystemAL::setListenerAngle( float deg )
 
 void SoundSystemAL::playAt( const SoundDesc& sound, float x, float y, float z, float volume, float pitch )
 {
+    if(!available || !context || alcGetCurrentContext()!=context)return;
     if (pitch < 0.01f) pitch = 1;
 
     //LOGI("playing sound '%s' with volume/pitch: %f, %f @ %f, %f, %f\n", sound.name.c_str(), volume, pitch, x, y, z);
@@ -245,6 +255,8 @@ bool SoundSystemAL::getFreeSourceIndex(int* sourceIndex,bool rain) {
 }
 
 bool SoundSystemAL::getBufferId(const SoundDesc& sound, ALuint* buf) {
+    if(!sound.isValid() || !sound.frames || sound.size<=0 || sound.frameRate<=0 ||
+       (sound.channels!=1 && sound.channels!=2) || (sound.byteWidth!=1 && sound.byteWidth!=2))return false;
     for (int i = 0; i < (int)_buffers.size(); ++i) {
         // Points to the same data buffer -> sounds equal
         if (_buffers[i].framePtr == sound.frames) {
@@ -259,10 +271,10 @@ bool SoundSystemAL::getBufferId(const SoundDesc& sound, ALuint* buf) {
         return false;
     }
     
-    ALuint bufferID;
+    ALuint bufferID=0;
     alGenBuffers(1, &bufferID);
-    errIdString = "Gen buffer";
-    checkError();
+    const ALenum allocationError=alGetError();
+    if(!bufferID || allocationError!=AL_NO_ERROR) { if(bufferID)alDeleteBuffers(1,&bufferID);return false; }
     
     ALenum format = (sound.byteWidth==2) ?
         (sound.channels==2? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16)
@@ -270,6 +282,7 @@ bool SoundSystemAL::getBufferId(const SoundDesc& sound, ALuint* buf) {
     
     alBufferData(bufferID, format, sound.frames, sound.size, sound.frameRate);
     //LOGI("Creating %d (%p) from sound: '%s'\n", bufferID, sound.frames, sound.name.c_str());
+    if(alGetError()!=AL_NO_ERROR) { alDeleteBuffers(1,&bufferID);return false; }
     errIdString = "Buffer data";
     //LOGI("Creating buffer with data: %d (%d), %p, %d, %d\n", format, sound.byteWidth, sound.frames, sound.size, sound.frameRate);
     checkError();

@@ -101,7 +101,7 @@ bool ClientSideNetworkHandler::isChunkLoaded(int x, int z)
 			{
                 const auto receipt = receivedChunks.find(std::make_pair(x, z));
                 return chunksLoaded[i] && level && level->hasChunkNow(x, z) &&
-                    receipt != receivedChunks.end() && level->getChunk(x, z) == receipt->second;
+                    receipt != receivedChunks.end() && level->getChunk(x, z)->residencyIdentity() == receipt->second;
             }
 	}
 	return false;
@@ -118,7 +118,10 @@ void ClientSideNetworkHandler::cancelJoin() {
     // Invalidate callbacks before closing the transport. A queued StartGame must
     // never install a world behind an error screen or after returning to menus.
     joinState.cancel();
-    if (minecraft->player) minecraft->player->nativeInventoryReady = false;
+    if (minecraft->player) {
+        minecraft->player->nativeInventoryReady = false;
+        minecraft->player->nativeTransactions.reset();
+    }
     raknetInstance->setIsLoggedIn(false);
     raknetInstance->disconnect();
 }
@@ -158,7 +161,10 @@ void ClientSideNetworkHandler::onDisconnect(const RakNet::RakNetGUID& guid)
 	// Otherwise mobs/drops become ghosts, AI starts on stale remote entities,
 	// and the cached world can be saved as though it were authoritative.
 	if (level) level->isClientSide = true;
-	if (minecraft->player) minecraft->player->nativeInventoryReady = false;
+	if (minecraft->player) {
+        minecraft->player->nativeInventoryReady = false;
+        minecraft->player->nativeTransactions.reset();
+    }
 #ifndef STANDALONE_SERVER
 	minecraft->setScreen(new DisconnectionScreen("Disconnected from TCPE server"));
 #endif
@@ -439,7 +445,7 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, TakeItem
 	// a stale/full inventory while the authoritative pickup is in flight.
 	// Older TCPE hosts do not send inventory snapshots; retain their legacy
 	// pickup behavior until a snapshot with native hotbar state identifies one.
-	if (!authoritativeInventory && minecraft->player &&
+	if (!authoritativeInventory && minecraft->player && !minecraft->player->nativeTransactionsEnabled() &&
 		minecraft->player->entityId == packet->playerId) {
 		minecraft->player->inventory->add(&item);
 		if (item.count > 0) {
@@ -656,7 +662,7 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, ChunkDat
  	}
 	chunk->unsaved = false;
 
-	receivedChunks[std::make_pair(packet->x, packet->z)] = chunk;
+	receivedChunks[std::make_pair(packet->x, packet->z)] = chunk->residencyIdentity();
     // Expand only after this server has delivered a verified compressed full
     // snapshot. Legacy servers retain the smaller raw-payload window.
     if (packet->fullSnapshot) chunkRequestWindow = MaxPendingChunkRequests;
@@ -714,14 +720,18 @@ private:
 };
 
 
-void ClientSideNetworkHandler::arrangeRequestChunkOrder() {
+void ClientSideNetworkHandler::pruneChunkReceipts() {
     // A receipt is valid only while that authoritative chunk remains resident.
     for (auto it = receivedChunks.begin(); it != receivedChunks.end();) {
         if (!level || !level->hasChunkNow(it->first.first, it->first.second) ||
-            level->getChunk(it->first.first, it->first.second) != it->second)
+            level->getChunk(it->first.first,it->first.second)->residencyIdentity() != it->second)
             it = receivedChunks.erase(it);
         else ++it;
     }
+}
+
+void ClientSideNetworkHandler::arrangeRequestChunkOrder() {
+    pruneChunkReceipts();
 	requestNextChunkIndex = 0;
 	requestNextChunkPosition = 0;
 
@@ -935,6 +945,7 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, HurtArmo
         return;
     }
 
+    if (minecraft->player->nativeTransactionsEnabled()) return;
     minecraft->player->hurtArmor(packet->dmg);
 }
 
@@ -979,6 +990,11 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, Containe
 	if (!minecraft || !minecraft->player)
 		return;
 
+    if (packet->containerId == 0 && packet->nativeState.present) {
+        if (joinState.active() && minecraft->player->nativeApplySnapshot(packet->items,packet->hotbar,packet->nativeState))authoritativeInventory=true;
+        return;
+    }
+    if (minecraft->player->nativeTransactionsEnabled()) return;
     if (packet->containerId == 0) {
         if (packet->items.size() > static_cast<unsigned int>(minecraft->player->inventory->getContainerSize() - Inventory::MAX_SELECTION_SIZE)) return;
         if (packet->hotbar.present) authoritativeInventory = true;
@@ -1005,6 +1021,7 @@ void ClientSideNetworkHandler::handle(const RakNet::RakNetGUID& source, Containe
         packet->slot < 0 || static_cast<unsigned int>(packet->slot) >= minecraft->player->containerMenu->getItems().size())
         return;
 
+    if (minecraft->player->nativeTransactionsEnabled()) return;
     minecraft->player->containerMenu->setSlot(packet->slot, &packet->item);
 }
 

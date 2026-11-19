@@ -4,6 +4,7 @@
 //package net.minecraft.client.player;
 
 #include "input/IMoveInput.h"
+#include "NativeInventoryClientState.h"
 #include "../User.h"
 #include "../../platform/input/Keyboard.h"
 #include "../../util/SmoothFloat.h"
@@ -28,6 +29,19 @@ public:
     void nativeInventoryRestored();
     bool nativeInventoryReady = false;
     std::string nativeInventoryState;
+    NativeInventoryClientState nativeTransactions;
+    bool nativeTransactionsEnabled() const;
+    bool nativeApplySnapshot(const std::vector<ItemInstance>& items, const NativeHotbarState& hotbar, const NativeInventorySnapshot& state);
+    bool nativeSubmitAction(NativeInventoryAction action, const NativeHotbarState* hotbar = NULL);
+    void nativeFlushHotbar();
+    void nativeStopUsingItem();
+    void completeUsingItem() override;
+    void nativeApplyPrediction();
+    int nativeBackingSlot(const ItemInstance* item) const;
+    bool nativeDropSlot(int slot, int count = -1, bool randomly = false);
+    bool nativeTransfer(int containerId, bool fromContainer, int slot, int destination, int count);
+    int nativeCraftX=0,nativeCraftY=0,nativeCraftZ=0;
+
     void move(float xa, float ya, float za);
 
     void aiStep();
@@ -109,6 +123,7 @@ private:
 	bool sprinting;
 	int  sprintDoubleTapTimer;
 	bool prevForwardHeld;
+    int nativeUseCompletionWaitTicks=0;
 };
 
 #endif /*NET_MINECRAFT_CLIENT_PLAYER__LocalPlayer_H__*/

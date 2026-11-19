@@ -21,6 +21,8 @@ We want to preserve what made early Pocket Edition special, fix what was broken,
 
 **Current release:** [v0.5.25.4](https://github.com/Trauncy209/TruancyCraftPE/releases/tag/v0.5.25.4) adds native player inventory, position and hotbar saves, while retaining the faster terrain streaming. Use the matching client and server.
 
+**Testing the next update:** [v0.5.25.5 — Stability Update prerelease](https://github.com/Trauncy209/TruancyCraftPE/releases/tag/v0.5.25.5) brings safer world saves and reopening, steadier native survival, and inventory, mob and chunk fixes. Use the matching prerelease client and server; wider device testing is still ongoing.
+
 Pick the build for your device:
 
 | Your device | Download |

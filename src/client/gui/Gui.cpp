@@ -264,6 +264,7 @@ void Gui::handleKeyPressed(int key)
 	else if (key == minecraft->options.keyDrop.key) 
 	{
 		if (minecraft->javaSession) minecraft->javaSession->connection.send(Keyboard::isKeyDown(17) ? "{\"type\":\"drop_selected\",\"all\":true}" : "{\"type\":\"drop_selected\",\"all\":false}");
+        else if(minecraft->player->nativeTransactionsEnabled()) minecraft->player->nativeDropSlot(minecraft->player->inventory->selected);
         else minecraft->player->inventory->dropSlot(minecraft->player->inventory->selected, false);
 	}
 }
@@ -518,7 +519,8 @@ void Gui::tickItemDrop()
 			}
 			isCurrentlyActive = true;
 			if ((_currentDropTicks += 1.0f) >= DropTicks) {
-				if (!minecraft->javaSession) minecraft->player->inventory->dropSlot(slot, false);
+				if (minecraft->player->nativeTransactionsEnabled()) minecraft->player->nativeDropSlot(slot);
+                else if (!minecraft->javaSession) minecraft->player->inventory->dropSlot(slot, false);
 				minecraft->level->playSound(minecraft->player, "random.pop", 0.3f, 1);
 				isCurrentlyActive = false;
 			}

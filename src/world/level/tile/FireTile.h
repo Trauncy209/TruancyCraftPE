@@ -39,9 +39,8 @@ public:
         setFlammable(Tile::tnt->id, FLAME_MEDIUM, BURN_INSTANT);
         setFlammable(Tile::cloth->id, FLAME_EASY, BURN_EASY);
 
-        // Disabled until fire rendering/mechanics are ported correctly for this fork.
-        // Old fire ticking makes bad atlas/geometry experiments very obvious and can grief worlds.
-        // setTicking(true);
+        // Simulation already schedules its own ticks in onPlace. Do not also
+        // random-tick fire; ambient particles/sounds run independently below.
     }
 
     AABB* getAABB(Level* level, int x, int y, int z) {
@@ -202,11 +201,18 @@ public:
     }
 
     void animateTick(Level* level, int x, int y, int z, Random* random) {
-		return; //@fire disabled until proper renderer pass
-
-        //if (random.nextInt(24) == 0) {
-        //    level->playSound(x + 0.5f, y + 0.5f, z + 0.5f, "fire.fire", 1 + random.nextFloat(), random.nextFloat() * 0.7f + 0.3f);
-        //}
+        if(!level || !random || level->isJavaServerLevel() || !level->hasChunkAtNow(x,y,z))return;
+        // Ambient effects must not create terrain at a streamed chunk seam.
+        // Finite-world borders are immutable empty space, not missing chunks.
+        const int dx[4]={-1,1,0,0},dz[4]={0,0,-1,1};
+        for(int side=0;side<4;++side) {
+            const int nx=x+dx[side],nz=z+dz[side];
+            if(level->getLevelData()->getGeneratorVersion()!=LGV_INFINITE && !level->inRange(nx,y,nz))continue;
+            if(!level->hasChunkAtNow(nx,y,nz))return;
+        }
+        if(level->getTile(x,y,z)!=id)return;
+        if(random->nextInt(24)==0)
+            level->playSound(x+.5f,y+.5f,z+.5f,"fire.fire",1.f+random->nextFloat(),random->nextFloat()*.7f+.3f);
 
         if (level->isSolidBlockingTile(x, y - 1, z) || Tile::fire->canBurn(level, x, y - 1, z)) {
             for (int i = 0; i < 3; i++) {

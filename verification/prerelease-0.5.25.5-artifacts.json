@@ -1,0 +1,77 @@
+{
+  "version": "0.5.25.5",
+  "prerelease": true,
+  "artifacts": [
+    {
+      "name": "TruancyCraftPE-0.5.25.5-Android-arm64-v8a.apk",
+      "path": "/home/truancy/Documents/Codex/2026-10-13/referenced-chatgpt-conversation-this-is-an/outputs/tcpe-java-native/release-0.5.25.5/TruancyCraftPE-0.5.25.5-Android-arm64-v8a.apk",
+      "sha256": "ff9365f62df08f9948cdeb4a7571f33b743c07268a45e256c56b1599f1079ee8",
+      "bytes": 399446588,
+      "version": "0.5.25.5",
+      "versionCode": 6014,
+      "abi": "arm64-v8a",
+      "app_id": "com.truancycraft.tcpe",
+      "release_signature_verified": true,
+      "apk_and_elf_16k_alignment_verified": true,
+      "resource_ids_unchanged": true,
+      "dex_unchanged": true,
+      "menu_version_macro_verified": true,
+      "source_manifest_sha256": "6d84f3f56b336d059199ed8fc6796ac8d1951396c3a5e9d9fa6dcbd97d8c1acc",
+      "current_game_src_matches_snapshot": true,
+      "rebuilt_units": [
+        "[arm64-v8a] Compile++      : minecraftpe <= SharedConstants.cpp",
+        "[arm64-v8a] Compile++      : minecraftpe <= StartMenuScreen.cpp",
+        "[arm64-v8a] Compile++      : minecraftpe <= TouchStartMenuScreen.cpp",
+        "[arm64-v8a] Compile++      : minecraftpe <= RakNetInstance.cpp",
+        "[arm64-v8a] Compile++      : minecraftpe <= Gui.cpp"
+      ],
+      "physical_device_tested": false,
+      "published": false
+    },
+    {
+      "name": "TruancyCraftPE-0.5.25.5-Android-armeabi-v7a.apk",
+      "path": "/home/truancy/Documents/Codex/2026-10-13/referenced-chatgpt-conversation-this-is-an/outputs/tcpe-java-native/release-0.5.25.5/TruancyCraftPE-0.5.25.5-Android-armeabi-v7a.apk",
+      "sha256": "67f32de5cec0ff531c3aef94fc3a9f6f030e8ae745c348ed9742a2ffe7a81796",
+      "bytes": 397414976,
+      "version": "0.5.25.5",
+      "versionCode": 6014,
+      "abi": "armeabi-v7a",
+      "app_id": "com.truancycraft.tcpe",
+      "release_signature_verified": true,
+      "apk_and_elf_16k_alignment_verified": true,
+      "resource_ids_unchanged": true,
+      "dex_unchanged": true,
+      "menu_version_macro_verified": true,
+      "source_manifest_sha256": "6d84f3f56b336d059199ed8fc6796ac8d1951396c3a5e9d9fa6dcbd97d8c1acc",
+      "current_game_src_matches_snapshot": true,
+      "rebuilt_units": [
+        "[armeabi-v7a] Compile++ thumb: minecraftpe <= SharedConstants.cpp",
+        "[armeabi-v7a] Compile++ thumb: minecraftpe <= StartMenuScreen.cpp",
+        "[armeabi-v7a] Compile++ thumb: minecraftpe <= TouchStartMenuScreen.cpp",
+        "[armeabi-v7a] Compile++ thumb: minecraftpe <= RakNetInstance.cpp",
+        "[armeabi-v7a] Compile++ thumb: minecraftpe <= Gui.cpp"
+      ],
+      "physical_device_tested": false,
+      "published": false
+    },
+    {
+      "name": "TruancyCraftPE-0.5.25.5-Linux-x86_64.tar.gz",
+      "version": "0.5.25.5",
+      "sha256": "ded5fdf1faab8bdcf74f5b48e303b40cab5d3a5a2519e4495b1cf9f3030a8a41",
+      "bytes": 570899113,
+      "signature": "TruancyCraftPE-0.5.25.5-Linux-x86_64.tar.gz.p7s",
+      "signature_sha256": "d6fcb7b6b0d08e14dcbc76179143620ec96eef857815d734ab51961f26c06157",
+      "release_signature_verified": true
+    },
+    {
+      "name": "TruancyCraftPE-Server-0.5.25.5-Linux-x86_64.tar.gz",
+      "version": "0.5.25.5",
+      "sha256": "9f212e4f50901c873f63729f60b708c43027e43db649b2ae636c17f070d521d2",
+      "bytes": 808101,
+      "signature": "TruancyCraftPE-Server-0.5.25.5-Linux-x86_64.tar.gz.p7s",
+      "signature_sha256": "cc7925d13a578829767a321c435e0c84230bcc11e7008d8803849bb71bdacf16",
+      "release_signature_verified": true
+    }
+  ],
+  "physical_android_tested": false
+}

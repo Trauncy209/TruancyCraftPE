@@ -1,4 +1,10 @@
 #include "ServerPlayer.h"
+#include "../raknet/GetTime.h"
+#include "../raknet/RakPeerInterface.h"
+#include "../network/packet/PlayerEquipmentPacket.h"
+#include "../network/packet/PlayerArmorEquipmentPacket.h"
+#include <atomic>
+#include "../world/level/Level.h"
 
 #include "../network/RakNetInstance.h"
 #include "../network/packet/ContainerOpenPacket.h"
@@ -29,6 +35,10 @@ ServerPlayer::ServerPlayer( Minecraft* minecraft, Level* level )
 {
     // Remote clients send MovePlayer; the handler relays it to other peers.
     // Generic Mob movement broadcasts include the owner and fight its input.
+    inventoryTransactionsSupported=!minecraft->isCreativeMode();
+    static std::atomic<uint32_t> nextNonce(1);
+    inventoryNonce = (uint64_t(RakNet::GetTimeUS()) << 16) ^ nextNonce.fetch_add(1);
+    if(!inventoryNonce)inventoryNonce=nextNonce.fetch_add(1);
     autoSendPosRot=false;
 	// Dedicated/LAN authority must retain picked-up items for player saves.
 	hasFakeInventory = false;
@@ -57,12 +67,23 @@ void ServerPlayer::aiStep() {
 void ServerPlayer::tick() {
 	super::tick();
 
-	if(!useItem.isNull())
-		useItemDuration--;
+	if(!useItem.isNull()) {
+        if(inventoryV1) {
+            ItemInstance* selected=inventory->getSelected();
+            if(!selected||selected->id!=useItem.id||selected->getAuxValue()!=useItem.getAuxValue()) {useItem.setNull();stopUsingItem();}
+            else useItem.count=selected->count;
+        }
+        if(!useItem.isNull()) {
+            --useItemDuration;
+            if(inventoryV1 && useItemDuration<=0)completeUsingItem();
+        }
+    }
 
 	//LOGI("Server:tick. Cmenu: %p\n", containerMenu);
 	if (containerMenu)
 		containerMenu->broadcastChanges();
+
+    if(inventoryV1 && inventoryFingerprint()!=lastInventoryFingerprint)sendInventory();
 
 	if (health != _sentHealth) {
 		_sentHealth = health;
@@ -86,18 +107,72 @@ void ServerPlayer::take( Entity* e, int orgCount ) {
 }
 
 void ServerPlayer::sendInventory() {
+    // Exhausted stacks must become actual empty backing slots, not invisible
+    // zero-count items that permanently occupy an inventory position.
+    for(int i=Inventory::MAX_SELECTION_SIZE;i<inventory->getContainerSize();++i) {
+        ItemInstance* item=inventory->getItem(i);
+        if(item&&item->count<=0){ItemInstance empty;inventory->setItem(i,&empty);}
+    }
 	std::vector<ItemInstance> items;
 	for (int i = Inventory::MAX_SELECTION_SIZE; i < inventory->getContainerSize(); ++i)
 		items.push_back(ItemInstance::cloneSafe(inventory->getItem(i)));
 	ContainerSetContentPacket packet(0, items);
 	packet.hotbar.capture(inventory);
+    packet.nativeState.present=inventoryTransactionsSupported;
+    packet.nativeState.nonce=inventoryNonce;
+    packet.nativeState.revision=++inventoryRevision;
+    packet.nativeState.acknowledged=inventoryAcknowledged;
+    packet.nativeState.status=inventoryStatus;
+    for(int i=0;i<4;++i)packet.nativeState.armor[i]=ItemInstance::cloneSafe(getArmor(i));
+    if(containerMenu){packet.nativeState.containerId=containerMenu->containerId;packet.nativeState.containerItems=containerMenu->getItems();}
+    lastInventoryFingerprint=inventoryFingerprint();
 	_mc->raknetInstance->send(owner, packet);
+    if(inventoryV1) {
+        // Other players still receive the legacy visual equipment packets.
+        ItemInstance* selected=inventory->getSelected();
+        PlayerEquipmentPacket held(entityId,selected?selected->id:0,selected?selected->getAuxValue():0);
+        PlayerArmorEquipmentPacket armor(this);
+        RakNet::BitStream signature;held.write(&signature);armor.write(&signature);
+        std::string state((const char*)signature.GetData(),signature.GetNumberOfBytesUsed());
+        if(state!=lastVisualFingerprint) {
+            lastVisualFingerprint=state;
+            for(Packet* visual:{static_cast<Packet*>(&held),static_cast<Packet*>(&armor)}) {
+                RakNet::BitStream wire;visual->write(&wire);
+                _mc->raknetInstance->getPeer()->Send(&wire,visual->priority,visual->reliability,0,owner,true);
+            }
+        }
+    }
 }
+
+std::string ServerPlayer::inventoryFingerprint() {
+    RakNet::BitStream wire;
+    for(int i=Inventory::MAX_SELECTION_SIZE;i<inventory->getContainerSize();++i)PacketUtil::writeItemInstance(ItemInstance::cloneSafe(inventory->getItem(i)),&wire);
+    NativeHotbarState hotbar;hotbar.capture(inventory);hotbar.write(&wire);
+    for(int i=0;i<4;++i)PacketUtil::writeItemInstance(ItemInstance::cloneSafe(getArmor(i)),&wire);
+    wire.Write(containerMenu?containerMenu->containerId:-1);
+    if(containerMenu)for(const ItemInstance& item:containerMenu->getItems())PacketUtil::writeItemInstance(item,&wire);
+    return std::string((const char*)wire.GetData(),wire.GetNumberOfBytesUsed());
+}
+void ServerPlayer::die(Entity* source) {
+    super::die(source);
+    finishNativeDeath();
+}
+void ServerPlayer::finishNativeDeath() {
+    if(inventoryV1&&!inventoryDeathDropped) {
+        inventoryDeathDropped=true;
+        if(!level->getLevelData()->getKeepInventory()) {
+            inventory->dropAll(false);
+            for(int i=0;i<4;++i){ItemInstance item=ItemInstance::cloneSafe(getArmor(i));if(item.count>0)drop(new ItemInstance(item),true);setArmor(i,NULL);}
+        }
+        sendInventory();
+    }
+}
+void ServerPlayer::reset() {super::reset();inventoryDeathDropped=false;}
 
 void ServerPlayer::hurtArmor(int dmg) {
     super::hurtArmor(dmg);
-    HurtArmorPacket packet(dmg);
-    _mc->raknetInstance->send(owner, packet);
+    if(inventoryV1)sendInventory();
+    else {HurtArmorPacket packet(dmg);_mc->raknetInstance->send(owner, packet);}
 }
 
 void ServerPlayer::openContainer( ChestTileEntity* container) {
@@ -131,7 +206,7 @@ void ServerPlayer::doCloseContainer() {
 }
 
 bool ServerPlayer::hasResource( int id ) {
-	return true;
+    return inventoryV1?super::hasResource(id):true;
 }
 
 //
@@ -175,10 +250,33 @@ void ServerPlayer::setContainerMenu( BaseContainerMenu* menu ) {
 	}
 }
 
+void ServerPlayer::releaseNativeUsingItem() {
+    ItemInstance* selected=inventory->getSelected();
+    if(useItem.isNull()||!selected||selected->id!=useItem.id||selected->getAuxValue()!=useItem.getAuxValue()||
+       (useItem.getItem()->getUseAnimation()==UseAnim::bow&&!abilities.instabuild&&!inventory->hasResource(Item::arrow->id))) {
+        useItem.setNull();stopUsingItem();sendInventory();return;
+    }
+    useItem.count=selected->count;
+    useItem.releaseUsing(level,this,useItemDuration);
+    *selected=useItem;
+    if(selected->count<=0)inventory->clearSlot(inventory->selected);
+    useItem.setNull();stopUsingItem();sendInventory();
+}
+
 void ServerPlayer::completeUsingItem() {
+    if(inventoryV1) {
+        ItemInstance* selected=inventory->getSelected();
+        if(!selected||selected->id!=useItem.id||selected->getAuxValue()!=useItem.getAuxValue()) {useItem.setNull();stopUsingItem();return;}
+        useItem.count=selected->count;
+    }
 	EntityEventPacket p(entityId, EntityEvent::USE_ITEM_COMPLETE);
-	_mc->raknetInstance->send(owner, p);
+    if(!inventoryV1)_mc->raknetInstance->send(owner, p);
 	super::completeUsingItem();
+    if(inventoryV1) {
+        // Negotiated clients handle this as visual-only completion.
+        _mc->raknetInstance->send(owner,p);
+        sendInventory();
+    }
 }
 
 void ServerPlayer::displayClientMessage( const std::string& messageId ) {

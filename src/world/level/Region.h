@@ -14,6 +14,11 @@ class Region: public LevelSource
 public:
     Region(Level* level, int x1, int y1, int z1, int x2, int y2, int z2);
 	~Region();
+    Region(const Region&)=delete;
+    Region& operator=(const Region&)=delete;
+    Region(Region&& other) noexcept;
+    Region& operator=(Region&& other) noexcept;
+
 
 	bool isSolidRenderTile(int x, int y, int z);
     bool isSolidBlockingTile(int x, int y, int z);
@@ -30,6 +35,7 @@ public:
 	Biome* getBiome(int x, int z);
 	LevelData* getLevelData();
 private:
+    void releaseViews();
     int xc1, zc1;
     LevelChunk*** chunks;
     Level* level;

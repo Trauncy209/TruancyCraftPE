@@ -31,9 +31,11 @@ void ItemRenderer::teardown_static() {
 }
 
 void ItemRenderer::render(Entity* itemEntity_, float x, float y, float z, float rot, float a) {
+    if(!itemEntity_)return;
 	ItemEntity* itemEntity = (ItemEntity*) itemEntity_;
-	random.setSeed(187);
 	ItemInstance* item = &itemEntity->item;
+    if(item->count<=0 || item->id<=0 || item->id>=Item::MAX_ITEMS || !item->getItem())return;
+	random.setSeed(187);
 
 	glPushMatrix2();
 	float bob = Mth::sin((itemEntity->age + a) / 10.0f + itemEntity->bobOffs) * 0.1f + 0.1f;
@@ -46,7 +48,7 @@ void ItemRenderer::render(Entity* itemEntity_, float x, float y, float z, float 
 
 	glTranslatef2((float) x, (float) y + bob, (float) z);
 	//glEnable2(GL_RESCALE_NORMAL);
-	if (item->id < 256 && TileRenderer::canRender(Tile::tiles[item->id]->getRenderShape())) {
+	if (item->id > 0 && item->id < Tile::NUM_BLOCK_TYPES && Tile::tiles[item->id] && TileRenderer::canRender(Tile::tiles[item->id]->getRenderShape())) {
 		glRotatef2(spin, 0, 1, 0);
 
 		float br = itemEntity->getBrightness(a);
@@ -140,6 +142,7 @@ static const signed short _mapper[] = {-1, 7, 9, 8, 0, 5, -2, -1, -1, -1, -1, -1
 #define IRMAPCASE(x) case x: return  _##x [item->getAuxValue() & 15]
 
 int ItemRenderer::getAtlasPos(const ItemInstance* item) {
+    if(!item)return -1;
 	int id = item->id;
 	if (id < 0 || id >= sizeof(_mapper) / sizeof(const signed short))
 		return -1;
@@ -262,11 +265,11 @@ void ItemRenderer::fillRect(Tesselator& t, float x, float y, float w, float h, i
 
 
 void ItemRenderer::renderGuiItemCorrect(Font* font, Textures* textures, const ItemInstance* item, int x, int y) {
-	if (item == NULL)
+	if (item == NULL || item->id<=0 || item->id>=Item::MAX_ITEMS || !item->getItem())
 		return;
 
 	//glDisable(GL_CULL_FACE);
-	if (item->id < 256 && TileRenderer::canRender(Tile::tiles[item->id]->getRenderShape()))
+	if (item->id > 0 && item->id < Tile::NUM_BLOCK_TYPES && Tile::tiles[item->id] && TileRenderer::canRender(Tile::tiles[item->id]->getRenderShape()))
 	{
 		int paint = item->id;
 		textures->loadAndBindTexture("terrain.png");

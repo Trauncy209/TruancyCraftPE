@@ -193,6 +193,9 @@ void PaneCraftingScreen::setupPositions() {
 }
 
 void PaneCraftingScreen::tick() {
+    if(minecraft->player && minecraft->player->nativeTransactionsEnabled() && nativeInventoryView!=minecraft->player->nativeTransactions.viewRevision) {
+        nativeInventoryView=minecraft->player->nativeTransactions.viewRevision;recheckRecipes();
+    }
 	if (pane) pane->tick();
 }
 
@@ -436,6 +439,16 @@ void PaneCraftingScreen::craftSelectedItem()
     if (!currentItem->canCraft())
         return;
 
+    if (minecraft->player && minecraft->player->nativeTransactionsEnabled()) {
+        const auto& recipes=Recipes::getInstance()->getRecipes();
+        const auto selected=std::find(recipes.begin(),recipes.end(),currentItem->recipe);
+        if(selected==recipes.end())return;
+        NativeInventoryAction action;action.type=NativeInventoryAction::Craft;action.recipe=selected-recipes.begin();
+        action.expectedId=currentItem->item.id;action.expectedAux=currentItem->item.getAuxValue();
+        action.flags=craftingSize==Recipe::SIZE_3X3?1:0;
+        action.x=minecraft->player->nativeCraftX;action.y=minecraft->player->nativeCraftY;action.z=minecraft->player->nativeCraftZ;
+        minecraft->player->nativeSubmitAction(action);recheckRecipes();return;
+    }
 	ItemInstance resultItem = currentItem->item;
 
 	if (minecraft->player) {

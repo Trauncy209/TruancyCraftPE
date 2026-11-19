@@ -1,3 +1,5 @@
+#include "SavedEntityTransform.h"
+#include <cmath>
 #include "Entity.h"
 #include "EntityPos.h"
 #include "../level/Level.h"
@@ -851,6 +853,8 @@ void Entity::saveWithoutId(CompoundTag* entityTag) {
 
 bool Entity::load( CompoundTag* tag )
 {
+    if (!SavedEntityTransform::valid(tag, Level::MAX_LEVEL_SIZE)) return false;
+
     ListTag* pos = tag->getList("Pos");
     ListTag* motion = tag->getList("Motion");
     ListTag* rotation = tag->getList("Rotation");

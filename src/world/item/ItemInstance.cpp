@@ -261,14 +261,22 @@ bool ItemInstance::operator==( const ItemInstance& rhs ) const {
 		&& count    == rhs.count;
 }
 
+bool ItemInstance::isValidSavedStack() const {
+    // 255 is a serialized hotbar-link marker. Keep older real stacks up to
+    // the native inventory limit (254), instead of losing valid saved loot.
+    Item* definition=getItem();
+    if(!definition || count<=0 || count>254 || auxValue<0)return false;
+    if(id<Tile::NUM_BLOCK_TYPES && (!Tile::tiles[id] || auxValue>15))return false;
+    if(definition->getMaxDamage()>0 && auxValue>definition->getMaxDamage())return false;
+    return true;
+}
+
 ItemInstance* ItemInstance::fromTag( CompoundTag* tag ) {
-	ItemInstance* item = new ItemInstance();
-	item->load(tag);
-	if (item->getItem() == NULL) {
-		delete item;
-		item = NULL;
-	}
-	return item;
+    if(!tag || !tag->contains("id",Tag::TAG_Short) || !tag->contains("Count",Tag::TAG_Byte) ||
+       (tag->contains("Damage") && !tag->contains("Damage",Tag::TAG_Short)))return NULL;
+    ItemInstance* item=new ItemInstance();item->load(tag);
+    if(!item->isValidSavedStack()) { delete item;return NULL; }
+    return item;
 }
 
 Item* ItemInstance::getItem() const {

@@ -194,6 +194,9 @@ void ChestScreen::setupPositions() {
 }
 
 void ChestScreen::tick() {
+    if(minecraft->player->nativeTransactionsEnabled() && nativeInventoryView!=minecraft->player->nativeTransactions.viewRevision) {
+        nativeInventoryView=minecraft->player->nativeTransactions.viewRevision;doRecreatePane=true;
+    }
 	if (inventoryPane)
 		inventoryPane->tick();
 
@@ -320,6 +323,11 @@ bool ChestScreen::handleAddItem(FillingContainer* from, FillingContainer* to, in
 		wantedCount = 1;
 	}
 
+    if(minecraft->player->nativeTransactionsEnabled()) {
+        if(wantedCount<=0)return false;
+        const bool submitted=minecraft->player->nativeTransfer(menu->containerId,fromChest,slotIndex,-1,wantedCount);
+        doRecreatePane=true;return submitted;
+    }
 	if (wantedCount > 0) {
 		ItemInstance takenItem(*item);
 		takenItem.count = wantedCount;

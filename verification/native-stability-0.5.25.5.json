@@ -1,0 +1,229 @@
+{
+  "version": "0.5.25.5",
+  "status": "prerelease candidate",
+  "normal_linux_tests": [
+    {
+      "test": "native_biome_query_capacity",
+      "result": "PASS",
+      "log": "work/stability-native_biome_query_capacity.log"
+    },
+    {
+      "test": "native_authority_residency",
+      "result": "PASS",
+      "log": "work/stability-native_authority_residency.log"
+    },
+    {
+      "test": "native_empty_held_item",
+      "result": "PASS",
+      "log": "work/stability-native_empty_held_item.log"
+    },
+    {
+      "test": "native_item_dispatch",
+      "result": "PASS",
+      "log": "work/stability-native_item_dispatch.log"
+    },
+    {
+      "test": "native_mob_combat",
+      "result": "PASS",
+      "log": "work/stability-native_mob_combat.log"
+    },
+    {
+      "test": "native_disconnect_authority",
+      "result": "PASS",
+      "log": "work/stability-native_disconnect_authority.log"
+    },
+    {
+      "test": "native_start_game_generator",
+      "result": "PASS",
+      "log": "work/stability-native_start_game_generator.log"
+    },
+    {
+      "test": "native_chunk_request_window",
+      "result": "PASS",
+      "log": "work/stability-native_chunk_request_window.log"
+    },
+    {
+      "test": "native_partial_chunk_input",
+      "result": "PASS",
+      "log": "work/stability-native_partial_chunk_input.log"
+    },
+    {
+      "test": "native_progress_timeout",
+      "result": "PASS",
+      "log": "work/stability-native_progress_timeout.log"
+    },
+    {
+      "test": "native_client_hotbar_restore",
+      "result": "PASS",
+      "log": "work/stability-native_client_hotbar_restore.log"
+    },
+    {
+      "test": "native_hotbar_persistence",
+      "result": "PASS",
+      "log": "work/stability-native_hotbar_persistence.log"
+    },
+    {
+      "test": "native_inventory_client_queue",
+      "result": "PASS",
+      "log": "work/stability-native_inventory_client_queue.log"
+    },
+    {
+      "test": "native_inventory_transactions_integration",
+      "result": "PASS",
+      "log": "work/stability-native_inventory_transactions_integration.log"
+    },
+    {
+      "test": "native_inventory_feedback",
+      "result": "PASS",
+      "log": "work/stability-native_inventory_feedback.log"
+    },
+    {
+      "test": "native_nbt_arrays",
+      "result": "PASS",
+      "log": "work/stability-native_nbt_arrays.log"
+    },
+    {
+      "test": "native_region_recovery",
+      "result": "PASS",
+      "log": "work/stability-native_region_recovery.log"
+    },
+    {
+      "test": "native_save_retry",
+      "result": "PASS",
+      "log": "work/stability-native_save_retry.log"
+    },
+    {
+      "test": "native_saved_items",
+      "result": "PASS",
+      "log": "work/stability-native_saved_items.log"
+    },
+    {
+      "test": "native_chunk_lifetime",
+      "result": "PASS",
+      "log": "work/stability-native_chunk_lifetime.log"
+    },
+    {
+      "test": "native_chunk_memory_audit",
+      "result": "PASS",
+      "log": "work/stability-native_chunk_memory_audit.log"
+    },
+    {
+      "test": "weather_state",
+      "result": "PASS",
+      "log": "work/stability-weather_state.log"
+    },
+    {
+      "test": "weather_storage_packet",
+      "result": "PASS",
+      "log": "work/stability-weather_storage_packet.log"
+    },
+    {
+      "test": "weather_lightning_packet",
+      "result": "PASS",
+      "log": "work/stability-weather_lightning_packet.log"
+    },
+    {
+      "test": "weather_fire_rain",
+      "result": "PASS",
+      "log": "work/stability-weather_fire_rain.log"
+    },
+    {
+      "test": "weather_client_source",
+      "result": "PASS",
+      "log": "work/stability-weather_client_source.log"
+    },
+    {
+      "test": "weather_local_command",
+      "result": "PASS",
+      "log": "work/stability-weather_local_command.log"
+    },
+    {
+      "test": "native_save_recovery",
+      "result": "PASS",
+      "log": "work/stability-native_save_recovery.log"
+    },
+    {
+      "test": "native_singleplayer_hotbar",
+      "result": "PASS",
+      "log": "work/stability-native_singleplayer_hotbar.log"
+    },
+    {
+      "test": "native_singleplayer_reload_stress",
+      "result": "PASS",
+      "log": "work/stability-native_singleplayer_reload_stress.log"
+    },
+    {
+      "test": "offline_large_trees",
+      "result": "PASS",
+      "log": "work/stability-offline_large_trees.log"
+    },
+    {
+      "test": "natural_tree_variants",
+      "result": "PASS",
+      "log": "work/stability-natural_tree_variants.log"
+    },
+    {
+      "test": "weather_bed_saved",
+      "result": "PASS",
+      "log": "work/stability-weather_bed_saved.log"
+    },
+    {
+      "test": "weather_bed_sleep",
+      "result": "PASS",
+      "log": "work/stability-weather_bed_sleep.log"
+    },
+    {
+      "test": "weather_precipitation_policy",
+      "result": "PASS",
+      "log": "work/stability-weather_precipitation_policy.log"
+    },
+    {
+      "test": "weather_precipitation_cache",
+      "result": "PASS",
+      "log": "work/stability-weather_precipitation_cache.log"
+    },
+    {
+      "test": "weather_celestial_policy",
+      "result": "PASS",
+      "log": "work/stability-weather_celestial_policy.log"
+    },
+    {
+      "test": "weather_impact_policy",
+      "result": "PASS",
+      "log": "work/stability-weather_impact_policy.log"
+    },
+    {
+      "test": "weather_ecology",
+      "result": "PASS",
+      "log": "work/stability-weather_ecology.log"
+    },
+    {
+      "test": "weather_ecology_world",
+      "result": "PASS",
+      "log": "work/stability-weather_ecology_world.log"
+    },
+    {
+      "test": "weather_lightning",
+      "result": "PASS",
+      "log": "work/stability-weather_lightning.log"
+    },
+    {
+      "test": "weather_lightning_world",
+      "result": "PASS",
+      "log": "work/stability-weather_lightning_world.log"
+    }
+  ],
+  "asan_logs": {
+    "native-biome-asan-audit.log": "f918c056b8c385e683b3e664c8e185a5c372e86af83c03209e1ae1ee90c84f8e",
+    "native-authority-residency-asan-reviewed.log": "68dd95a3fb2a03d74bfb0a570e7f3d33c7f791cb8f9cd0b138ace944893f3616",
+    "native-authority-bounded-asan-reviewed.log": "3b201e47c611e6b0d31ed3ca681b380e98cd90fc295791ceb904b49546b5ea01",
+    "native-reload-asan-audit.log": "d38c4bf8cd0341bb6d2ac5cb90f0513bb7acad7cfa412901108fffc7bbe5bbfa",
+    "native-safety-asan-audit.log": "332526094d0a062307d018e045baf6f54afce13efcefb2f11c62acf088ce7e92"
+  },
+  "physical_android_tested": false,
+  "limitations": [
+    "ASAN leak detection disabled; separate ownership/memory tests used.",
+    "No claim that every crash or gameplay bug is fixed.",
+    "Persistent storage failure retains unsaved chunks and can exceed the normal cache budget."
+  ]
+}

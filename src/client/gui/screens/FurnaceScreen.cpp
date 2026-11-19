@@ -180,6 +180,9 @@ void FurnaceScreen::setupPositions() {
 }
 
 void FurnaceScreen::tick() {
+    if(minecraft->player->nativeTransactionsEnabled() && nativeInventoryView!=minecraft->player->nativeTransactions.viewRevision) {
+        nativeInventoryView=minecraft->player->nativeTransactions.viewRevision;doRecreatePane=true;
+    }
 	if (inventoryPane)
 		inventoryPane->tick();
 
@@ -506,6 +509,11 @@ ItemInstance FurnaceScreen::moveOver(const ItemInstance* item, int maxCount) {
 
 void FurnaceScreen::takeAndClearSlot( int slot )
 {
+    if(minecraft->player->nativeTransactionsEnabled()) {
+        ItemInstance* item=furnace->getItem(slot);
+        if(!item || item->count<=0)return;
+        minecraft->player->nativeTransfer(menu->containerId,true,slot,-1,item->count);doRecreatePane=true;return;
+    }
 	//if (selectedSlot == btnBurn.id && !furnace->isSlotEmpty(btnBurn.id))
 	ItemInstance oldItem = *furnace->getItem(slot);
 	ItemInstance blank;
@@ -532,6 +540,15 @@ void FurnaceScreen::takeAndClearSlot( int slot )
 
 bool FurnaceScreen::handleAddItem( int slot, const ItemInstance* item )
 {
+    if(minecraft->player->nativeTransactionsEnabled()) {
+        if(!item || item->count<=0)return false;
+        int wanted=item->count*percent/100;if(!wanted || heldMs<MinChargeMs)wanted=1;
+        ItemInstance* existing=furnace->getItem(slot);
+        wanted=Mth::Min(wanted,item->getMaxStackSize()-(existing?existing->count:0));
+        if(wanted<=0)return false;
+        const bool submitted=minecraft->player->nativeTransfer(menu->containerId,false,minecraft->player->nativeBackingSlot(item),slot,wanted);
+        doRecreatePane=true;return submitted;
+    }
 	ItemInstance* furnaceItem = furnace->getItem(slot);
 	int oldSize = minecraft->player->inventory->getNumEmptySlots();
 

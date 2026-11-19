@@ -30,6 +30,7 @@
 #endif
 
 #include "../network/RakNetInstance.h"
+#include "../world/level/chunk/ChunkCollectionGate.h"
 #include "../network/ClientSideNetworkHandler.h"
 #include "../network/ServerSideNetworkHandler.h"
 //#include "../network/Packet.h"
@@ -586,6 +587,14 @@ void Minecraft::update() {
 		PerfTimer::enabled = false;
 	}
 #endif
+    // No renderer/pathfinder/packet stack retains chunk views here. The
+    // generation worker must be joined, not merely report its atomic flag.
+    if(level&&NativeChunkLifetime::mayCollectAtFrameEnd(isGeneratingLevel,generateLevelThread!=NULL,_hasSignaledGeneratingLevelFinished)) {
+#ifndef STANDALONE_SERVER
+        if(auto* client=dynamic_cast<ClientSideNetworkHandler*>(netCallback))client->pruneChunkReceipts();
+#endif
+        level->collectRetiredChunks();
+    }
 	//LOGI("Exit Update\n");
 }
 
@@ -935,7 +944,7 @@ void Minecraft::tickInput() {
 				if (key == Keyboard::KEY_O) {
 					for (int i = Inventory::MAX_SELECTION_SIZE; i < player->inventory->getContainerSize(); ++i)
 						if (player->inventory->getItem(i))
-							player->inventory->dropSlot(i, false);
+							{ if(player->nativeTransactionsEnabled())player->nativeDropSlot(i);else player->inventory->dropSlot(i,false); }
 				}
 				if (key == Keyboard::KEY_F3) {
 					options.renderDebug = !options.renderDebug;
@@ -1055,6 +1064,7 @@ void Minecraft::tickInput() {
 
 void Minecraft::handleBuildAction(BuildActionIntention* action) {
 #ifndef STANDALONE_SERVER
+    if(player && player->nativeTransactionsEnabled())player->nativeFlushHotbar();
     // Java piercing weapons jab along the server's authoritative ray, including
     // empty air. They use STAB rather than a legacy single-entity attack packet.
     if(javaSession && javaSession->attackPiercing && action->isAttack()) {

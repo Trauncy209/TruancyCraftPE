@@ -86,6 +86,7 @@ private:
 	CraftButton btnCraft;
 
 	int craftingSize;
+    unsigned long long nativeInventoryView=0;
 
 	ItemPane* pane;
 	IntRectangle paneRect;

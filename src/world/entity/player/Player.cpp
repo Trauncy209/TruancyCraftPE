@@ -571,6 +571,17 @@ void Player::readAdditionalSaveData(CompoundTag* entityTag) {
 	if (entityTag->contains("Inventory", Tag::TAG_List)) {
 		ListTag* inventoryList = entityTag->getList("Inventory");
 		inventory->load(inventoryList);
+        // Legacy inventory loading compacts selection links. New local saves
+        // preserve the exact hotbar, including intentional gaps.
+        for (int i=0;i<Inventory::MAX_SELECTION_SIZE;++i) {
+            const std::string key="NativeHotbarSlot"+std::to_string(i);
+            if (!entityTag->contains(key,Tag::TAG_Int)) continue;
+            const int slot=entityTag->getInt(key);
+            if (slot==-1 || (slot>=Inventory::MAX_SELECTION_SIZE && slot<inventory->getContainerSize()))
+                inventory->linkedSlots[i].inventorySlot=slot;
+        }
+        if (entityTag->contains("NativeSelectedSlot",Tag::TAG_Int))
+            inventory->selectSlot(entityTag->getInt("NativeSelectedSlot"));
 	}
 	if (entityTag->contains("Armor", Tag::TAG_List)) {
 		loadArmor(armor, entityTag->getList("Armor"));
@@ -610,6 +621,9 @@ void Player::addAdditonalSaveData(CompoundTag* entityTag) {
 	ListTag* inventoryTag = inventory->save(new ListTag());
  //   if (inventoryTag->size() > 0)
 		entityTag->put("Inventory", inventoryTag);
+    entityTag->putInt("NativeSelectedSlot",inventory->selected);
+    for (int i=0;i<Inventory::MAX_SELECTION_SIZE;++i)
+        entityTag->putInt("NativeHotbarSlot"+std::to_string(i),inventory->linkedSlots[i].inventorySlot);
 	//else
 	//	delete inventoryTag;
 
@@ -860,6 +874,7 @@ static ListTag* saveArmor(ItemInstance* armor) {
 }
 
 static void loadArmor(ItemInstance* armor, ListTag* listTag) {
+    for(int i=0;i<4;++i)armor[i].setNull();
 	if (!listTag)
 		return;
 
@@ -868,7 +883,11 @@ static void loadArmor(ItemInstance* armor, ListTag* listTag) {
 		Tag* tag = listTag->get(i);
 		if (tag->getId() != Tag::TAG_Compound) continue;
 
-		armor[i].load((CompoundTag*) tag);
+        ItemInstance* loaded=ItemInstance::fromTag((CompoundTag*)tag);
+        if(loaded && loaded->count==1 && ItemInstance::isArmorItem(loaded) &&
+           static_cast<ArmorItem*>(loaded->getItem())->slot==i)armor[i]=*loaded;
+        else armor[i].setNull();
+        delete loaded;
 	}
 }
 

@@ -3,7 +3,9 @@
 #include <limits>
 #include <iostream>
 // Isolated codec test: production Packet.cpp also contains every other factory.
+#ifndef TCPE_TEST_FULL_CLIENT_LINK
 Packet::Packet():priority(HIGH_PRIORITY),reliability(RELIABLE){}
+#endif
 static WeatherLightningPacket roundTrip(WeatherLightning bolt,unsigned char phase) {
     WeatherLightningPacket out(bolt,phase),in;RakNet::BitStream wire;out.write(&wire);
     unsigned char id=0;assert(wire.Read(id));assert(id==ID_USER_PACKET_ENUM+PACKET_WEATHER_LIGHTNING);

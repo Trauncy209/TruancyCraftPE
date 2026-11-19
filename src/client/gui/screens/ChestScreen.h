@@ -56,6 +56,7 @@ private:
 	std::vector<const ItemInstance*> inventoryItems;
 	std::vector<const ItemInstance*> chestItems;
 	bool doRecreatePane;
+    unsigned long long nativeInventoryView=0;
 
 	int selectedSlot;
 

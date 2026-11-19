@@ -57,6 +57,7 @@ public:
 	static void saveLevelData(const std::string& directory, LevelData& levelData, std::vector<Player*>* players);
 
     int savePendingUnsavedChunks(int maxCount);
+    bool hasPendingChunk(const LevelChunk* chunk) const;
 
 	//
 	// ChunkStorage methods

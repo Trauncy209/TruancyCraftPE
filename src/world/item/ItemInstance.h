@@ -98,6 +98,7 @@ public:
 	CompoundTag* save(CompoundTag* compoundTag);
 	void load(CompoundTag* compoundTag);
 	static ItemInstance* fromTag( CompoundTag* tag );
+    bool isValidSavedStack() const;
 	void releaseUsing( Level* level, Player* player, int durationLeft );
 	int getUseDuration();
 	UseAnim::UseAnimation getUseAnimation() const;

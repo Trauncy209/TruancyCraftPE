@@ -78,7 +78,8 @@ void ChestTileEntity::load( CompoundTag* base )
 {
 	super::load(base);
 
-	if (!base->contains("Items"))//, Tag::TAG_List)
+	clearInventory();
+	if (!base->contains("Items",Tag::TAG_List))
 		return;
 
 	ListTag* inventoryList = base->getList("Items");
@@ -88,10 +89,12 @@ void ChestTileEntity::load( CompoundTag* base )
 			continue;
 
 		CompoundTag* tag = (CompoundTag*) ttag;
+        if(!tag->contains("Slot",Tag::TAG_Byte))continue;
 		int slot = tag->getByte("Slot") & 0xff;
 		if (slot >= 0 && slot < ItemsSize) {
-			if (!items[slot]) items[slot] = new ItemInstance(); //@chestodo
-			items[slot]->load(tag);
+            if(ItemInstance* loaded=ItemInstance::fromTag(tag)) {
+                delete items[slot];items[slot]=loaded;
+            }
 		}
 	}
 }

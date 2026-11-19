@@ -55,6 +55,9 @@ void SurvivalMode::continueDestroyBlock( int x, int y, int z, int face ) {
 }
 
 bool SurvivalMode::destroyBlock( int x, int y, int z, int face ) {
+#ifndef STANDALONE_SERVER
+    if(minecraft->player->nativeTransactionsEnabled())return GameMode::destroyBlock(x,y,z,face);
+#endif
 	int t = minecraft->level->getTile(x, y, z);
 	int data = minecraft->level->getData(x, y, z);
 	bool changed = GameMode::destroyBlock(x, y, z, face);

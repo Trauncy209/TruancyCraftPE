@@ -21,10 +21,73 @@
 #include "../LevelConstants.h"
 #include "../tile/TreeTile.h"
 #include "../../entity/EntityFactory.h"
+#include "../../entity/SavedEntityTransform.h"
 #include "../../../nbt/NbtIo.h"
+#include "../../../nbt/NativeNbtValidation.h"
 #include "../../../util/RakDataIO.h"
 #include "../../../raknet/GetTime.h"
 #include "../tile/entity/TileEntity.h"
+
+namespace {
+const size_t MaxNativeNbtBytes = 64u * 1024u * 1024u;
+bool durableNativeFile(const std::string& path, const unsigned char* bytes, size_t size) {
+    FILE* fp = fopen(path.c_str(), "wb");
+    if (!fp) return false;
+    bool ok = fwrite(bytes, 1, size, fp) == size;
+    if (fflush(fp)) ok = false;
+#ifndef _WIN32
+    if (ok && fsync(fileno(fp))) ok = false;
+#endif
+    if (fclose(fp)) ok = false;
+    return ok;
+}
+void syncNativeDirectory(const std::string& path) {
+#ifndef _WIN32
+    int fd = open(path.c_str(), O_RDONLY | O_DIRECTORY);
+    if (fd >= 0) { fsync(fd); close(fd); }
+#endif
+}
+bool readNativeEntityBytes(const std::string& path, std::vector<unsigned char>& bytes) {
+    bytes.clear();
+    FILE* fp = fopen(path.c_str(), "rb");
+    if (!fp) return false;
+    unsigned char header[12] = {};
+    int version = 0, size = 0;
+    bool ok = fread(header, 1, sizeof(header), fp) == sizeof(header);
+    memcpy(&version, header + 4, 4); memcpy(&size, header + 8, 4);
+    ok = ok && memcmp(header, "ENT\0", 4) == 0 && version == 1 && size > 0 &&
+        size_t(size) <= MaxNativeNbtBytes && size <= getRemainingFileSize(fp);
+    if (ok) {
+        bytes.assign(header, header + sizeof(header)); bytes.resize(12 + size_t(size));
+        ok = fread(bytes.data() + 12, 1, size, fp) == size_t(size) &&
+            NativeNbtValidation::compound(bytes.data() + 12, size_t(size));
+    }
+    fclose(fp);
+    if (!ok) bytes.clear();
+    return ok;
+}
+bool writeNativeEntityBytes(const std::string& directory, const std::vector<unsigned char>& bytes) {
+    const std::string path = directory + "/entities.dat";
+    if (!durableNativeFile(path + "_new", bytes.data(), bytes.size())) return false;
+    std::vector<unsigned char> previous;
+    if (readNativeEntityBytes(path, previous)) {
+        if (!durableNativeFile(path + "_old_new", previous.data(), previous.size()) ||
+            rename((path + "_old_new").c_str(), (path + "_old").c_str())) return false;
+    } else if (exists(path.c_str())) {
+        // Preserve unreadable input for recovery instead of overwriting it.
+        std::string corrupt = path + ".corrupt-" + std::to_string(RakNet::GetTimeMS());
+        while (exists(corrupt.c_str())) corrupt += "-1";
+        if (rename(path.c_str(), corrupt.c_str())) return false;
+        LOGE("Preserved unreadable entity snapshot: %s\n", corrupt.c_str());
+    }
+#ifdef _WIN32
+    if (exists(path.c_str()) && remove(path.c_str())) return false;
+#endif
+    if (rename((path + "_new").c_str(), path.c_str())) return false;
+    syncNativeDirectory(directory);
+    return true;
+}
+}
 
 static const int ChunkVersion_Light = 1;
 static const int ChunkVersion_Entity = 2;
@@ -207,6 +270,7 @@ int ExternalFileLevelStorage::loadNetworkPlayer(Player* player) {
     unsigned int header[3]; memcpy(header, &bytes[0], sizeof(header));
     if (header[0] != 0x31504354 || header[1] != bytes.size() - 12
         || header[2] != (unsigned int)crc32(0, &bytes[12], bytes.size() - 12)) return -1;
+    if (!NativeNbtValidation::compound(&bytes[12], bytes.size() - 12)) return -1;
     RakNet::BitStream data(&bytes[12], bytes.size() - 12, false);
     RakDataInput input(data);
     CompoundTag* tag = NbtIo::read(&input);
@@ -297,7 +361,7 @@ bool ExternalFileLevelStorage::readLevelData(const std::string& directory, Level
                 break;
 
             int left = getRemainingFileSize(file);
-            if (size > left || size <= 0)
+            if (size > left || size <= 0 || size_t(size) > MaxNativeNbtBytes)
                 break;
 
             data = new unsigned char[size];
@@ -309,10 +373,17 @@ bool ExternalFileLevelStorage::readLevelData(const std::string& directory, Level
                 levelData.v1_read(bitStream, version);
                 loaded = true;
             } else if (version >= 2) {
+                if (!NativeNbtValidation::compound(data, size_t(size))) break;
                 RakNet::BitStream bitStream(data, size, false);
                 RakDataInput stream(bitStream);
                 CompoundTag* tag = NbtIo::read(&stream);
                 if (tag) {
+                    if (tag->contains("Player") &&
+                        (!tag->contains("Player", Tag::TAG_Compound) ||
+                         !tag->getCompound("Player")->contains("Inventory", Tag::TAG_List) ||
+                         !SavedEntityTransform::valid(tag->getCompound("Player"), Level::MAX_LEVEL_SIZE))) {
+                        tag->deleteChildren(); delete tag; break;
+                    }
                     levelData.getTagData(tag);
                     tag->deleteChildren();
                     delete tag;
@@ -363,14 +434,16 @@ bool ExternalFileLevelStorage::writeLevelData(const std::string& datFileName, Le
 	}
 
 	int version = levelData.getStorageVersion(); // 1
-	fwrite(&version, sizeof(version), 1, file);
-	int size = data.GetNumberOfBytesUsed();
-	fwrite(&size, sizeof(size), 1, file);
-
-	fwrite(data.GetData(), 1, size, file);
-	fclose(file);
-
-	return true;
+    int size = data.GetNumberOfBytesUsed();
+    bool ok = fwrite(&version, sizeof(version), 1, file) == 1;
+    ok = (fwrite(&size, sizeof(size), 1, file) == 1) && ok;
+    ok = (fwrite(data.GetData(), 1, size, file) == size_t(size)) && ok;
+    if (fflush(file)) ok = false;
+#ifndef _WIN32
+    if (ok && fsync(fileno(file))) ok = false;
+#endif
+    if (fclose(file)) ok = false;
+    return ok;
 }
 
 bool ExternalFileLevelStorage::readPlayerData(const std::string& filename, LevelData& dest)
@@ -389,6 +462,7 @@ bool ExternalFileLevelStorage::readPlayerData(const std::string& filename, Level
 			break;
 
 		if (version == 1) {
+            if (size != sizeof(dest.playerData)) break;
 			if (fread(&dest.playerData, 1, sizeof(dest.playerData), fp) != size)
 				break;
 
@@ -424,21 +498,22 @@ void ExternalFileLevelStorage::tick()
 			if (!chunk || !chunk->unsaved)
 				return;
 
-			const int pos = (chunk->x << 16) ^ (chunk->z & 0xffff);
+			// Compare coordinates, not the old lossy 16-bit packed key.
 			UnsavedChunkList::iterator prev = unsavedChunkList.begin();
 			for ( ; prev != unsavedChunkList.end(); ++prev)
 			{
-				if ((*prev).pos == pos)
+				if (prev->chunk && prev->chunk->x == chunk->x && prev->chunk->z == chunk->z)
 				{
 					// the chunk has been modified again, so update its time
 					(*prev).addedToList = RakNet::GetTimeMS();
+                    prev->chunk = chunk;
 					break;
 				}
 			}
 			if (prev == unsavedChunkList.end())
 			{
 				UnsavedLevelChunk unsaved;
-				unsaved.pos = pos;
+				unsaved.pos = 0; // Kept for layout compatibility; no longer used as identity.
 				unsaved.addedToList = RakNet::GetTimeMS();
 				unsaved.chunk = chunk;
 				unsavedChunkList.push_back(unsaved);
@@ -512,6 +587,25 @@ void ExternalFileLevelStorage::tick()
 
 void ExternalFileLevelStorage::save(Level* level, LevelChunk* levelChunk)
 {
+    if (!levelChunk) return;
+    levelChunk->unsaved = true;
+    auto retainForRetry = [&]() {
+        for (auto& pending : unsavedChunkList) {
+            if (pending.chunk && pending.chunk->x == levelChunk->x && pending.chunk->z == levelChunk->z) {
+                // A cache/direct write can carry newer edits than the queued
+                // instance. Keep the latest complete in-memory copy.
+                if(pending.chunk!=levelChunk)pending.chunk->unsaved=false;
+                pending.chunk = levelChunk;
+                return;
+            }
+        }
+        UnsavedLevelChunk pending;
+        pending.pos = static_cast<int>((static_cast<unsigned int>(levelChunk->x) << 16) ^
+            (static_cast<unsigned int>(levelChunk->z) & 0xffffu));
+        pending.addedToList = RakNet::GetTimeMS();
+        pending.chunk = levelChunk;
+        unsavedChunkList.push_back(pending);
+    };
 	if (!regionFile)
 	{
 		regionFile = new RegionFile(levelPath);
@@ -519,6 +613,7 @@ void ExternalFileLevelStorage::save(Level* level, LevelChunk* levelChunk)
 		{
 			delete regionFile;
 			regionFile = NULL;
+            retainForRetry();
 			return;
 		}
 	}
@@ -533,7 +628,22 @@ void ExternalFileLevelStorage::save(Level* level, LevelChunk* levelChunk)
 
 	chunkData.Write((const char*)levelChunk->updateMap, CHUNK_COLUMNS);
 
-	regionFile->writeChunk(levelChunk->x, levelChunk->z, chunkData);
+    if (!regionFile->writeChunk(levelChunk->x, levelChunk->z, chunkData)) {
+        retainForRetry();
+        LOGE("Failed to save chunk %d,%d; keeping it dirty for retry\n", levelChunk->x, levelChunk->z);
+        return;
+    }
+    levelChunk->unsaved = false;
+    // A direct/cache save may supersede an older queued copy at these same
+    // coordinates. Drop it only after the new bytes are durably committed.
+    for (auto pending = unsavedChunkList.begin(); pending != unsavedChunkList.end();) {
+        LevelChunk* queued = pending->chunk;
+        if (queued && queued->x == levelChunk->x && queued->z == levelChunk->z) {
+            if(queued!=levelChunk)queued->unsaved=false;
+            pending = unsavedChunkList.erase(pending);
+        }
+        else ++pending;
+    }
 
 	// Write entities
 
@@ -543,6 +653,28 @@ void ExternalFileLevelStorage::save(Level* level, LevelChunk* levelChunk)
 
 LevelChunk* ExternalFileLevelStorage::load(Level* level, int x, int z)
 {
+    // A failed eviction write leaves the newest terrain in the pending queue.
+    // Re-enter from that snapshot, not older disk bytes. Copy terrain only:
+    // LevelChunk::load reattaches the live entity/storage registries separately.
+    for (auto& pending:unsavedChunkList) {
+        LevelChunk* previous=pending.chunk;
+        if(!previous||previous->x!=x||previous->z!=z)continue;
+        unsigned char* blocks=new unsigned char[CHUNK_BLOCK_COUNT];
+        memcpy(blocks,previous->getBlockData(),CHUNK_BLOCK_COUNT);
+        LevelChunk* restored=new LevelChunk(level,blocks,x,z);
+        memcpy(restored->data.data,previous->data.data,CHUNK_BLOCK_COUNT/2);
+        memcpy(restored->skyLight.data,previous->skyLight.data,CHUNK_BLOCK_COUNT/2);
+        memcpy(restored->blockLight.data,previous->blockLight.data,CHUNK_BLOCK_COUNT/2);
+        memcpy(restored->updateMap,previous->updateMap,CHUNK_COLUMNS);
+        restored->recalcHeightmapOnly();
+        restored->terrainPopulated=previous->terrainPopulated;
+        restored->createdFromSave=previous->createdFromSave;
+        restored->unsaved=true;
+        previous->unsaved=false; // The fresh complete copy now owns the pending edits.
+        pending.chunk=restored;
+        return restored;
+    }
+
 	if (!regionFile)
 	{
 		regionFile = new RegionFile(levelPath);
@@ -561,18 +693,32 @@ LevelChunk* ExternalFileLevelStorage::load(Level* level, int x, int z)
 		return NULL;
 	}
 
-	chunkData->ResetReadPointer();
-
-	unsigned char* blockIds = new unsigned char[CHUNK_BLOCK_COUNT];
-	chunkData->Read((char*)blockIds, CHUNK_BLOCK_COUNT);
-
-	LevelChunk* levelChunk = new LevelChunk(level, blockIds, x, z);
-	chunkData->Read((char*)levelChunk->data.data, CHUNK_BLOCK_COUNT / 2);
-	if (loadedStorageVersion >= ChunkVersion_Light) {
-		chunkData->Read((char*)levelChunk->skyLight.data, CHUNK_BLOCK_COUNT / 2);
-		chunkData->Read((char*)levelChunk->blockLight.data, CHUNK_BLOCK_COUNT / 2);
-	}
-	chunkData->Read((char*)levelChunk->updateMap, CHUNK_COLUMNS);
+    chunkData->ResetReadPointer();
+    const unsigned int required = CHUNK_BLOCK_COUNT + CHUNK_BLOCK_COUNT / 2 + CHUNK_COLUMNS +
+        (loadedStorageVersion >= ChunkVersion_Light ? CHUNK_BLOCK_COUNT : 0);
+    if (chunkData->GetNumberOfUnreadBits() < required * 8u) {
+        // Retain the original region before any regenerated chunk can replace
+        // this truncated save. Never construct a chunk from unread memory.
+        regionFile->markChunkCorrupt(x, z);
+        delete[] chunkData->GetData(); delete chunkData;
+        LOGE("Rejected truncated saved chunk at %d,%d\n", x, z);
+        return NULL;
+    }
+    unsigned char* blockIds = new unsigned char[CHUNK_BLOCK_COUNT];
+    bool complete = chunkData->Read((char*)blockIds, CHUNK_BLOCK_COUNT);
+    LevelChunk* levelChunk = new LevelChunk(level, blockIds, x, z);
+    complete = chunkData->Read((char*)levelChunk->data.data, CHUNK_BLOCK_COUNT / 2) && complete;
+    if (loadedStorageVersion >= ChunkVersion_Light) {
+        complete = chunkData->Read((char*)levelChunk->skyLight.data, CHUNK_BLOCK_COUNT / 2) && complete;
+        complete = chunkData->Read((char*)levelChunk->blockLight.data, CHUNK_BLOCK_COUNT / 2) && complete;
+    }
+    complete = chunkData->Read((char*)levelChunk->updateMap, CHUNK_COLUMNS) && complete;
+    if (!complete) {
+        regionFile->markChunkCorrupt(x, z);
+        delete[] chunkData->GetData(); delete chunkData;
+        delete levelChunk; delete[] blockIds;
+        return NULL;
+    }
 	// This will be difficult to maintain.. Storage version could be per chunk
 	// too (but probably better to just read all -> write all, so that all
 	// chunks got same version anyway)
@@ -680,15 +826,14 @@ void ExternalFileLevelStorage::saveEntities( Level* level, LevelChunk* levelChun
 	NbtIo::write(&base, &dos);
 	int numBytes = stream.GetNumberOfBytesUsed();
 
-	FILE* fp = fopen((levelPath + "/entities.dat").c_str(), "wb");
-	if (fp) {
-		int version = 1;
-		fwrite("ENT\0", 1, 4, fp);
-		fwrite(&version, sizeof(int), 1, fp);
-		fwrite(&numBytes, sizeof(int), 1, fp);
-		fwrite(stream.GetData(), 1, numBytes, fp);
-		fclose(fp);
-	}
+    std::vector<unsigned char> snapshot(12 + numBytes);
+    const int version = 1;
+    memcpy(snapshot.data(), "ENT\0", 4);
+    memcpy(snapshot.data() + 4, &version, 4);
+    memcpy(snapshot.data() + 8, &numBytes, 4);
+    memcpy(snapshot.data() + 12, stream.GetData(), numBytes);
+    if (!writeNativeEntityBytes(levelPath, snapshot))
+        LOGE("Failed to commit entity snapshot; previous save preserved: %s\n", levelPath.c_str());
 
 	base.deleteChildren();
 
@@ -697,110 +842,81 @@ void ExternalFileLevelStorage::saveEntities( Level* level, LevelChunk* levelChun
 }
 
 void ExternalFileLevelStorage::loadEntities(Level* level, LevelChunk* chunk) {
-	lastSavedEntitiesTick = tickCount;
-	FILE* fp = fopen((levelPath + "/entities.dat").c_str(), "rb");
-	if (fp) {
-		char header[5];
-		int version, numBytes;
-		fread(header, 1, 4, fp);
-		fread(&version, sizeof(int), 1, fp);
-		fread(&numBytes, sizeof(int), 1, fp);
-
-		int left = getRemainingFileSize(fp);
-		if (numBytes <= left && numBytes > 0) {
-			unsigned char* buf = new unsigned char[numBytes];
-
-			fread(buf, 1, numBytes, fp);
-
-			RakNet::BitStream stream(buf, numBytes, false);
-			RakDataInput dis(stream);
-
-			CompoundTag* tag = NbtIo::read(&dis);
-			//
-			// Read Entity:es
-			//
-			if (tag->contains("Entities", Tag::TAG_List)) {
-				ListTag* entityTags = tag->getList("Entities");
-				for (int i = 0; i < entityTags->size(); ++i) {
-					Tag* _et = entityTags->get(i);
-					if (!_et || _et->getId() != Tag::TAG_Compound) {
-						LOGE("Entity tag is either NULL or not a compoundTag: %p : %d!\n", _et, _et?_et->getId() : -1);
-						continue;
-					}
-					CompoundTag* et = (CompoundTag*)_et;
-					if (Entity* e = EntityFactory::loadEntity(et, level)) {
-						level->addEntity(e);
-					}
-				}
-			}
-			//
-			// Read TileEntity:s
-			//
-			if (tag->contains("TileEntities", Tag::TAG_List)) {
-				ListTag* tileEntityTags = tag->getList("TileEntities");
-				for (int i = 0; i < tileEntityTags->size(); ++i) {
-					Tag* _et = tileEntityTags->get(i);
-					if (!_et || _et->getId() != Tag::TAG_Compound) {
-						LOGE("TileEntity tag is either NULL or not a compoundTag: %p : %d!\n", _et, _et?_et->getId() : -1);
-						continue;
-					}
-					CompoundTag* et = (CompoundTag*)_et;
-					if (TileEntity* e = TileEntity::loadStatic(et)) {
-						
-						LevelChunk* chunk = level->getChunkAt(e->x, e->z);
-						if (chunk && !chunk->hasTileEntityAt(e)) {
-							LOGI("Adding TileEntity %d to %d, %d, %d\n", e->type, e->x, e->y, e->z);
-							chunk->addTileEntity(e);
-						} else {
-							if (!chunk)
-								LOGE("Couldn't find chunk at %d, %d to add %d\n", e->x, e->z, e->type);
-							else
-								LOGE("Already have TileEntity at %d, %d to add %d\n", e->x, e->z, e->type);
-							delete e;
-						}
-					}
-				}
-			}
-
-			tag->deleteChildren();
-			delete tag;
-
-			delete[] buf;
-		}
-		LOGI("header: %s, version: %d, bytes: %d (remaining: %d)\n", header, version, numBytes, left);
-
-		//fread(stream.GetData(), 1, numBytes, fp);
-		fclose(fp);
-	}
+    lastSavedEntitiesTick = tickCount;
+    CompoundTag* tag = NULL;
+    const char* names[] = { "entities.dat", "entities.dat_old", "entities.dat_new" };
+    for (const char* name : names) {
+        std::vector<unsigned char> bytes;
+        const std::string path = levelPath + "/" + name;
+        if (!readNativeEntityBytes(path, bytes)) continue;
+        RakNet::BitStream stream(bytes.data() + 12, bytes.size() - 12, false);
+        RakDataInput input(stream);
+        tag = NbtIo::read(&input);
+        if (tag) {
+            if (std::string(name) != "entities.dat") LOGE("Recovered entity snapshot from %s\n", path.c_str());
+            break;
+        }
+    }
+    if (!tag) return;
+    if (tag->contains("Entities", Tag::TAG_List)) {
+        ListTag* entityTags = tag->getList("Entities");
+        for (int i = 0; i < entityTags->size(); ++i) {
+            Tag* entry = entityTags->get(i);
+            if (!entry || entry->getId() != Tag::TAG_Compound) continue;
+            if (Entity* entity = EntityFactory::loadEntity(static_cast<CompoundTag*>(entry), level))
+                level->addEntity(entity);
+        }
+    }
+    if (tag->contains("TileEntities", Tag::TAG_List)) {
+        ListTag* tileEntityTags = tag->getList("TileEntities");
+        for (int i = 0; i < tileEntityTags->size(); ++i) {
+            Tag* entry = tileEntityTags->get(i);
+            if (!entry || entry->getId() != Tag::TAG_Compound) continue;
+            TileEntity* entity = TileEntity::loadStatic(static_cast<CompoundTag*>(entry));
+            if (!entity) continue;
+            const bool infinite = level->getLevelData()->getGeneratorVersion() == LGV_INFINITE;
+            const int low = infinite ? -Level::MAX_LEVEL_SIZE : 0;
+            const int highX = infinite ? Level::MAX_LEVEL_SIZE : LEVEL_WIDTH;
+            const int highZ = infinite ? Level::MAX_LEVEL_SIZE : LEVEL_DEPTH;
+            if (entity->x < low || entity->x >= highX || entity->z < low || entity->z >= highZ ||
+                entity->y < 0 || entity->y >= Level::DEPTH) {
+                LOGE("Ignoring out-of-world saved tile entity at %d,%d,%d\n", entity->x, entity->y, entity->z);
+                delete entity; continue;
+            }
+            LevelChunk* target = level->getChunkAt(entity->x, entity->z);
+            if (target && !target->hasTileEntityAt(entity)) target->addTileEntity(entity);
+            else delete entity;
+        }
+    }
+    tag->deleteChildren();
+    delete tag;
 }
 
 void ExternalFileLevelStorage::saveGame(Level* level) {
 	saveEntities(level, NULL);
 }
 
-int ExternalFileLevelStorage::savePendingUnsavedChunks( int maxCount ) {
-    if (maxCount < 0)
-        maxCount = unsavedChunkList.size();
+bool ExternalFileLevelStorage::hasPendingChunk(const LevelChunk* chunk) const {
+    for(const auto& pending:unsavedChunkList)if(pending.chunk==chunk)return true;
+    return false;
+}
 
-    int count = 0;
-    while (++count <= maxCount && !unsavedChunkList.empty()) {
-
-        UnsavedChunkList::iterator it = unsavedChunkList.begin();
-        UnsavedChunkList::iterator remove = unsavedChunkList.begin();
-        UnsavedLevelChunk* oldest = &(*it);
-
-        for ( ; it != unsavedChunkList.end(); ++it) {
-            if ((*it).addedToList < oldest->addedToList) {
-                oldest = &(*it);
-                remove = it;
-            }
-        }
+int ExternalFileLevelStorage::savePendingUnsavedChunks(int maxCount) {
+    if (maxCount < 0) maxCount = static_cast<int>(unsavedChunkList.size());
+    int saved = 0;
+    while (saved < maxCount && !unsavedChunkList.empty()) {
+        auto oldest = unsavedChunkList.begin();
+        for (auto candidate = unsavedChunkList.begin(); candidate != unsavedChunkList.end(); ++candidate)
+            if (candidate->addedToList < oldest->addedToList) oldest = candidate;
         LevelChunk* chunk = oldest->chunk;
-        unsavedChunkList.erase(remove);
-
+        if (!chunk) break;
+        // save() removes the queue entry only after a confirmed commit. Stop
+        // after one failure rather than spinning or discarding the sole copy.
         save(level, chunk);
+        if (chunk->unsaved) break;
+        ++saved;
     }
-    return count;
+    return saved;
 }
 
 void ExternalFileLevelStorage::saveAll( Level* level, std::vector<LevelChunk*>& levelChunks ) {

@@ -257,6 +257,7 @@ public:
 	void setSpawnSettings(bool spawnEnemies, bool spawnFriendlies);
 
 	ChunkSource* getChunkSource();
+    size_t collectRetiredChunks();
 	LevelStorage* getLevelStorage();
     LevelData* getLevelData();
 

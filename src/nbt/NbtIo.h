@@ -13,6 +13,7 @@ public:
 		Tag *tag = Tag::readNamedTag(dis);
 		if (tag && tag->getId() == Tag::TAG_Compound)
 			return (CompoundTag*) tag;
+        if (tag) { tag->deleteChildren(); delete tag; }
 		return NULL;
     }
 

@@ -1405,6 +1405,7 @@ void LevelRenderer::renderClouds( float alpha ) {
 }
 
 void LevelRenderer::playSound(const std::string& name, float x, float y, float z, float volume, float pitch) {
+    if(!mc || !level || !mc->cameraTargetPlayer || !mc->soundEngine || mc->cameraTargetPlayer->level!=level)return;
 	// @todo: deny sounds here if sound is off (rather than waiting 'til SoundEngine)
 	float dd = 16;
 
@@ -1413,11 +1414,15 @@ void LevelRenderer::playSound(const std::string& name, float x, float y, float z
         if(name=="ambient.weather.thunder") {
             mc->soundEngine->playServerSound("minecraft:entity.lightning_bolt.thunder",x,y,z,volume,pitch,
                 uint64_t(level->random.nextInt()));
+        } else if(name=="fire.fire") {
+            mc->soundEngine->playServerSound("@play|4|minecraft:block.fire.ambient",x,y,z,volume,pitch,uint64_t(level->random.nextInt()));
         } else mc->soundEngine->play(name, x, y, z, volume, pitch);
     }
 }
 
 void LevelRenderer::addParticle(const std::string& name, float x, float y, float z, float xa, float ya, float za, int data) {
+    if(!mc || !level || !mc->cameraTargetPlayer || !mc->particleEngine || mc->cameraTargetPlayer->level!=level)return;
+    if(!std::isfinite(x)||!std::isfinite(y)||!std::isfinite(z)||!std::isfinite(xa)||!std::isfinite(ya)||!std::isfinite(za))return;
 
 	float xd = mc->cameraTargetPlayer->x - x;
     float yd = mc->cameraTargetPlayer->y - y;
@@ -1451,7 +1456,7 @@ void LevelRenderer::addParticle(const std::string& name, float x, float y, float
     //else if (name == "splash") mc->particleEngine->add(new SplashParticle(level, x, y, z, xa, ya, za));
 	else if (name == "largesmoke") mc->particleEngine->add(new SmokeParticle(level, x, y, z, xa, ya, za, 2.5f));
     else if (name == "reddust") mc->particleEngine->add(new RedDustParticle(level, x, y, z, xa, ya, za));
-	else if (name == "iconcrack") mc->particleEngine->add(new BreakingItemParticle(level, x, y, z, xa, ya, za, Item::items[data]));
+	else if (name == "iconcrack" && data>0 && data<Item::MAX_ITEMS && Item::items[data]) mc->particleEngine->add(new BreakingItemParticle(level, x, y, z, xa, ya, za, Item::items[data]));
 	else if (name == "snowballpoof") mc->particleEngine->add(new BreakingItemParticle(level, x, y, z, Item::snowBall));
     //else if (name == "snowballpoof") mc->particleEngine->add(new BreakingItemParticle(level, x, y, z, Item::snowBall));
     //else if (name == "slime") mc->particleEngine->add(new BreakingItemParticle(level, x, y, z, Item::slimeBall));

@@ -32,7 +32,7 @@ public:
 	}
 
 	bool operator<(const ChunkPos& rhs) const {
-		return hashCode() < rhs.hashCode();
+		return x < rhs.x || (x == rhs.x && z < rhs.z);
 	}
 
     float distanceToSqr(const Entity* e) const {
